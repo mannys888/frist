@@ -1,0 +1,28 @@
+{
+    "urls": [
+        {
+            "url": "http://www.饭太硬.com/tv",
+            "name": "🏡饭太硬线路"
+        },
+        {
+            "url": "https://gitee.com/zybal/tv/raw/master/单接口.json",
+            "name": "🏡ZYB家庭专用"
+        },
+        {
+            "url": "https://gitee.com/zybal/tv/raw/master/教育接口.json",
+            "name": "🏡ZYB教育专线"
+        },
+        {
+            "url": "http://meowtv.cn/tv",
+            "name": "喵影视线路"
+        },
+        {
+            "url": "http://ok321.top/ok",
+            "name": "🏡OK线路"
+        },
+        {
+            "url": "https://xn--tkh-mf3g9f.v.nxog.top/m/111.php?ou=%E5%85%AC%E4%BC%97%E5%8F%B7%E6%AC%A7%E6%AD%8Capp&mz=index&jar=index&123&b=%E6%AC%A7%E6%AD%8Ctkh?&59R",
+            "name": "讴歌线路"
+        }
+    ]
+}
