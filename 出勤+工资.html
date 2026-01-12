@@ -1,0 +1,2657 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>员工月工资管理系统 - 每日工资设置</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
+        }
+        
+        body {
+            background-color: #f5f7fa;
+            color: #333;
+            line-height: 1.6;
+            padding: 20px;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding: 20px;
+            background: linear-gradient(135deg, #4b6cb7 0%, #182848 100%);
+            color: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+        
+        h1 {
+            font-size: 2.2rem;
+            margin-bottom: 10px;
+        }
+        
+        h2 {
+            color: #2c3e50;
+            margin: 20px 0 15px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid #4b6cb7;
+        }
+        
+        h3 {
+            color: #34495e;
+            margin: 15px 0 10px;
+        }
+        
+        .container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 25px;
+        }
+        
+        @media (max-width: 1000px) {
+            .container {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        .card {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.08);
+            margin-bottom: 20px;
+        }
+        
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #444;
+        }
+        
+        input, select, textarea {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 1rem;
+            transition: border 0.3s;
+        }
+        
+        input:focus, select:focus, textarea:focus {
+            border-color: #4b6cb7;
+            outline: none;
+        }
+        
+        .btn {
+            padding: 12px 20px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+        
+        .btn-primary {
+            background: #4b6cb7;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: #3a5699;
+            transform: translateY(-2px);
+        }
+        
+        .btn-danger {
+            background: #e74c3c;
+            color: white;
+        }
+        
+        .btn-danger:hover {
+            background: #c0392b;
+        }
+        
+        .btn-success {
+            background: #2ecc71;
+            color: white;
+        }
+        
+        .btn-success:hover {
+            background: #27ae60;
+        }
+        
+        .btn-warning {
+            background: #f39c12;
+            color: white;
+        }
+        
+        .btn-warning:hover {
+            background: #e67e22;
+        }
+        
+        .btn-sm {
+            padding: 6px 12px;
+            font-size: 0.85rem;
+        }
+        
+        .actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+            flex-wrap: wrap;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+            font-size: 0.9rem;
+        }
+        
+        th {
+            background-color: #f8f9fa;
+            padding: 12px 8px;
+            text-align: left;
+            font-weight: 600;
+            color: #2c3e50;
+            border-bottom: 2px solid #eaeaea;
+            white-space: nowrap;
+        }
+        
+        td {
+            padding: 10px 8px;
+            border-bottom: 1px solid #eaeaea;
+        }
+        
+        tr:hover {
+            background-color: #f9f9f9;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: #7f8c8d;
+        }
+        
+        footer {
+            text-align: center;
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+            color: #7f8c8d;
+            font-size: 0.9rem;
+        }
+        
+        .current-date {
+            font-size: 1.1rem;
+            margin-top: 5px;
+            color: rgba(255, 255, 255, 0.9);
+        }
+        
+        .date-header {
+            background-color: #f1f5f9;
+            padding: 10px 15px;
+            font-weight: bold;
+            color: #2c3e50;
+            border-radius: 6px;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+        }
+        
+        .date-total {
+            color: #4b6cb7;
+        }
+        
+        .employee-row {
+            border-left: 4px solid #3498db;
+        }
+        
+        .salary-input {
+            width: 90px;
+            padding: 6px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            text-align: right;
+        }
+        
+        .salary-input:focus {
+            border-color: #4b6cb7;
+            outline: none;
+        }
+        
+        .daily-salary-input {
+            width: 100px;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            text-align: right;
+        }
+        
+        .daily-salary-input:focus {
+            border-color: #4b6cb7;
+            outline: none;
+        }
+        
+        .salary-paid {
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+        
+        .type-paid {
+            background-color: rgba(46, 204, 113, 0.1);
+            color: #27ae60;
+        }
+        
+        .employee-summary {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 12px;
+            margin-top: 15px;
+        }
+        
+        .employee-item {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 6px;
+            border-left: 4px solid #4b6cb7;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .employee-item:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+        
+        .employee-name {
+            font-weight: bold;
+            margin-bottom: 5px;
+            color: #2c3e50;
+        }
+        
+        .employee-salary {
+            font-weight: bold;
+            color: #e74c3c;
+            font-size: 1.2rem;
+        }
+        
+        .employee-workdays {
+            font-size: 0.85rem;
+            color: #7f8c8d;
+            margin-top: 5px;
+        }
+        
+        .record-actions {
+            display: flex;
+            gap: 5px;
+        }
+        
+        .stats {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin-bottom: 25px;
+        }
+        
+        .stat-box {
+            flex: 1;
+            min-width: 150px;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            color: white;
+            font-weight: bold;
+        }
+        
+        .total-salary {
+            background: linear-gradient(135deg, #3498db, #2980b9);
+        }
+        
+        .avg-salary {
+            background: linear-gradient(135deg, #2ecc71, #27ae60);
+        }
+        
+        .employee-count {
+            background: linear-gradient(135deg, #9b59b6, #8e44ad);
+        }
+        
+        .workday-count {
+            background: linear-gradient(135deg, #f39c12, #e67e22);
+        }
+        
+        .stat-box h3 {
+            font-size: 1.1rem;
+            margin-bottom: 8px;
+            color: white;
+        }
+        
+        .stat-box .amount {
+            font-size: 1.8rem;
+        }
+        
+        .date-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        
+        .date-item {
+            background: #f8f9fa;
+            padding: 10px 15px;
+            border-radius: 6px;
+            border: 1px solid #eaeaea;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .date-item button {
+            background: none;
+            border: none;
+            color: #e74c3c;
+            cursor: pointer;
+            font-size: 1.2rem;
+            padding: 0;
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .date-item button:hover {
+            color: #c0392b;
+        }
+        
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 15px 20px;
+            border-radius: 8px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.15);
+            animation: slideIn 0.3s ease-out;
+            display: flex;
+            flex-direction: column;
+            border-left: 5px solid #4b6cb7;
+            background: white;
+            max-width: 400px;
+            z-index: 1000;
+        }
+        
+        .notification.success {
+            border-left-color: #2ecc71;
+        }
+        
+        .notification.error {
+            border-left-color: #e74c3c;
+        }
+        
+        .notification.warning {
+            border-left-color: #f39c12;
+        }
+        
+        .notification-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        
+        .notification-title {
+            font-weight: bold;
+            font-size: 1.1rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .notification-close {
+            background: none;
+            border: none;
+            font-size: 1.2rem;
+            cursor: pointer;
+            color: #7f8c8d;
+        }
+        
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+        
+        .tab-container {
+            display: flex;
+            border-bottom: 1px solid #ddd;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        
+        .tab {
+            padding: 10px 20px;
+            cursor: pointer;
+            border-bottom: 3px solid transparent;
+            white-space: nowrap;
+        }
+        
+        .tab.active {
+            border-bottom: 3px solid #4b6cb7;
+            font-weight: bold;
+            color: #4b6cb7;
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        .salary-table-container {
+            overflow-x: auto;
+            margin-top: 20px;
+        }
+        
+        .salary-table {
+            min-width: 1000px;
+        }
+        
+        .employee-selector {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        
+        .employee-checkbox {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        .employee-checkbox input {
+            width: auto;
+        }
+        
+        .date-picker-group {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        
+        .date-picker-group input {
+            flex: 1;
+        }
+        
+        .salary-summary-table th, .salary-summary-table td {
+            text-align: center;
+        }
+        
+        .salary-summary-table .total-column {
+            background-color: #f1f8ff;
+            font-weight: bold;
+        }
+        
+        /* 新增样式：每日工资设置 */
+        .daily-salary-container {
+            margin-top: 20px;
+        }
+        
+        .month-selector {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            align-items: center;
+        }
+        
+        .month-selector select, .month-selector input {
+            width: auto;
+        }
+        
+        .daily-salary-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 10px;
+        }
+        
+        .day-cell {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            border: 1px solid #eaeaea;
+        }
+        
+        .day-cell.weekend {
+            background-color: #fef2f2;
+        }
+        
+        .day-cell.today {
+            background-color: #e8f4fd;
+            border-color: #4b6cb7;
+        }
+        
+        .day-number {
+            font-weight: bold;
+            margin-bottom: 5px;
+            color: #2c3e50;
+        }
+        
+        .day-salary-input {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            text-align: center;
+        }
+        
+        .day-name {
+            font-size: 0.8rem;
+            color: #7f8c8d;
+            margin-bottom: 5px;
+        }
+        
+        .batch-settings {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        
+        .batch-setting-group {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        
+        .batch-setting-group label {
+            width: 120px;
+            margin-bottom: 0;
+        }
+        
+        .batch-setting-group input {
+            flex: 1;
+        }
+        
+        .weekday-label {
+            display: inline-block;
+            width: 60px;
+            text-align: center;
+            padding: 5px;
+            background: #eaeaea;
+            border-radius: 4px;
+            font-size: 0.9rem;
+        }
+        
+        .preset-salary-buttons {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-top: 15px;
+        }
+        
+        .preset-salary-btn {
+            padding: 8px 12px;
+            background: #e8f4fd;
+            border: 1px solid #4b6cb7;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9rem;
+        }
+        
+        .preset-salary-btn:hover {
+            background: #d4e7fa;
+        }
+        
+        /* 日历视图样式 */
+        .calendar-view {
+            margin-top: 20px;
+        }
+        
+        .calendar-header {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 5px;
+            margin-bottom: 10px;
+            text-align: center;
+            font-weight: bold;
+        }
+        
+        .calendar-day-header {
+            padding: 10px;
+            background: #f1f5f9;
+            border-radius: 4px;
+        }
+        
+        .calendar-body {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 5px;
+        }
+        
+        .calendar-day {
+            min-height: 100px;
+            padding: 10px;
+            background: white;
+            border: 1px solid #eaeaea;
+            border-radius: 4px;
+            position: relative;
+        }
+        
+        .calendar-day.weekend {
+            background: #fef2f2;
+        }
+        
+        .calendar-day.today {
+            border-color: #4b6cb7;
+            background: #e8f4fd;
+        }
+        
+        .calendar-day-number {
+            font-weight: bold;
+            margin-bottom: 5px;
+            color: #2c3e50;
+        }
+        
+        .calendar-day-salary {
+            font-size: 0.9rem;
+            color: #27ae60;
+            margin-bottom: 5px;
+        }
+        
+        .calendar-day-employees {
+            font-size: 0.8rem;
+            color: #7f8c8d;
+        }
+        
+        .calendar-day-empty {
+            background: #f9f9f9;
+            border: 1px dashed #ddd;
+        }
+        
+        /* 员工出勤标记 */
+        .attendance-marker {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-right: 2px;
+            background-color: #2ecc71;
+        }
+        
+        .attendance-marker.absent {
+            background-color: #e74c3c;
+        }
+        
+        /* 工资分析图表 */
+        .salary-chart-container {
+            height: 300px;
+            background: #f9f9f9;
+            border-radius: 8px;
+            margin-top: 20px;
+            padding: 20px;
+            display: flex;
+            align-items: flex-end;
+            justify-content: space-around;
+        }
+        
+        .salary-bar {
+            width: 40px;
+            background: linear-gradient(to top, #4b6cb7, #3498db);
+            border-radius: 4px 4px 0 0;
+            position: relative;
+            text-align: center;
+        }
+        
+        .salary-bar-label {
+            position: absolute;
+            bottom: -25px;
+            left: 0;
+            right: 0;
+            font-size: 0.8rem;
+            color: #7f8c8d;
+        }
+        
+        .salary-bar-value {
+            position: absolute;
+            top: -25px;
+            left: 0;
+            right: 0;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>📅 员工月工资管理系统</h1>
+        <div class="current-date" id="currentDate">正在加载日期...</div>
+    </header>
+    
+    <div class="tab-container">
+        <div class="tab active" id="tabDailySalary">💰 每日工资设置</div>
+        <div class="tab" id="tabAttendance">📝 员工出勤记录</div>
+        <div class="tab" id="tabSummary">📊 工资汇总</div>
+        <div class="tab" id="tabCalendar">📅 日历视图</div>
+        <div class="tab" id="tabManage">⚙️ 系统管理</div>
+    </div>
+    
+    <!-- 每日工资设置页面 -->
+    <div class="tab-content active" id="tabDailySalaryContent">
+        <div class="container">
+            <div class="left-column">
+                <div class="card">
+                    <h2>📅 选择月份</h2>
+                    <div class="month-selector">
+                        <select id="monthSelect">
+                            <!-- 月份选项将通过JavaScript动态生成 -->
+                        </select>
+                        <select id="yearSelect">
+                            <!-- 年份选项将通过JavaScript动态生成 -->
+                        </select>
+                        <button class="btn btn-primary" id="applyMonth">应用</button>
+                        <button class="btn" id="currentMonth">本月</button>
+                    </div>
+                    
+                    <div class="batch-settings">
+                        <h3>批量设置工资</h3>
+                        <div class="batch-setting-group">
+                            <label>工作日工资：</label>
+                            <input type="number" id="weekdaySalary" min="0" step="1" placeholder="如：160">
+                        </div>
+                        <div class="batch-setting-group">
+                            <label>周末工资：</label>
+                            <input type="number" id="weekendSalary" min="0" step="1" placeholder="如：200">
+                        </div>
+                        <div class="batch-setting-group">
+                            <label>法定节假日：</label>
+                            <input type="number" id="holidaySalary" min="0" step="1" placeholder="如：300">
+                        </div>
+                        <div class="actions">
+                            <button class="btn btn-primary" id="applyBatchSettings">应用批量设置</button>
+                        </div>
+                        
+                        <div class="preset-salary-buttons">
+                            <button class="preset-salary-btn" data-salary="150">150元/天</button>
+                            <button class="preset-salary-btn" data-salary="160">160元/天</button>
+                            <button class="preset-salary-btn" data-salary="180">180元/天</button>
+                            <button class="preset-salary-btn" data-salary="200">200元/天</button>
+                            <button class="preset-salary-btn" data-salary="250">250元/天</button>
+                        </div>
+                    </div>
+                    
+                    <div class="daily-salary-container">
+                        <h3 id="currentMonthTitle">2023年10月 每日工资设置</h3>
+                        <div class="daily-salary-grid" id="dailySalaryGrid">
+                            <!-- 每日工资设置网格将通过JavaScript动态生成 -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="right-column">
+                <div class="card">
+                    <h2>📋 员工每日工资预览</h2>
+                    <div class="salary-table-container">
+                        <table class="salary-table" id="dailySalaryPreviewTable">
+                            <!-- 每日工资预览表格将通过JavaScript动态生成 -->
+                        </table>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <h2>📈 本月工资分析</h2>
+                    <div id="monthSalaryStats">
+                        <div class="stats">
+                            <div class="stat-box total-salary">
+                                <h3>本月总工资</h3>
+                                <div class="amount" id="monthTotalSalary">0</div>
+                            </div>
+                            <div class="stat-box avg-salary">
+                                <h3>平均日工资</h3>
+                                <div class="amount" id="avgDailySalary">0</div>
+                            </div>
+                            <div class="stat-box workday-count">
+                                <h3>工作日数</h3>
+                                <div class="amount" id="workdayCount">0</div>
+                            </div>
+                            <div class="stat-box employee-count">
+                                <h3>员工数量</h3>
+                                <div class="amount" id="employeeCount">10</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="salary-chart-container" id="salaryChartContainer">
+                        <!-- 工资图表将通过JavaScript动态生成 -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 员工出勤记录页面 -->
+    <div class="tab-content" id="tabAttendanceContent">
+        <div class="container">
+            <div class="left-column">
+                <div class="card">
+                    <h2>👥 员工出勤记录</h2>
+                    <div class="form-group">
+                        <label>选择日期</label>
+                        <input type="date" id="attendanceDate" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>选择员工（可选，不选则为所有员工）</label>
+                        <div class="employee-selector" id="attendanceEmployeeSelector">
+                            <!-- 员工选择器将通过JavaScript动态生成 -->
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>批量设置出勤</label>
+                        <select id="batchAttendance">
+                            <option value="present">全部出勤</option>
+                            <option value="absent">全部缺勤</option>
+                            <option value="custom">自定义</option>
+                        </select>
+                    </div>
+                    
+                    <div class="actions">
+                        <button class="btn btn-primary" id="saveAttendance">
+                            💾 保存出勤记录
+                        </button>
+                        <button class="btn btn-warning" id="clearAttendance">
+                            🧹 清除今日记录
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <h2>📋 员工列表</h2>
+                    <div class="employee-summary" id="attendanceEmployeeSummary">
+                        <!-- 员工出勤摘要将通过JavaScript动态生成 -->
+                    </div>
+                </div>
+            </div>
+            
+            <div class="right-column">
+                <div class="card">
+                    <h2>📅 本月出勤日历</h2>
+                    <div id="attendanceCalendar">
+                        <!-- 出勤日历将通过JavaScript动态生成 -->
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <h2>📊 出勤统计</h2>
+                    <div class="salary-table-container">
+                        <table class="salary-table">
+                            <thead>
+                                <tr>
+                                    <th>员工</th>
+                                    <th>出勤天数</th>
+                                    <th>缺勤天数</th>
+                                    <th>出勤率</th>
+                                </tr>
+                            </thead>
+                            <tbody id="attendanceStatsTable">
+                                <!-- 出勤统计表格将通过JavaScript动态生成 -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 工资汇总页面 -->
+    <div class="tab-content" id="tabSummaryContent">
+        <div class="container">
+            <div class="left-column">
+                <div class="card">
+                    <h2>📊 员工工资汇总</h2>
+                    <div class="salary-table-container">
+                        <table class="salary-summary-table">
+                            <thead>
+                                <tr>
+                                    <th>员工</th>
+                                    <th>出勤天数</th>
+                                    <th>总工资</th>
+                                    <th>平均日工资</th>
+                                </tr>
+                            </thead>
+                            <tbody id="employeeSalarySummaryTable">
+                                <!-- 员工工资汇总表格将通过JavaScript动态生成 -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <h2>📅 每日工资汇总</h2>
+                    <div class="salary-table-container">
+                        <table class="salary-summary-table">
+                            <thead>
+                                <tr>
+                                    <th>日期</th>
+                                    <th>出勤员工数</th>
+                                    <th>当日总工资</th>
+                                    <th>平均工资</th>
+                                </tr>
+                            </thead>
+                            <tbody id="dailySalarySummaryTable">
+                                <!-- 每日工资汇总表格将通过JavaScript动态生成 -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="right-column">
+                <div class="card">
+                    <h2>💰 详细工资表格</h2>
+                    <div class="salary-table-container">
+                        <table class="salary-table" id="detailedSalaryTable">
+                            <!-- 详细工资表格将通过JavaScript动态生成 -->
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 日历视图页面 -->
+    <div class="tab-content" id="tabCalendarContent">
+        <div class="container">
+            <div class="left-column">
+                <div class="card">
+                    <h2>📅 工资日历视图</h2>
+                    <div class="month-selector">
+                        <select id="calendarMonthSelect">
+                            <!-- 月份选项将通过JavaScript动态生成 -->
+                        </select>
+                        <select id="calendarYearSelect">
+                            <!-- 年份选项将通过JavaScript动态生成 -->
+                        </select>
+                        <button class="btn btn-primary" id="applyCalendarMonth">应用</button>
+                    </div>
+                    
+                    <div class="calendar-view" id="calendarView">
+                        <!-- 日历视图将通过JavaScript动态生成 -->
+                    </div>
+                </div>
+            </div>
+            
+            <div class="right-column">
+                <div class="card">
+                    <h2>📈 工资趋势图</h2>
+                    <div class="salary-chart-container" id="salaryTrendChart">
+                        <!-- 工资趋势图将通过JavaScript动态生成 -->
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <h2>📋 本月关键数据</h2>
+                    <div class="stats">
+                        <div class="stat-box total-salary">
+                            <h3>本月总支出</h3>
+                            <div class="amount" id="calendarTotalSalary">0</div>
+                        </div>
+                        <div class="stat-box avg-salary">
+                            <h3>人均工资</h3>
+                            <div class="amount" id="calendarAvgSalary">0</div>
+                        </div>
+                        <div class="stat-box workday-count">
+                            <h3>总出勤天数</h3>
+                            <div class="amount" id="calendarAttendanceDays">0</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 系统管理页面 -->
+    <div class="tab-content" id="tabManageContent">
+        <div class="container">
+            <div class="left-column">
+                <div class="card">
+                    <h2>💾 数据管理</h2>
+                    <div class="actions">
+                        <button class="btn btn-success" id="saveDataBtn">
+                            💾 保存所有数据
+                        </button>
+                        <button class="btn btn-primary" id="loadDataBtn">
+                            📂 加载数据
+                        </button>
+                        <button class="btn btn-success" id="exportDataBtn">
+                            📥 导出数据为CSV
+                        </button>
+                        <button class="btn btn-warning" id="importDataBtn">
+                            📤 导入CSV数据
+                        </button>
+                    </div>
+                    
+                    <div style="margin-top: 20px;">
+                        <h3>系统信息</h3>
+                        <p><strong>记录月份：</strong> <span id="currentMonthData">2023年10月</span></p>
+                        <p><strong>员工数量：</strong> <span id="systemEmployeeCount">10</span> 人</p>
+                        <p><strong>数据大小：</strong> <span id="dataSize">0 KB</span></p>
+                        <p><strong>最后保存：</strong> <span id="lastSave">暂无</span></p>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <h2>🔄 重置选项</h2>
+                    <div class="actions">
+                        <button class="btn btn-warning" id="resetCurrentMonth">
+                            🔄 重置本月数据
+                        </button>
+                        <button class="btn btn-danger" id="resetAllData">
+                            🗑️ 清除所有数据
+                        </button>
+                    </div>
+                    <p style="margin-top: 10px; color: #7f8c8d; font-size: 0.9rem;">
+                        注意：清除操作不可恢复，请谨慎操作！
+                    </p>
+                </div>
+            </div>
+            
+            <div class="right-column">
+                <div class="card">
+                    <h2>👥 员工管理</h2>
+                    <div id="employeeManagementList">
+                        <!-- 员工管理列表将通过JavaScript动态生成 -->
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <h2>⚙️ 系统设置</h2>
+                    <div class="form-group">
+                        <label>默认工作日工资</label>
+                        <input type="number" id="defaultWeekdaySalary" min="0" step="1" value="160">
+                    </div>
+                    <div class="form-group">
+                        <label>默认周末工资</label>
+                        <input type="number" id="defaultWeekendSalary" min="0" step="1" value="200">
+                    </div>
+                    <div class="form-group">
+                        <label>默认节假日工资</label>
+                        <input type="number" id="defaultHolidaySalary" min="0" step="1" value="300">
+                    </div>
+                    <div class="actions">
+                        <button class="btn btn-primary" id="saveSettings">保存设置</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <footer>
+        <p>员工月工资管理系统 &copy; 2023 | 可设置整个月每天不同的工资标准，记录员工出勤，自动计算总工资</p>
+    </footer>
+    
+    <!-- 文件导入输入框（隐藏） -->
+    <input type="file" id="importFileInput" accept=".csv" style="display: none;">
+    
+    <script>
+        // 初始化变量
+        let dailySalaries = {}; // 每日工资设置 {日期: 工资}
+        let attendanceRecords = {}; // 出勤记录 {日期: {员工: true/false}}
+        let employees = []; // 员工列表
+        let currentMonth = new Date().getMonth(); // 当前月份（0-11）
+        let currentYear = new Date().getFullYear(); // 当前年份
+        
+        // 默认员工列表（10个员工）
+        const defaultEmployees = [
+            "张三", "李四", "王五", "赵六", 
+            "刘七", "陈八", "杨九", "吴十",
+            "钱十一", "孙十二"
+        ];
+        
+        // 法定节假日（示例，可扩展）
+        const holidays = [
+            "2023-10-01", "2023-10-02", "2023-10-03", // 国庆节
+            "2023-10-04", "2023-10-05", "2023-10-06"
+        ];
+        
+        // 页面加载完成后初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            // 设置当前日期
+            const currentDateElement = document.getElementById('currentDate');
+            const today = new Date();
+            const formattedDate = today.toLocaleDateString('zh-CN', { 
+                year: 'numeric', 
+                month: 'long', 
+                day: 'numeric',
+                weekday: 'long'
+            });
+            currentDateElement.textContent = formattedDate;
+            
+            // 初始化员工列表
+            initEmployees();
+            
+            // 初始化月份和年份选择器
+            initMonthYearSelectors();
+            
+            // 从本地存储加载数据
+            loadData();
+            
+            // 设置事件监听器
+            setupEventListeners();
+            
+            // 初始化员工选择器
+            initEmployeeSelectors();
+            
+            // 更新每日工资设置界面
+            updateDailySalaryGrid();
+            
+            // 更新出勤日历
+            updateAttendanceCalendar();
+            
+            // 设置标签页切换
+            setupTabs();
+            
+            // 更新系统信息
+            updateSystemInfo();
+        });
+        
+        // 设置标签页切换
+        function setupTabs() {
+            const tabs = document.querySelectorAll('.tab');
+            const tabContents = document.querySelectorAll('.tab-content');
+            
+            tabs.forEach(tab => {
+                tab.addEventListener('click', function() {
+                    const tabId = this.id.replace('tab', '');
+                    
+                    // 移除所有active类
+                    tabs.forEach(t => t.classList.remove('active'));
+                    tabContents.forEach(tc => tc.classList.remove('active'));
+                    
+                    // 添加active类到当前标签
+                    this.classList.add('active');
+                    document.getElementById(`tab${tabId}Content`).classList.add('active');
+                    
+                    // 根据标签页更新内容
+                    if (tabId === 'DailySalary') {
+                        updateDailySalaryGrid();
+                        updateDailySalaryPreview();
+                        updateMonthSalaryStats();
+                    } else if (tabId === 'Attendance') {
+                        updateAttendanceEmployeeSummary();
+                        updateAttendanceStats();
+                        updateAttendanceCalendar();
+                    } else if (tabId === 'Summary') {
+                        updateSalarySummaryTables();
+                    } else if (tabId === 'Calendar') {
+                        updateCalendarView();
+                        updateCalendarStats();
+                    } else if (tabId === 'Manage') {
+                        updateEmployeeManagementList();
+                        updateSystemInfo();
+                    }
+                });
+            });
+        }
+        
+        // 初始化员工列表
+        function initEmployees() {
+            // 从本地存储加载员工列表，如果没有则使用默认员工
+            const savedEmployees = localStorage.getItem('employeeList');
+            if (savedEmployees) {
+                employees = JSON.parse(savedEmployees);
+            } else {
+                employees = defaultEmployees.map(name => ({
+                    name: name,
+                    active: true,
+                    color: getRandomColor()
+                }));
+                saveEmployees();
+            }
+        }
+        
+        // 保存员工列表到本地存储
+        function saveEmployees() {
+            localStorage.setItem('employeeList', JSON.stringify(employees));
+        }
+        
+        // 初始化月份和年份选择器
+        function initMonthYearSelectors() {
+            const monthSelect = document.getElementById('monthSelect');
+            const yearSelect = document.getElementById('yearSelect');
+            const calendarMonthSelect = document.getElementById('calendarMonthSelect');
+            const calendarYearSelect = document.getElementById('calendarYearSelect');
+            
+            // 清空现有选项
+            monthSelect.innerHTML = '';
+            calendarMonthSelect.innerHTML = '';
+            yearSelect.innerHTML = '';
+            calendarYearSelect.innerHTML = '';
+            
+            // 添加月份选项
+            const months = [
+                '1月', '2月', '3月', '4月', '5月', '6月',
+                '7月', '8月', '9月', '10月', '11月', '12月'
+            ];
+            
+            months.forEach((month, index) => {
+                const option = document.createElement('option');
+                option.value = index;
+                option.textContent = month;
+                if (index === currentMonth) option.selected = true;
+                monthSelect.appendChild(option.cloneNode(true));
+                calendarMonthSelect.appendChild(option.cloneNode(true));
+            });
+            
+            // 添加年份选项（当前年份前后5年）
+            const currentYear = new Date().getFullYear();
+            for (let year = currentYear - 5; year <= currentYear + 5; year++) {
+                const option = document.createElement('option');
+                option.value = year;
+                option.textContent = year + '年';
+                if (year === currentYear) option.selected = true;
+                yearSelect.appendChild(option.cloneNode(true));
+                calendarYearSelect.appendChild(option.cloneNode(true));
+            }
+        }
+        
+        // 初始化员工选择器
+        function initEmployeeSelectors() {
+            const attendanceEmployeeSelector = document.getElementById('attendanceEmployeeSelector');
+            attendanceEmployeeSelector.innerHTML = '';
+            
+            employees.forEach((employee, index) => {
+                const checkbox = document.createElement('div');
+                checkbox.className = 'employee-checkbox';
+                checkbox.innerHTML = `
+                    <input type="checkbox" id="attendanceEmployee${index}" checked>
+                    <label for="attendanceEmployee${index}">${employee.name}</label>
+                `;
+                attendanceEmployeeSelector.appendChild(checkbox);
+            });
+            
+            // 设置出勤日期为今天
+            document.getElementById('attendanceDate').valueAsDate = new Date();
+        }
+        
+        // 设置事件监听器
+        function setupEventListeners() {
+            // 月份应用按钮
+            document.getElementById('applyMonth').addEventListener('click', function() {
+                const monthSelect = document.getElementById('monthSelect');
+                const yearSelect = document.getElementById('yearSelect');
+                currentMonth = parseInt(monthSelect.value);
+                currentYear = parseInt(yearSelect.value);
+                updateDailySalaryGrid();
+                updateDailySalaryPreview();
+                updateMonthSalaryStats();
+                showNotification('success', '月份已切换', `已切换到${currentYear}年${currentMonth + 1}月`);
+            });
+            
+            // 本月按钮
+            document.getElementById('currentMonth').addEventListener('click', function() {
+                const today = new Date();
+                currentMonth = today.getMonth();
+                currentYear = today.getFullYear();
+                
+                document.getElementById('monthSelect').value = currentMonth;
+                document.getElementById('yearSelect').value = currentYear;
+                
+                updateDailySalaryGrid();
+                updateDailySalaryPreview();
+                updateMonthSalaryStats();
+                showNotification('success', '返回本月', `已切换到${currentYear}年${currentMonth + 1}月`);
+            });
+            
+            // 应用批量设置按钮
+            document.getElementById('applyBatchSettings').addEventListener('click', applyBatchSalarySettings);
+            
+            // 预设工资按钮
+            document.querySelectorAll('.preset-salary-btn').forEach(button => {
+                button.addEventListener('click', function() {
+                    const salary = parseInt(this.getAttribute('data-salary'));
+                    document.getElementById('weekdaySalary').value = salary;
+                    document.getElementById('weekendSalary').value = Math.round(salary * 1.5);
+                    document.getElementById('holidaySalary').value = Math.round(salary * 2);
+                    
+                    showNotification('info', '预设已加载', `工作日: ${salary}元, 周末: ${Math.round(salary * 1.5)}元, 节假日: ${Math.round(salary * 2)}元`);
+                });
+            });
+            
+            // 保存出勤记录按钮
+            document.getElementById('saveAttendance').addEventListener('click', saveAttendance);
+            
+            // 清除今日记录按钮
+            document.getElementById('clearAttendance').addEventListener('click', clearTodayAttendance);
+            
+            // 保存数据按钮
+            document.getElementById('saveDataBtn').addEventListener('click', saveAllData);
+            
+            // 加载数据按钮
+            document.getElementById('loadDataBtn').addEventListener('click', loadData);
+            
+            // 导出数据按钮
+            document.getElementById('exportDataBtn').addEventListener('click', exportData);
+            
+            // 导入数据按钮
+            document.getElementById('importDataBtn').addEventListener('click', function() {
+                document.getElementById('importFileInput').click();
+            });
+            
+            // 文件导入事件
+            document.getElementById('importFileInput').addEventListener('change', importData);
+            
+            // 重置本月数据按钮
+            document.getElementById('resetCurrentMonth').addEventListener('click', resetCurrentMonthData);
+            
+            // 重置所有数据按钮
+            document.getElementById('resetAllData').addEventListener('click', resetAllData);
+            
+            // 保存设置按钮
+            document.getElementById('saveSettings').addEventListener('click', saveSystemSettings);
+            
+            // 日历月份应用按钮
+            document.getElementById('applyCalendarMonth').addEventListener('click', function() {
+                const monthSelect = document.getElementById('calendarMonthSelect');
+                const yearSelect = document.getElementById('calendarYearSelect');
+                currentMonth = parseInt(monthSelect.value);
+                currentYear = parseInt(yearSelect.value);
+                updateCalendarView();
+                updateCalendarStats();
+            });
+            
+            // 批量出勤设置
+            document.getElementById('batchAttendance').addEventListener('change', function() {
+                const value = this.value;
+                if (value === 'present' || value === 'absent') {
+                    const checkboxes = document.querySelectorAll('#attendanceEmployeeSelector input[type="checkbox"]');
+                    checkboxes.forEach(checkbox => {
+                        checkbox.checked = (value === 'present');
+                    });
+                }
+            });
+        }
+        
+        // 获取指定月份的天数
+        function getDaysInMonth(year, month) {
+            return new Date(year, month + 1, 0).getDate();
+        }
+        
+        // 获取指定日期的星期几（0=周日, 1=周一, ..., 6=周六）
+        function getDayOfWeek(year, month, day) {
+            return new Date(year, month, day).getDay();
+        }
+        
+        // 检查是否为周末
+        function isWeekend(year, month, day) {
+            const dayOfWeek = getDayOfWeek(year, month, day);
+            return dayOfWeek === 0 || dayOfWeek === 6; // 周日或周六
+        }
+        
+        // 检查是否为节假日
+        function isHoliday(dateString) {
+            return holidays.includes(dateString);
+        }
+        
+        // 格式化日期字符串
+        function formatDate(year, month, day) {
+            return `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        }
+        
+        // 更新每日工资设置网格
+        function updateDailySalaryGrid() {
+            const dailySalaryGrid = document.getElementById('dailySalaryGrid');
+            const currentMonthTitle = document.getElementById('currentMonthTitle');
+            
+            // 更新月份标题
+            currentMonthTitle.textContent = `${currentYear}年${currentMonth + 1}月 每日工资设置`;
+            
+            // 获取该月的天数
+            const daysInMonth = getDaysInMonth(currentYear, currentMonth);
+            const today = new Date();
+            const isCurrentMonth = today.getMonth() === currentMonth && today.getFullYear() === currentYear;
+            
+            let html = '';
+            
+            // 生成每天单元格
+            for (let day = 1; day <= daysInMonth; day++) {
+                const dateString = formatDate(currentYear, currentMonth, day);
+                const dayOfWeek = getDayOfWeek(currentYear, currentMonth, day);
+                const isWeekendDay = isWeekend(currentYear, currentMonth, day);
+                const isHolidayDay = isHoliday(dateString);
+                const isToday = isCurrentMonth && day === today.getDate();
+                
+                // 获取当前设置的工资
+                const currentSalary = dailySalaries[dateString] || 0;
+                
+                // 星期几名称
+                const dayNames = ['日', '一', '二', '三', '四', '五', '六'];
+                const dayName = dayNames[dayOfWeek];
+                
+                // 确定CSS类
+                let cellClass = 'day-cell';
+                if (isWeekendDay) cellClass += ' weekend';
+                if (isToday) cellClass += ' today';
+                
+                html += `
+                <div class="${cellClass}" data-date="${dateString}">
+                    <div class="day-name">${dayName}</div>
+                    <div class="day-number">${day}</div>
+                    <input type="number" 
+                           class="day-salary-input" 
+                           value="${currentSalary}" 
+                           min="0" 
+                           step="1"
+                           placeholder="工资"
+                           data-date="${dateString}"
+                           onchange="updateDailySalary('${dateString}', this.value)">
+                </div>
+                `;
+            }
+            
+            dailySalaryGrid.innerHTML = html;
+            
+            // 更新每日工资预览
+            updateDailySalaryPreview();
+            
+            // 更新本月工资统计
+            updateMonthSalaryStats();
+        }
+        
+        // 更新每日工资
+        function updateDailySalary(dateString, salary) {
+            dailySalaries[dateString] = parseFloat(salary) || 0;
+            
+            // 更新本地存储
+            saveDailySalaries();
+            
+            // 更新预览和统计
+            updateDailySalaryPreview();
+            updateMonthSalaryStats();
+            
+            // 显示通知
+            const formattedDate = new Date(dateString).toLocaleDateString('zh-CN', {
+                month: 'short',
+                day: 'numeric'
+            });
+            showNotification('success', '工资已更新', `${formattedDate}的工资设置为${salary}元`);
+        }
+        
+        // 应用批量工资设置
+        function applyBatchSalarySettings() {
+            const weekdaySalary = parseInt(document.getElementById('weekdaySalary').value) || 0;
+            const weekendSalary = parseInt(document.getElementById('weekendSalary').value) || 0;
+            const holidaySalary = parseInt(document.getElementById('holidaySalary').value) || 0;
+            
+            if (weekdaySalary === 0 && weekendSalary === 0 && holidaySalary === 0) {
+                showNotification('warning', '设置失败', '请至少设置一种工资标准');
+                return;
+            }
+            
+            // 获取该月的天数
+            const daysInMonth = getDaysInMonth(currentYear, currentMonth);
+            
+            // 设置每天的工资
+            for (let day = 1; day <= daysInMonth; day++) {
+                const dateString = formatDate(currentYear, currentMonth, day);
+                const isWeekendDay = isWeekend(currentYear, currentMonth, day);
+                const isHolidayDay = isHoliday(dateString);
+                
+                if (isHolidayDay && holidaySalary > 0) {
+                    dailySalaries[dateString] = holidaySalary;
+                } else if (isWeekendDay && weekendSalary > 0) {
+                    dailySalaries[dateString] = weekendSalary;
+                } else if (weekdaySalary > 0) {
+                    dailySalaries[dateString] = weekdaySalary;
+                }
+            }
+            
+            // 更新本地存储
+            saveDailySalaries();
+            
+            // 更新界面
+            updateDailySalaryGrid();
+            updateDailySalaryPreview();
+            updateMonthSalaryStats();
+            
+            // 显示通知
+            showNotification('success', '批量设置成功', `已应用批量工资设置到${currentYear}年${currentMonth + 1}月`);
+        }
+        
+        // 更新每日工资预览表格
+        function updateDailySalaryPreview() {
+            const table = document.getElementById('dailySalaryPreviewTable');
+            
+            // 获取该月的天数
+            const daysInMonth = getDaysInMonth(currentYear, currentMonth);
+            
+            // 创建表格
+            let html = `
+            <thead>
+                <tr>
+                    <th>日期</th>
+                    <th>星期</th>
+                    <th>工资(元)</th>
+                    <th>类型</th>
+                </tr>
+            </thead>
+            <tbody>
+            `;
+            
+            // 星期几名称
+            const dayNames = ['日', '一', '二', '三', '四', '五', '六'];
+            
+            // 添加每天的行
+            for (let day = 1; day <= daysInMonth; day++) {
+                const dateString = formatDate(currentYear, currentMonth, day);
+                const dayOfWeek = getDayOfWeek(currentYear, currentMonth, day);
+                const isWeekendDay = isWeekend(currentYear, currentMonth, day);
+                const isHolidayDay = isHoliday(dateString);
+                
+                // 获取工资
+                const salary = dailySalaries[dateString] || 0;
+                
+                // 确定类型
+                let type = '工作日';
+                let typeClass = '';
+                if (isHolidayDay) {
+                    type = '节假日';
+                    typeClass = 'type-paid';
+                } else if (isWeekendDay) {
+                    type = '周末';
+                    typeClass = 'type-paid';
+                }
+                
+                html += `
+                <tr>
+                    <td>${currentMonth + 1}月${day}日</td>
+                    <td>星期${dayNames[dayOfWeek]}</td>
+                    <td>${salary}</td>
+                    <td><span class="salary-paid ${typeClass}">${type}</span></td>
+                </tr>
+                `;
+            }
+            
+            html += `</tbody>`;
+            table.innerHTML = html;
+        }
+        
+        // 更新本月工资统计
+        function updateMonthSalaryStats() {
+            // 获取该月的天数
+            const daysInMonth = getDaysInMonth(currentYear, currentMonth);
+            
+            let totalSalary = 0;
+            let workdayCount = 0;
+            
+            // 计算总工资和工作日数
+            for (let day = 1; day <= daysInMonth; day++) {
+                const dateString = formatDate(currentYear, currentMonth, day);
+                const salary = dailySalaries[dateString] || 0;
+                
+                if (salary > 0) {
+                    totalSalary += salary;
+                    workdayCount++;
+                }
+            }
+            
+            // 更新统计显示
+            document.getElementById('monthTotalSalary').textContent = totalSalary;
+            document.getElementById('workdayCount').textContent = workdayCount;
+            
+            // 计算平均日工资
+            const avgDailySalary = workdayCount > 0 ? Math.round(totalSalary / workdayCount) : 0;
+            document.getElementById('avgDailySalary').textContent = avgDailySalary;
+            
+            // 更新员工数量
+            const activeEmployees = employees.filter(e => e.active).length;
+            document.getElementById('employeeCount').textContent = activeEmployees;
+            
+            // 更新工资图表
+            updateSalaryChart();
+        }
+        
+        // 更新工资图表
+        function updateSalaryChart() {
+            const chartContainer = document.getElementById('salaryChartContainer');
+            
+            // 获取该月的天数
+            const daysInMonth = getDaysInMonth(currentYear, currentMonth);
+            
+            // 只显示前10天或全部天数（如果天数较少）
+            const maxDaysToShow = Math.min(daysInMonth, 10);
+            
+            // 计算最大工资值，用于比例计算
+            let maxSalary = 0;
+            for (let day = 1; day <= maxDaysToShow; day++) {
+                const dateString = formatDate(currentYear, currentMonth, day);
+                const salary = dailySalaries[dateString] || 0;
+                if (salary > maxSalary) maxSalary = salary;
+            }
+            
+            // 如果最大工资为0，设置一个默认值避免除零错误
+            if (maxSalary === 0) maxSalary = 1;
+            
+            let html = '';
+            
+            // 生成柱状图
+            for (let day = 1; day <= maxDaysToShow; day++) {
+                const dateString = formatDate(currentYear, currentMonth, day);
+                const salary = dailySalaries[dateString] || 0;
+                
+                // 计算柱状图高度（最大250px）
+                const barHeight = (salary / maxSalary) * 200;
+                
+                html += `
+                <div class="salary-bar" style="height: ${barHeight}px;">
+                    <div class="salary-bar-value">${salary}</div>
+                    <div class="salary-bar-label">${day}日</div>
+                </div>
+                `;
+            }
+            
+            chartContainer.innerHTML = html;
+        }
+        
+        // 保存出勤记录
+        function saveAttendance() {
+            const attendanceDate = document.getElementById('attendanceDate').value;
+            
+            if (!attendanceDate) {
+                showNotification('error', '保存失败', '请选择日期');
+                return;
+            }
+            
+            // 初始化该日期的出勤记录
+            if (!attendanceRecords[attendanceDate]) {
+                attendanceRecords[attendanceDate] = {};
+            }
+            
+            // 获取选中的员工
+            const selectedEmployees = [];
+            document.querySelectorAll('#attendanceEmployeeSelector input[type="checkbox"]').forEach((checkbox, index) => {
+                if (checkbox.checked) {
+                    selectedEmployees.push(employees[index].name);
+                }
+            });
+            
+            // 如果没选员工，默认选择所有员工
+            const targetEmployees = selectedEmployees.length > 0 ? selectedEmployees : employees.map(e => e.name);
+            
+            // 设置出勤状态
+            targetEmployees.forEach(employeeName => {
+                attendanceRecords[attendanceDate][employeeName] = true;
+            });
+            
+            // 保存到本地存储
+            saveAttendanceRecords();
+            
+            // 显示成功通知
+            const formattedDate = new Date(attendanceDate).toLocaleDateString('zh-CN', {
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+            });
+            showNotification('success', '出勤记录已保存', `${formattedDate}的出勤记录已保存`);
+            
+            // 更新出勤日历和统计
+            updateAttendanceCalendar();
+            updateAttendanceStats();
+            updateAttendanceEmployeeSummary();
+        }
+        
+        // 清除今日出勤记录
+        function clearTodayAttendance() {
+            const today = new Date().toISOString().split('T')[0];
+            
+            if (attendanceRecords[today]) {
+                delete attendanceRecords[today];
+                saveAttendanceRecords();
+                showNotification('success', '记录已清除', '今日出勤记录已清除');
+                
+                // 更新界面
+                updateAttendanceCalendar();
+                updateAttendanceStats();
+                updateAttendanceEmployeeSummary();
+            } else {
+                showNotification('info', '无记录', '今日无出勤记录');
+            }
+        }
+        
+        // 更新出勤日历
+        function updateAttendanceCalendar() {
+            const attendanceCalendar = document.getElementById('attendanceCalendar');
+            
+            // 获取当前月份的天数
+            const daysInMonth = getDaysInMonth(currentYear, currentMonth);
+            const today = new Date();
+            const isCurrentMonth = today.getMonth() === currentMonth && today.getFullYear() === currentYear;
+            
+            // 创建日历头部
+            let html = `
+            <div class="calendar-header">
+                <div class="calendar-day-header">日</div>
+                <div class="calendar-day-header">一</div>
+                <div class="calendar-day-header">二</div>
+                <div class="calendar-day-header">三</div>
+                <div class="calendar-day-header">四</div>
+                <div class="calendar-day-header">五</div>
+                <div class="calendar-day-header">六</div>
+            </div>
+            <div class="calendar-body">
+            `;
+            
+            // 获取第一天是星期几
+            const firstDayOfWeek = getDayOfWeek(currentYear, currentMonth, 1);
+            
+            // 添加空白单元格（如果第一天不是周日）
+            for (let i = 0; i < firstDayOfWeek; i++) {
+                html += '<div class="calendar-day calendar-day-empty"></div>';
+            }
+            
+            // 添加每天单元格
+            for (let day = 1; day <= daysInMonth; day++) {
+                const dateString = formatDate(currentYear, currentMonth, day);
+                const isWeekendDay = isWeekend(currentYear, currentMonth, day);
+                const isToday = isCurrentMonth && day === today.getDate();
+                
+                // 确定CSS类
+                let dayClass = 'calendar-day';
+                if (isWeekendDay) dayClass += ' weekend';
+                if (isToday) dayClass += ' today';
+                
+                // 获取该日期的工资
+                const salary = dailySalaries[dateString] || 0;
+                
+                // 获取该日期的出勤员工数
+                const attendanceCount = attendanceRecords[dateString] ? 
+                    Object.keys(attendanceRecords[dateString]).length : 0;
+                
+                html += `
+                <div class="${dayClass}" data-date="${dateString}">
+                    <div class="calendar-day-number">${day}</div>
+                    <div class="calendar-day-salary">${salary > 0 ? salary + '元' : '未设置'}</div>
+                    <div class="calendar-day-employees">
+                        ${attendanceCount > 0 ? attendanceCount + '人出勤' : '无出勤记录'}
+                    </div>
+                </div>
+                `;
+            }
+            
+            html += `</div>`;
+            attendanceCalendar.innerHTML = html;
+        }
+        
+        // 更新员工出勤摘要
+        function updateAttendanceEmployeeSummary() {
+            const employeeSummary = document.getElementById('attendanceEmployeeSummary');
+            
+            let html = '';
+            
+            employees.forEach(employee => {
+                if (!employee.active) return;
+                
+                const employeeName = employee.name;
+                
+                // 计算该员工的出勤天数
+                let attendanceDays = 0;
+                for (const date in attendanceRecords) {
+                    if (attendanceRecords[date][employeeName]) {
+                        attendanceDays++;
+                    }
+                }
+                
+                html += `
+                <div class="employee-item">
+                    <div class="employee-name">${employeeName}</div>
+                    <div class="employee-salary">${attendanceDays} 天</div>
+                    <div class="employee-workdays">出勤天数</div>
+                </div>
+                `;
+            });
+            
+            employeeSummary.innerHTML = html;
+        }
+        
+        // 更新出勤统计表格
+        function updateAttendanceStats() {
+            const tableBody = document.getElementById('attendanceStatsTable');
+            
+            let html = '';
+            
+            employees.forEach(employee => {
+                if (!employee.active) return;
+                
+                const employeeName = employee.name;
+                
+                // 计算该员工的出勤和缺勤天数
+                let attendanceDays = 0;
+                let absentDays = 0;
+                
+                // 获取该月的天数
+                const daysInMonth = getDaysInMonth(currentYear, currentMonth);
+                
+                for (let day = 1; day <= daysInMonth; day++) {
+                    const dateString = formatDate(currentYear, currentMonth, day);
+                    
+                    if (attendanceRecords[dateString]) {
+                        if (attendanceRecords[dateString][employeeName]) {
+                            attendanceDays++;
+                        } else {
+                            // 如果该日期有出勤记录但该员工没有记录，则视为缺勤
+                            absentDays++;
+                        }
+                    }
+                }
+                
+                // 计算出勤率
+                const totalDays = attendanceDays + absentDays;
+                const attendanceRate = totalDays > 0 ? Math.round((attendanceDays / totalDays) * 100) : 0;
+                
+                html += `
+                <tr>
+                    <td>${employeeName}</td>
+                    <td>${attendanceDays}</td>
+                    <td>${absentDays}</td>
+                    <td>${attendanceRate}%</td>
+                </tr>
+                `;
+            });
+            
+            tableBody.innerHTML = html;
+        }
+        
+        // 更新工资汇总表格
+        function updateSalarySummaryTables() {
+            updateEmployeeSalarySummary();
+            updateDailySalarySummary();
+            updateDetailedSalaryTable();
+        }
+        
+        // 更新员工工资汇总表格
+        function updateEmployeeSalarySummary() {
+            const tableBody = document.getElementById('employeeSalarySummaryTable');
+            
+            let html = '';
+            let grandTotalSalary = 0;
+            
+            employees.forEach(employee => {
+                if (!employee.active) return;
+                
+                const employeeName = employee.name;
+                
+                // 计算该员工的总工资和出勤天数
+                let totalSalary = 0;
+                let attendanceDays = 0;
+                
+                // 遍历所有日期
+                for (const dateString in dailySalaries) {
+                    const salary = dailySalaries[dateString];
+                    if (salary > 0 && attendanceRecords[dateString] && attendanceRecords[dateString][employeeName]) {
+                        totalSalary += salary;
+                        attendanceDays++;
+                    }
+                }
+                
+                grandTotalSalary += totalSalary;
+                
+                // 计算平均日工资
+                const avgDailySalary = attendanceDays > 0 ? Math.round(totalSalary / attendanceDays) : 0;
+                
+                html += `
+                <tr>
+                    <td>${employeeName}</td>
+                    <td>${attendanceDays}</td>
+                    <td class="total-column">${totalSalary}</td>
+                    <td>${avgDailySalary}</td>
+                </tr>
+                `;
+            });
+            
+            // 添加总计行
+            html += `
+            <tr>
+                <td><strong>总计</strong></td>
+                <td>-</td>
+                <td class="total-column"><strong>${grandTotalSalary}</strong></td>
+                <td>-</td>
+            </tr>
+            `;
+            
+            tableBody.innerHTML = html;
+        }
+        
+        // 更新每日工资汇总表格
+        function updateDailySalarySummary() {
+            const tableBody = document.getElementById('dailySalarySummaryTable');
+            
+            // 获取该月的天数
+            const daysInMonth = getDaysInMonth(currentYear, currentMonth);
+            
+            let html = '';
+            let monthTotalSalary = 0;
+            
+            // 星期几名称
+            const dayNames = ['日', '一', '二', '三', '四', '五', '六'];
+            
+            for (let day = 1; day <= daysInMonth; day++) {
+                const dateString = formatDate(currentYear, currentMonth, day);
+                const dayOfWeek = getDayOfWeek(currentYear, currentMonth, day);
+                
+                // 获取该日期的工资
+                const dailySalary = dailySalaries[dateString] || 0;
+                
+                // 获取该日期的出勤员工数
+                const attendanceCount = attendanceRecords[dateString] ? 
+                    Object.keys(attendanceRecords[dateString]).length : 0;
+                
+                // 计算当日总工资
+                const dailyTotalSalary = dailySalary * attendanceCount;
+                monthTotalSalary += dailyTotalSalary;
+                
+                // 计算平均工资
+                const avgSalary = attendanceCount > 0 ? dailySalary : 0;
+                
+                // 格式化日期
+                const formattedDate = `${currentMonth + 1}月${day}日 (星期${dayNames[dayOfWeek]})`;
+                
+                html += `
+                <tr>
+                    <td>${formattedDate}</td>
+                    <td>${attendanceCount}</td>
+                    <td class="total-column">${dailyTotalSalary}</td>
+                    <td>${avgSalary}</td>
+                </tr>
+                `;
+            }
+            
+            // 添加总计行
+            html += `
+            <tr>
+                <td><strong>本月总计</strong></td>
+                <td>-</td>
+                <td class="total-column"><strong>${monthTotalSalary}</strong></td>
+                <td>-</td>
+            </tr>
+            `;
+            
+            tableBody.innerHTML = html;
+        }
+        
+        // 更新详细工资表格
+        function updateDetailedSalaryTable() {
+            const table = document.getElementById('detailedSalaryTable');
+            
+            // 获取该月的天数
+            const daysInMonth = getDaysInMonth(currentYear, currentMonth);
+            
+            // 创建表格
+            let html = `
+            <thead>
+                <tr>
+                    <th>员工</th>
+            `;
+            
+            // 添加日期列
+            for (let day = 1; day <= daysInMonth; day++) {
+                html += `<th>${day}日</th>`;
+            }
+            
+            html += `
+                    <th>总计</th>
+                </tr>
+            </thead>
+            <tbody>
+            `;
+            
+            // 为每个员工添加行
+            employees.forEach(employee => {
+                if (!employee.active) return;
+                
+                const employeeName = employee.name;
+                let rowTotal = 0;
+                
+                html += `<tr><td><strong>${employeeName}</strong></td>`;
+                
+                // 为每个日期添加单元格
+                for (let day = 1; day <= daysInMonth; day++) {
+                    const dateString = formatDate(currentYear, currentMonth, day);
+                    const dailySalary = dailySalaries[dateString] || 0;
+                    
+                    // 检查员工是否出勤
+                    const isPresent = attendanceRecords[dateString] && attendanceRecords[dateString][employeeName];
+                    const salary = isPresent ? dailySalary : 0;
+                    
+                    rowTotal += salary;
+                    
+                    html += `<td>${salary > 0 ? salary : '-'}</td>`;
+                }
+                
+                html += `<td class="total-column">${rowTotal}</td></tr>`;
+            });
+            
+            // 添加总计行
+            html += `<tr><td><strong>每日总计</strong></td>`;
+            
+            let grandTotal = 0;
+            for (let day = 1; day <= daysInMonth; day++) {
+                const dateString = formatDate(currentYear, currentMonth, day);
+                const dailySalary = dailySalaries[dateString] || 0;
+                const attendanceCount = attendanceRecords[dateString] ? 
+                    Object.keys(attendanceRecords[dateString]).length : 0;
+                
+                const dailyTotal = dailySalary * attendanceCount;
+                grandTotal += dailyTotal;
+                
+                html += `<td class="total-column">${dailyTotal}</td>`;
+            }
+            
+            html += `<td class="total-column"><strong>${grandTotal}</strong></td></tr>`;
+            html += `</tbody>`;
+            
+            table.innerHTML = html;
+        }
+        
+        // 更新日历视图
+        function updateCalendarView() {
+            const calendarView = document.getElementById('calendarView');
+            
+            // 获取该月的天数
+            const daysInMonth = getDaysInMonth(currentYear, currentMonth);
+            const today = new Date();
+            const isCurrentMonth = today.getMonth() === currentMonth && today.getFullYear() === currentYear;
+            
+            // 创建日历头部
+            let html = `
+            <div class="calendar-header">
+                <div class="calendar-day-header">日</div>
+                <div class="calendar-day-header">一</div>
+                <div class="calendar-day-header">二</div>
+                <div class="calendar-day-header">三</div>
+                <div class="calendar-day-header">四</div>
+                <div class="calendar-day-header">五</div>
+                <div class="calendar-day-header">六</div>
+            </div>
+            <div class="calendar-body">
+            `;
+            
+            // 获取第一天是星期几
+            const firstDayOfWeek = getDayOfWeek(currentYear, currentMonth, 1);
+            
+            // 添加空白单元格（如果第一天不是周日）
+            for (let i = 0; i < firstDayOfWeek; i++) {
+                html += '<div class="calendar-day calendar-day-empty"></div>';
+            }
+            
+            // 添加每天单元格
+            for (let day = 1; day <= daysInMonth; day++) {
+                const dateString = formatDate(currentYear, currentMonth, day);
+                const isWeekendDay = isWeekend(currentYear, currentMonth, day);
+                const isToday = isCurrentMonth && day === today.getDate();
+                
+                // 确定CSS类
+                let dayClass = 'calendar-day';
+                if (isWeekendDay) dayClass += ' weekend';
+                if (isToday) dayClass += ' today';
+                
+                // 获取该日期的工资
+                const salary = dailySalaries[dateString] || 0;
+                
+                // 获取该日期的出勤员工
+                const attendanceEmployees = attendanceRecords[dateString] ? 
+                    Object.keys(attendanceRecords[dateString]) : [];
+                
+                // 显示前3个出勤员工
+                let employeesHtml = '';
+                attendanceEmployees.slice(0, 3).forEach(employee => {
+                    employeesHtml += `<div class="attendance-marker" title="${employee}"></div>`;
+                });
+                
+                if (attendanceEmployees.length > 3) {
+                    employeesHtml += `<div style="font-size: 0.7rem;">+${attendanceEmployees.length - 3}人</div>`;
+                }
+                
+                html += `
+                <div class="${dayClass}" data-date="${dateString}">
+                    <div class="calendar-day-number">${day}</div>
+                    <div class="calendar-day-salary">${salary > 0 ? salary + '元' : '未设置'}</div>
+                    <div class="calendar-day-employees">
+                        ${attendanceEmployees.length > 0 ? 
+                            `${attendanceEmployees.length}人出勤` : 
+                            '无出勤'}
+                    </div>
+                    ${employeesHtml}
+                </div>
+                `;
+            }
+            
+            html += `</div>`;
+            calendarView.innerHTML = html;
+        }
+        
+        // 更新日历统计
+        function updateCalendarStats() {
+            // 计算本月总支出
+            let totalSalary = 0;
+            let totalAttendanceDays = 0;
+            
+            // 遍历所有日期
+            for (const dateString in dailySalaries) {
+                const salary = dailySalaries[dateString];
+                if (salary > 0 && attendanceRecords[dateString]) {
+                    const attendanceCount = Object.keys(attendanceRecords[dateString]).length;
+                    totalSalary += salary * attendanceCount;
+                    totalAttendanceDays += attendanceCount;
+                }
+            }
+            
+            // 计算人均工资
+            const activeEmployees = employees.filter(e => e.active).length;
+            const avgSalary = activeEmployees > 0 ? Math.round(totalSalary / activeEmployees) : 0;
+            
+            // 更新显示
+            document.getElementById('calendarTotalSalary').textContent = totalSalary;
+            document.getElementById('calendarAvgSalary').textContent = avgSalary;
+            document.getElementById('calendarAttendanceDays').textContent = totalAttendanceDays;
+            
+            // 更新工资趋势图
+            updateSalaryTrendChart();
+        }
+        
+        // 更新工资趋势图
+        function updateSalaryTrendChart() {
+            const chartContainer = document.getElementById('salaryTrendChart');
+            
+            // 获取该月的天数
+            const daysInMonth = getDaysInMonth(currentYear, currentMonth);
+            
+            // 计算每天的总工资支出
+            const dailyTotals = [];
+            for (let day = 1; day <= daysInMonth; day++) {
+                const dateString = formatDate(currentYear, currentMonth, day);
+                const salary = dailySalaries[dateString] || 0;
+                const attendanceCount = attendanceRecords[dateString] ? 
+                    Object.keys(attendanceRecords[dateString]).length : 0;
+                
+                dailyTotals.push(salary * attendanceCount);
+            }
+            
+            // 计算最大支出值，用于比例计算
+            let maxTotal = 0;
+            dailyTotals.forEach(total => {
+                if (total > maxTotal) maxTotal = total;
+            });
+            
+            // 如果最大支出为0，设置一个默认值避免除零错误
+            if (maxTotal === 0) maxTotal = 1;
+            
+            let html = '';
+            
+            // 生成柱状图（最多显示15天）
+            const daysToShow = Math.min(daysInMonth, 15);
+            for (let day = 1; day <= daysToShow; day++) {
+                const total = dailyTotals[day - 1] || 0;
+                
+                // 计算柱状图高度（最大250px）
+                const barHeight = (total / maxTotal) * 200;
+                
+                html += `
+                <div class="salary-bar" style="height: ${barHeight}px;">
+                    <div class="salary-bar-value">${total > 0 ? total : ''}</div>
+                    <div class="salary-bar-label">${day}日</div>
+                </div>
+                `;
+            }
+            
+            chartContainer.innerHTML = html;
+        }
+        
+        // 更新员工管理列表
+        function updateEmployeeManagementList() {
+            const container = document.getElementById('employeeManagementList');
+            
+            let html = '<table style="width: 100%;"><thead><tr><th>员工</th><th>状态</th><th>操作</th></tr></thead><tbody>';
+            
+            employees.forEach((employee, index) => {
+                html += `
+                <tr>
+                    <td>${employee.name}</td>
+                    <td>${employee.active ? '启用' : '禁用'}</td>
+                    <td>
+                        <button class="btn btn-sm ${employee.active ? 'btn-warning' : 'btn-success'}" 
+                                onclick="toggleEmployeeStatus(${index})">
+                            ${employee.active ? '禁用' : '启用'}
+                        </button>
+                    </td>
+                </tr>
+                `;
+            });
+            
+            html += '</tbody></table>';
+            
+            container.innerHTML = html;
+        }
+        
+        // 切换员工状态
+        function toggleEmployeeStatus(index) {
+            employees[index].active = !employees[index].active;
+            saveEmployees();
+            updateEmployeeManagementList();
+            
+            const status = employees[index].active ? '启用' : '禁用';
+            showNotification('success', '状态已更新', `员工${employees[index].name}已${status}`);
+        }
+        
+        // 更新系统信息
+        function updateSystemInfo() {
+            // 更新当前月份显示
+            document.getElementById('currentMonthData').textContent = `${currentYear}年${currentMonth + 1}月`;
+            
+            // 更新员工数量
+            const activeEmployees = employees.filter(e => e.active).length;
+            document.getElementById('systemEmployeeCount').textContent = activeEmployees;
+            
+            // 计算数据大小
+            const data = JSON.stringify({
+                dailySalaries,
+                attendanceRecords,
+                employees
+            });
+            const dataSize = new Blob([data]).size;
+            document.getElementById('dataSize').textContent = (dataSize / 1024).toFixed(2) + ' KB';
+            
+            // 获取最后保存时间
+            const lastSave = localStorage.getItem('lastSaveTime');
+            if (lastSave) {
+                const lastSaveDate = new Date(lastSave);
+                document.getElementById('lastSave').textContent = lastSaveDate.toLocaleString('zh-CN');
+            } else {
+                document.getElementById('lastSave').textContent = '暂无';
+            }
+        }
+        
+        // 保存所有数据到本地存储
+        function saveAllData() {
+            saveDailySalaries();
+            saveAttendanceRecords();
+            saveEmployees();
+            
+            // 保存最后保存时间
+            localStorage.setItem('lastSaveTime', new Date().toISOString());
+            
+            showNotification('success', '保存成功', '所有数据已成功保存到本地存储');
+            updateSystemInfo();
+        }
+        
+        // 保存每日工资设置
+        function saveDailySalaries() {
+            localStorage.setItem('dailySalaries', JSON.stringify(dailySalaries));
+        }
+        
+        // 保存出勤记录
+        function saveAttendanceRecords() {
+            localStorage.setItem('attendanceRecords', JSON.stringify(attendanceRecords));
+        }
+        
+        // 从本地存储加载数据
+        function loadData() {
+            const savedDailySalaries = localStorage.getItem('dailySalaries');
+            const savedAttendanceRecords = localStorage.getItem('attendanceRecords');
+            
+            if (savedDailySalaries) {
+                dailySalaries = JSON.parse(savedDailySalaries);
+            }
+            
+            if (savedAttendanceRecords) {
+                attendanceRecords = JSON.parse(savedAttendanceRecords);
+            }
+            
+            // 加载系统设置
+            const defaultWeekdaySalary = localStorage.getItem('defaultWeekdaySalary');
+            const defaultWeekendSalary = localStorage.getItem('defaultWeekendSalary');
+            const defaultHolidaySalary = localStorage.getItem('defaultHolidaySalary');
+            
+            if (defaultWeekdaySalary) {
+                document.getElementById('defaultWeekdaySalary').value = defaultWeekdaySalary;
+            }
+            
+            if (defaultWeekendSalary) {
+                document.getElementById('defaultWeekendSalary').value = defaultWeekendSalary;
+            }
+            
+            if (defaultHolidaySalary) {
+                document.getElementById('defaultHolidaySalary').value = defaultHolidaySalary;
+            }
+            
+            // 更新界面
+            updateDailySalaryGrid();
+            updateDailySalaryPreview();
+            updateMonthSalaryStats();
+            updateAttendanceCalendar();
+            updateAttendanceStats();
+            updateAttendanceEmployeeSummary();
+            updateSalarySummaryTables();
+            updateCalendarView();
+            updateCalendarStats();
+            
+            showNotification('success', '加载成功', '数据已从本地存储加载');
+            updateSystemInfo();
+        }
+        
+        // 导出数据为CSV
+        function exportData() {
+            // 创建工资数据CSV
+            let salaryCsvContent = "data:text/csv;charset=utf-8,\uFEFF";
+            salaryCsvContent += "日期,工资标准(元)\n";
+            
+            for (const date in dailySalaries) {
+                const salary = dailySalaries[date];
+                salaryCsvContent += `"${date}",${salary}\n`;
+            }
+            
+            // 创建出勤数据CSV
+            let attendanceCsvContent = "data:text/csv;charset=utf-8,\uFEFF";
+            attendanceCsvContent += "日期,员工,出勤\n";
+            
+            for (const date in attendanceRecords) {
+                for (const employee in attendanceRecords[date]) {
+                    attendanceCsvContent += `"${date}","${employee}","是"\n`;
+                }
+            }
+            
+            // 创建工资计算CSV
+            let calculationCsvContent = "data:text/csv;charset=utf-8,\uFEFF";
+            calculationCsvContent += "员工";
+            
+            // 添加日期列
+            const daysInMonth = getDaysInMonth(currentYear, currentMonth);
+            for (let day = 1; day <= daysInMonth; day++) {
+                calculationCsvContent += `,"${day}日"`;
+            }
+            calculationCsvContent += ",总计\n";
+            
+            // 为每个员工添加行
+            employees.forEach(employee => {
+                if (!employee.active) return;
+                
+                calculationCsvContent += `"${employee.name}"`;
+                let rowTotal = 0;
+                
+                for (let day = 1; day <= daysInMonth; day++) {
+                    const dateString = formatDate(currentYear, currentMonth, day);
+                    const dailySalary = dailySalaries[dateString] || 0;
+                    
+                    // 检查员工是否出勤
+                    const isPresent = attendanceRecords[dateString] && attendanceRecords[dateString][employee.name];
+                    const salary = isPresent ? dailySalary : 0;
+                    
+                    rowTotal += salary;
+                    calculationCsvContent += `,${salary}`;
+                }
+                
+                calculationCsvContent += `,${rowTotal}\n`;
+            });
+            
+            // 创建下载链接
+            const exportDate = new Date().toISOString().split('T')[0];
+            
+            // 下载工资数据
+            const salaryLink = document.createElement("a");
+            salaryLink.setAttribute("href", encodeURI(salaryCsvContent));
+            salaryLink.setAttribute("download", `每日工资标准_${exportDate}.csv`);
+            document.body.appendChild(salaryLink);
+            salaryLink.click();
+            document.body.removeChild(salaryLink);
+            
+            // 下载出勤数据
+            const attendanceLink = document.createElement("a");
+            attendanceLink.setAttribute("href", encodeURI(attendanceCsvContent));
+            attendanceLink.setAttribute("download", `员工出勤记录_${exportDate}.csv`);
+            document.body.appendChild(attendanceLink);
+            attendanceLink.click();
+            document.body.removeChild(attendanceLink);
+            
+            // 下载工资计算数据
+            const calculationLink = document.createElement("a");
+            calculationLink.setAttribute("href", encodeURI(calculationCsvContent));
+            calculationLink.setAttribute("download", `员工工资计算_${currentYear}年${currentMonth + 1}月.csv`);
+            document.body.appendChild(calculationLink);
+            calculationLink.click();
+            document.body.removeChild(calculationLink);
+            
+            showNotification('success', '导出成功', '数据已成功导出为CSV文件');
+        }
+        
+        // 导入CSV数据
+        function importData(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const contents = e.target.result;
+                const lines = contents.split('\n');
+                
+                // 检查文件类型
+                if (lines[0].includes('日期,工资标准')) {
+                    // 导入工资数据
+                    for (let i = 1; i < lines.length; i++) {
+                        const line = lines[i].trim();
+                        if (!line) continue;
+                        
+                        const columns = line.split(',').map(col => col.replace(/"/g, ''));
+                        if (columns.length >= 2) {
+                            const date = columns[0];
+                            const salary = parseFloat(columns[1]) || 0;
+                            dailySalaries[date] = salary;
+                        }
+                    }
+                    saveDailySalaries();
+                    showNotification('success', '导入成功', '工资数据已导入');
+                    
+                } else if (lines[0].includes('日期,员工,出勤')) {
+                    // 导入出勤数据
+                    for (let i = 1; i < lines.length; i++) {
+                        const line = lines[i].trim();
+                        if (!line) continue;
+                        
+                        const columns = line.split(',').map(col => col.replace(/"/g, ''));
+                        if (columns.length >= 3) {
+                            const date = columns[0];
+                            const employee = columns[1];
+                            const attendance = columns[2];
+                            
+                            if (!attendanceRecords[date]) {
+                                attendanceRecords[date] = {};
+                            }
+                            
+                            if (attendance === '是' || attendance === '1' || attendance === 'true') {
+                                attendanceRecords[date][employee] = true;
+                            }
+                        }
+                    }
+                    saveAttendanceRecords();
+                    showNotification('success', '导入成功', '出勤数据已导入');
+                }
+                
+                // 更新界面
+                updateDailySalaryGrid();
+                updateDailySalaryPreview();
+                updateMonthSalaryStats();
+                updateAttendanceCalendar();
+                updateAttendanceStats();
+                updateAttendanceEmployeeSummary();
+                updateSalarySummaryTables();
+                updateCalendarView();
+                updateCalendarStats();
+                
+                // 清空文件输入
+                event.target.value = '';
+            };
+            
+            reader.readAsText(file, 'UTF-8');
+        }
+        
+        // 重置本月数据
+        function resetCurrentMonthData() {
+/*
+            if (!confirm(`确定要重置${currentYear}年${currentMonth + 1}月的所有数据吗？此操作不可恢复！`)) {
+                return;
+            }
+            */
+            // 获取该月的天数
+            const daysInMonth = getDaysInMonth(currentYear, currentMonth);
+            
+            // 删除该月的每日工资设置
+            for (let day = 1; day <= daysInMonth; day++) {
+                const dateString = formatDate(currentYear, currentMonth, day);
+                delete dailySalaries[dateString];
+            }
+            
+            // 删除该月的出勤记录
+            for (let day = 1; day <= daysInMonth; day++) {
+                const dateString = formatDate(currentYear, currentMonth, day);
+                delete attendanceRecords[dateString];
+            }
+            
+            // 保存到本地存储
+            saveDailySalaries();
+            saveAttendanceRecords();
+            
+            // 更新界面
+            updateDailySalaryGrid();
+            updateDailySalaryPreview();
+            updateMonthSalaryStats();
+            updateAttendanceCalendar();
+            updateAttendanceStats();
+            updateAttendanceEmployeeSummary();
+            updateSalarySummaryTables();
+            updateCalendarView();
+            updateCalendarStats();
+            
+            showNotification('success', '重置成功', `${currentYear}年${currentMonth + 1}月的数据已重置`);
+        }
+        
+        // 重置所有数据
+        function resetAllData() {
+   //showNotification('success', '重置成功', `${currentYear}年${currentMonth + 1}月的数据已重置`);
+/*
+            if (!confirm('确定要清除所有数据吗？此操作不可恢复！')) {
+
+showNotification('success', '重置成功', `${currentYear}年${currentMonth + 1}月的数据已重置`);
+
+                return;
+            }
+
+            showNotification('success', '重置成功', `${currentYear}年${currentMonth + 1}月的数据已重置`);
+
+*/
+            dailySalaries = {};
+            attendanceRecords = {};
+            
+            // 保存到本地存储
+            saveDailySalaries();
+            saveAttendanceRecords();
+            
+            // 更新界面
+            updateDailySalaryGrid();
+            updateDailySalaryPreview();
+            updateMonthSalaryStats();
+            updateAttendanceCalendar();
+            updateAttendanceStats();
+            updateAttendanceEmployeeSummary();
+            updateSalarySummaryTables();
+            updateCalendarView();
+            updateCalendarStats();
+            
+            showNotification('success', '清除成功', '所有数据已清除');
+        }
+        
+        // 保存系统设置
+        function saveSystemSettings() {
+            const defaultWeekdaySalary = document.getElementById('defaultWeekdaySalary').value;
+            const defaultWeekendSalary = document.getElementById('defaultWeekendSalary').value;
+            const defaultHolidaySalary = document.getElementById('defaultHolidaySalary').value;
+            
+            localStorage.setItem('defaultWeekdaySalary', defaultWeekdaySalary);
+            localStorage.setItem('defaultWeekendSalary', defaultWeekendSalary);
+            localStorage.setItem('defaultHolidaySalary', defaultHolidaySalary);
+            
+            showNotification('success', '设置已保存', '系统设置已保存');
+        }
+        
+        // 显示通知
+        function showNotification(type, title, message) {
+            // 移除现有通知
+            const existingNotification = document.querySelector('.notification');
+            if (existingNotification) {
+                existingNotification.remove();
+            }
+            
+            // 创建通知元素
+            const notification = document.createElement('div');
+            notification.className = `notification ${type}`;
+            
+            // 设置图标
+            let icon = 'ℹ️';
+            if (type === 'success') icon = '✅';
+            else if (type === 'error') icon = '❌';
+            else if (type === 'warning') icon = '⚠️';
+            
+            notification.innerHTML = `
+                <div class="notification-header">
+                    <div class="notification-title">
+                        <span>${icon}</span>
+                        ${title}
+                    </div>
+                    <button class="notification-close" onclick="this.parentElement.parentElement.remove()">&times;</button>
+                </div>
+                <div>${message}</div>
+            `;
+            
+            document.body.appendChild(notification);
+            
+            // 5秒后自动移除
+            setTimeout(() => {
+                if (notification.parentNode) {
+                    notification.remove();
+                }
+            }, 5000);
+        }
+        
+        // 获取随机颜色
+        function getRandomColor() {
+            const colors = [
+                '#4b6cb7', '#3498db', '#2ecc71', '#f39c12',
+                '#9b59b6', '#1abc9c', '#e74c3c', '#34495e',
+                '#d35400', '#7f8c8d'
+            ];
+            return colors[Math.floor(Math.random() * colors.length)];
+        }
+    </script>
+</body>
+</html>
