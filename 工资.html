@@ -1,0 +1,2233 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>员工发工资流水记录系统 - 增强通知功能</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
+        }
+        
+        body {
+            background-color: #f5f7fa;
+            color: #333;
+            line-height: 1.6;
+            padding: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding: 20px;
+            background: linear-gradient(135deg, #4b6cb7 0%, #182848 100%);
+            color: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            position: relative;
+        }
+        
+        h1 {
+            font-size: 2.2rem;
+            margin-bottom: 10px;
+        }
+        
+        h2 {
+            color: #2c3e50;
+            margin: 20px 0 15px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid #4b6cb7;
+        }
+        
+        h3 {
+            color: #34495e;
+            margin: 15px 0 10px;
+        }
+        
+        .container {
+            display: grid;
+            grid-template-columns: 1fr 2fr;
+            gap: 25px;
+        }
+        
+        @media (max-width: 900px) {
+            .container {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        .card {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.08);
+            margin-bottom: 20px;
+        }
+        
+        .login-container {
+            max-width: 400px;
+            margin: 50px auto;
+            text-align: center;
+        }
+        
+        .login-form {
+            margin-top: 20px;
+        }
+        
+        .login-form input {
+            width: 100%;
+            padding: 12px;
+            margin: 10px 0;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 1rem;
+        }
+        
+        .login-form button {
+            width: 100%;
+            padding: 12px;
+            background: #4b6cb7;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 1rem;
+            font-weight: bold;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+        
+        .login-form button:hover {
+            background: #3a5699;
+        }
+        
+        .error-message {
+            color: #e74c3c;
+            margin-top: 10px;
+            font-size: 0.9rem;
+            display: none;
+        }
+        
+        .stats {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin-bottom: 25px;
+        }
+        
+        .stat-box {
+            flex: 1;
+            min-width: 150px;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            color: white;
+            font-weight: bold;
+        }
+        
+        .total-salary {
+            background: linear-gradient(135deg, #3498db, #2980b9);
+        }
+        
+        .avg-salary {
+            background: linear-gradient(135deg, #2ecc71, #27ae60);
+        }
+        
+        .employee-count {
+            background: linear-gradient(135deg, #9b59b6, #8e44ad);
+        }
+        
+        .stat-box h3 {
+            font-size: 1.1rem;
+            margin-bottom: 8px;
+            color: white;
+        }
+        
+        .stat-box .amount {
+            font-size: 1.8rem;
+        }
+        
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #444;
+        }
+        
+        input, select, textarea {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 1rem;
+            transition: border 0.3s;
+        }
+        
+        input:focus, select:focus, textarea:focus {
+            border-color: #4b6cb7;
+            outline: none;
+        }
+        
+        .btn {
+            padding: 12px 20px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+        
+        .btn-primary {
+            background: #4b6cb7;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: #3a5699;
+            transform: translateY(-2px);
+        }
+        
+        .btn-danger {
+            background: #e74c3c;
+            color: white;
+        }
+        
+        .btn-danger:hover {
+            background: #c0392b;
+        }
+        
+        .btn-success {
+            background: #2ecc71;
+            color: white;
+        }
+        
+        .btn-success:hover {
+            background: #27ae60;
+        }
+        
+        .btn-warning {
+            background: #f39c12;
+            color: white;
+        }
+        
+        .btn-warning:hover {
+            background: #e67e22;
+        }
+        
+        .btn-sm {
+            padding: 6px 12px;
+            font-size: 0.85rem;
+        }
+        
+        .actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+        
+        th {
+            background-color: #f8f9fa;
+            padding: 12px 15px;
+            text-align: left;
+            font-weight: 600;
+            color: #2c3e50;
+            border-bottom: 2px solid #eaeaea;
+        }
+        
+        td {
+            padding: 12px 15px;
+            border-bottom: 1px solid #eaeaea;
+        }
+        
+        tr:hover {
+            background-color: #f9f9f9;
+        }
+        
+        .date-group {
+            margin-bottom: 30px;
+        }
+        
+        .date-header {
+            background-color: #f1f5f9;
+            padding: 10px 15px;
+            font-weight: bold;
+            color: #2c3e50;
+            border-radius: 6px;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+        }
+        
+        .date-total {
+            color: #4b6cb7;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: #7f8c8d;
+        }
+        
+        .salary-paid {
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+        
+        .type-paid {
+            background-color: rgba(46, 204, 113, 0.1);
+            color: #27ae60;
+        }
+        
+        .type-day {
+            background-color: rgba(52, 152, 219, 0.1);
+            color: #2980b9;
+        }
+        
+        .type-week {
+            background-color: rgba(155, 89, 182, 0.1);
+            color: #8e44ad;
+        }
+        
+        .type-month {
+            background-color: rgba(241, 196, 15, 0.1);
+            color: #f39c12;
+        }
+        
+        footer {
+            text-align: center;
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+            color: #7f8c8d;
+            font-size: 0.9rem;
+        }
+        
+        .current-date {
+            font-size: 1.1rem;
+            margin-top: 5px;
+            color: rgba(255, 255, 255, 0.9);
+        }
+        
+        .total-amount {
+            font-weight: bold;
+            font-size: 1.2rem;
+        }
+        
+        .user-info {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            color: white;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .logout-btn {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            padding: 5px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        
+        .logout-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+        
+        .password-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .modal-content {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            width: 90%;
+            max-width: 400px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+        }
+        
+        .modal-content h3 {
+            margin-bottom: 20px;
+            color: #2c3e50;
+        }
+        
+        .modal-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        
+        .modal-actions button {
+            flex: 1;
+        }
+        
+        .modal-error {
+            color: #e74c3c;
+            margin-top: 10px;
+            font-size: 0.9rem;
+            display: none;
+        }
+        
+        .readonly-note {
+            background-color: #f8f9fa;
+            padding: 10px;
+            border-radius: 6px;
+            margin-bottom: 15px;
+            font-size: 0.9rem;
+            color: #7f8c8d;
+            border-left: 4px solid #95a5a6;
+        }
+        
+        .management-section {
+            border-top: 1px solid #eee;
+            margin-top: 25px;
+            padding-top: 20px;
+        }
+        
+        .employee-summary {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+            gap: 12px;
+            margin-top: 15px;
+        }
+        
+        .employee-item {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            border-left: 4px solid #4b6cb7;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .employee-item:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+        
+        .employee-name {
+            font-weight: bold;
+            margin-bottom: 5px;
+            color: #2c3e50;
+        }
+        
+        .employee-salary {
+            font-weight: bold;
+            color: #e74c3c;
+            font-size: 1.1rem;
+        }
+        
+        .record-note {
+            font-size: 0.85rem;
+            color: #7f8c8d;
+            margin-top: 5px;
+        }
+        
+        .locked-icon {
+            color: #95a5a6;
+            font-size: 0.8rem;
+            margin-left: 5px;
+        }
+        
+        .pay-unit {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .pay-unit select {
+            flex: 1;
+        }
+        
+        .employee-row {
+            border-left: 4px solid #3498db;
+        }
+        
+        /* 通知系统样式 */
+        .notification-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            max-width: 400px;
+        }
+        
+        .notification {
+            padding: 15px 20px;
+            border-radius: 8px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.15);
+            animation: slideIn 0.3s ease-out;
+            display: flex;
+            flex-direction: column;
+            border-left: 5px solid #4b6cb7;
+            background: blue;
+            max-width: 400px;
+            transition: all 0.3s;
+        }
+        
+        .notification.success {
+            border-left-color: #2ecc71;
+            background: linear-gradient(135deg, rgba(46, 204, 113, 0.1), rgba(39, 174, 96, 0.05));
+        }
+        
+        .notification.warning {
+            border-left-color: #f39c12;
+            background: linear-gradient(135deg, rgba(243, 156, 18, 0.1), rgba(230, 126, 34, 0.05));
+        }
+        
+        .notification.error {
+            border-left-color: #e74c3c;
+            background: linear-gradient(135deg, rgba(231, 76, 60, 0.1), rgba(192, 57, 43, 0.05));
+        }
+        
+        .notification.info {
+            border-left-color: #3498db;
+            background: linear-gradient(135deg, rgba(52, 152, 219, 0.1), rgba(41, 128, 185, 0.05));
+        }
+        
+        .notification-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        
+        .notification-title {
+            font-weight: bold;
+            font-size: 1.1rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .notification-icon {
+            font-size: 1.2rem;
+        }
+        
+        .notification-close {
+            background: none;
+            border: none;
+            font-size: 1.2rem;
+            cursor: pointer;
+            color: #7f8c8d;
+            padding: 0;
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+        }
+        
+        .notification-close:hover {
+            background-color: rgba(0, 0, 0, 0.05);
+        }
+        
+        .notification-content {
+            font-size: 0.95rem;
+            line-height: 1.5;
+        }
+        
+        .notification-details {
+            margin-top: 10px;
+            padding: 10px;
+            background-color: rgba(255, 255, 255, 0.7);
+            border-radius: 6px;
+            font-size: 0.9rem;
+        }
+        
+        .notification-detail-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+        }
+        
+        .notification-detail-label {
+            color: #7f8c8d;
+        }
+        
+        .notification-detail-value {
+            font-weight: 600;
+            color: #2c3e50;
+        }
+        
+        .notification-success-value {
+            color: #27ae60;
+        }
+        
+        .notification-danger-value {
+            color: #e74c3c;
+        }
+        
+        .notification-progress {
+            height: 4px;
+            background-color: #eee;
+            border-radius: 2px;
+            margin-top: 10px;
+            overflow: hidden;
+        }
+        
+        .notification-progress-bar {
+            height: 100%;
+            width: 100%;
+            background-color: #4b6cb7;
+            animation: progressBar 5s linear forwards;
+        }
+        
+        .notification.success .notification-progress-bar {
+            background-color: #2ecc71;
+        }
+        
+        .notification.warning .notification-progress-bar {
+            background-color: #f39c12;
+        }
+        
+        .notification.error .notification-progress-bar {
+            background-color: #e74c3c;
+        }
+        
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+        
+        @keyframes progressBar {
+            from {
+                width: 100%;
+            }
+            to {
+                width: 0%;
+            }
+        }
+        
+        .notification.fade-out {
+            opacity: 0;
+            transform: translateX(100%);
+            transition: all 0.3s;
+        }
+        
+        .admin-mode {
+            background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+        }
+        
+        .admin-mode h1::after {
+            content: " 🔒 管理员模式";
+            font-size: 1rem;
+        }
+        
+        .admin-controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+        }
+        
+        .admin-controls select {
+            flex: 1;
+            min-width: 200px;
+        }
+        
+        .record-actions {
+            display: flex;
+            gap: 5px;
+        }
+        
+        .selected-employee {
+            background-color: #3498db;
+            color: white;
+        }
+        
+        .selected-employee .employee-name,
+        .selected-employee .employee-salary {
+            color: white;
+        }
+        
+        .action-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        
+        .tab-container {
+            display: flex;
+            border-bottom: 1px solid #ddd;
+            margin-bottom: 20px;
+        }
+        
+        .tab {
+            padding: 10px 20px;
+            cursor: pointer;
+            border-bottom: 3px solid transparent;
+        }
+        
+        .tab.active {
+            border-bottom: 3px solid #4b6cb7;
+            font-weight: bold;
+            color: #4b6cb7;
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        .employee-management {
+            margin-top: 20px;
+        }
+        
+        .employee-list {
+            max-height: 300px;
+            overflow-y: auto;
+            margin-top: 15px;
+        }
+        
+        .employee-list-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .employee-list-item:hover {
+            background-color: #f9f9f9;
+        }
+        
+        .employee-stats {
+            font-size: 0.9rem;
+            color: #7f8c8d;
+        }
+        
+        .delete-confirm {
+            color: #e74c3c;
+            font-size: 0.9rem;
+            margin-top: 10px;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <!-- 通知容器 -->
+    <div class="notification-container" id="notificationContainer"></div>
+    
+    <!-- 登录页面 -->
+    <div id="loginPage" class="login-container">
+        <header>
+            <h1>🔒 员工工资发放流水系统</h1>
+            <p class="current-date" id="currentDate">正在加载日期...</p>
+        </header>
+        
+        <div class="card">
+            <h2>系统登录</h2>
+            <p style="margin-bottom: 20px;">请输入密码以访问员工工资发放记录系统</p>
+            
+            <div class="login-form">
+                <input type="password" id="loginPassword" placeholder="请输入访问密码">
+                <div class="error-message" id="loginError">密码错误，请重试！</div>
+                <button id="loginBtn">登录系统</button>
+            </div>
+            
+            <div style="margin-top: 20px; font-size: 0.9rem; color: #7f8c8d;">
+                <p><strong>系统特点：</strong></p>
+                <p>1. 普通用户只能查看记录，不能修改删除</p>
+                <p>2. 管理员可以管理员工记录，包括删除</p>
+                <p>3. 首次使用默认密码为 <strong>admin123</strong></p>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 主应用页面（默认隐藏） -->
+    <div id="mainApp" style="display: none;">
+        <header id="mainHeader">
+            <div class="user-info">
+                <span>已登录 | <span id="username">管理员</span></span>
+                <button class="logout-btn" id="logoutBtn">退出</button>
+                <button class="logout-btn" id="toggleAdminBtn" style="display: none;">进入管理员模式</button>
+            </div>
+            <h1>💰 员工工资发放流水账系统</h1>
+            <div class="current-date" id="currentDateMain">正在加载日期...</div>
+        </header>
+        
+        <div class="tab-container">
+            <div class="tab active" id="tabRecords">📋 记录管理</div>
+            <div class="tab" id="tabAdmin">⚙️ 系统管理</div>
+            <div class="tab" id="tabEmployees">👥 员工管理</div>
+        </div>
+        
+        <div class="tab-content active" id="tabRecordsContent">
+            <div class="container">
+                <div class="left-column">
+                    <div class="card">
+                        <h2>📝 添加工资发放记录</h2>
+                        <form id="recordForm">
+                            <div class="form-group">
+                                <label for="date">发放日期</label>
+                                <input type="date" id="date" required>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="employee">选择员工</label>
+                                <select id="employee" required>
+                                    <option value="">请选择员工</option>
+                                    <!-- 员工列表将通过JavaScript动态生成 -->
+                                </select>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="amount">工资金额 (元)</label>
+                                <input type="number" id="amount" min="0" step="0.01" placeholder="0.00" required>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="payUnit">发放单位</label>
+                                <div class="pay-unit">
+                                    <select id="payUnit" required>
+                                        <option value="day">日薪</option>
+                                        <option value="week">周薪</option>
+                                        <option value="month" selected>月薪</option>
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="description">备注说明</label>
+                                <textarea id="description" rows="3" placeholder="例如：3月份工资、项目奖金、加班费等..."></textarea>
+                            </div>
+                            
+                            <div class="actions">
+                                <button type="submit" class="btn btn-primary">
+                                    💾 保存工资记录
+                                </button>
+                                <button type="button" id="clearForm" class="btn">
+                                    🧹 清空表单
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                    
+                    <div class="card">
+                        <h2>📊 工资统计</h2>
+                        <div class="stats">
+                            <div class="stat-box total-salary">
+                                <h3>总发放工资</h3>
+                                <div class="amount" id="totalSalary">0.00</div>
+                            </div>
+                            <div class="stat-box avg-salary">
+                                <h3>平均工资</h3>
+                                <div class="amount" id="avgSalary">0.00</div>
+                            </div>
+                            <div class="stat-box employee-count">
+                                <h3>员工数量</h3>
+                                <div class="amount" id="employeeCount">0</div>
+                            </div>
+                        </div>
+                        
+                        <h3>本月统计</h3>
+                        <div class="stats">
+                            <div class="stat-box total-salary" style="min-width: 100%;">
+                                <h3>本月发放工资</h3>
+                                <div class="amount" id="monthSalary">0.00</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="card">
+                        <h2>👥 员工工资汇总</h2>
+                        <div class="employee-summary" id="employeeSummary">
+                            <!-- 员工工资汇总将在这里动态生成 -->
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="right-column">
+                    <div class="card">
+                        <h2>📋 工资发放记录</h2>
+                        
+                        <!-- 管理员控制 -->
+                        <div class="admin-controls" id="adminControls" style="display: none;">
+                            <select id="filterEmployee">
+                                <option value="">所有员工</option>
+                                <!-- 员工筛选列表将通过JavaScript动态生成 -->
+                            </select>
+                            <select id="filterPeriod">
+                                <option value="all">所有时间</option>
+                                <option value="today">今天</option>
+                                <option value="week">本周</option>
+                                <option value="month">本月</option>
+                                <option value="year">本年</option>
+                            </select>
+                            <button class="btn btn-sm btn-danger" id="deleteSelected" style="display: none;">删除选中记录</button>
+                        </div>
+                        
+                        <div id="recordsContainer">
+                            <div class="empty-state" id="emptyState">
+                                <h3>暂无工资发放记录</h3>
+                                <p>添加工资发放记录开始追踪员工工资情况</p>
+                            </div>
+                            
+                            <div id="recordsList">
+                                <!-- 按日期分组的记录将在这里显示 -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="tab-content" id="tabAdminContent">
+            <div class="card">
+                <h2>⚙️ 系统设置</h2>
+                <div id="passwordChangeSection">
+                    <div class="form-group">
+                        <label for="newPassword">新密码</label>
+                        <input type="password" id="newPassword" placeholder="输入新密码">
+                    </div>
+                    <div class="form-group">
+                        <label for="confirmNewPassword">确认新密码</label>
+                        <input type="password" id="confirmNewPassword" placeholder="再次输入新密码">
+                    </div>
+                    <div class="actions">
+                        <button id="updatePasswordBtn" class="btn btn-primary">
+                            🔐 更新密码
+                        </button>
+                    </div>
+                </div>
+                
+                <div id="systemInfo" style="margin-top: 30px;">
+                    <h3>系统信息</h3>
+                    <p><strong>记录总数：</strong> <span id="totalRecords">0</span> 条</p>
+                    <p><strong>数据大小：</strong> <span id="dataSize">0 KB</span></p>
+                    <p><strong>最后更新：</strong> <span id="lastUpdate">暂无</span></p>
+                    <p><strong>使用提示：</strong> 数据保存在浏览器本地，清除浏览器数据将导致数据丢失。</p>
+                </div>
+                
+                <div class="management-section">
+                    <h2>🗑️ 数据管理</h2>
+                    <div class="readonly-note">
+                        <p><strong>注意：</strong>以下操作需要管理员权限，操作不可逆，请谨慎操作。</p>
+                    </div>
+                    
+                    <div class="action-buttons">
+                        <button type="button" id="exportData" class="btn btn-success">
+                            📥 导出工资数据
+                        </button>
+                        <button type="button" id="deleteAll" class="btn btn-danger">
+                            🗑️ 清除所有记录
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="tab-content" id="tabEmployeesContent">
+            <div class="card">
+                <h2>👥 员工管理</h2>
+                <p>在这里可以管理所有员工的工资记录</p>
+                
+                <div class="employee-management">
+                    <div class="admin-controls">
+                        <select id="selectEmployeeManage">
+                            <option value="">选择要管理的员工</option>
+                            <!-- 员工管理列表将通过JavaScript动态生成 -->
+                        </select>
+                        <button class="btn btn-danger" id="deleteEmployeeRecords">删除该员工所有记录</button>
+                    </div>
+                    
+                    <div class="delete-confirm" id="deleteConfirm">
+                        确定要删除员工 <span id="employeeToDelete"></span> 的所有记录吗？此操作不可恢复！
+                        <div style="margin-top: 10px;">
+                            <button class="btn btn-sm btn-danger" id="confirmDeleteEmployee">确认删除</button>
+                            <button class="btn btn-sm" id="cancelDeleteEmployee">取消</button>
+                        </div>
+                    </div>
+                    
+                    <div id="employeeRecordsContainer" style="margin-top: 20px;">
+                        <div class="empty-state" style="display: none;" id="noEmployeeSelected">
+                            <h3>请选择要管理的员工</h3>
+                            <p>从上方下拉列表中选择一个员工查看和管理其记录</p>
+                        </div>
+                        
+                        <div id="employeeRecordsList">
+                            <!-- 员工记录将在这里显示 -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <footer>
+            <p>员工工资发放流水账系统 &copy; 2023 | 普通用户只能查看记录，管理员可以管理记录</p>
+        </footer>
+    </div>
+    
+    <!-- 密码验证模态框 -->
+    <div id="passwordModal" class="password-modal">
+        <div class="modal-content">
+            <h3>🔐 验证管理密码</h3>
+            <p>此操作需要验证管理密码</p>
+            <input type="password" id="modalPassword" placeholder="请输入管理密码" style="width: 100%; padding: 12px; margin: 15px 0;">
+            <div class="modal-error" id="modalError">密码错误，请重试！</div>
+            <div class="modal-actions">
+                <button id="confirmAction" class="btn btn-danger">确认执行</button>
+                <button id="cancelAction" class="btn">取消</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 初始化变量
+        let records = [];
+        let isLoggedIn = false;
+        let isAdminMode = false;
+        let pendingAction = null; // 待执行的操作
+        let selectedEmployeeForDeletion = null; // 待删除员工
+        
+        // 默认密码
+        const DEFAULT_PASSWORD = "admin123";
+        
+        // 员工列表
+        let employees = [
+            "Isaack-1",
+	"Frankie-3",
+	"Jefrey-4",
+	"Raffic-10",
+	"Saidi-24",
+	"David-27",
+	"Moses-28",
+	"Promise-31",
+	"Lourence-33",
+	"Affan-34",
+	"Poolo-35",
+	"Aidu-37",
+	"Johan-42",
+	"Howard-4",
+	"Lenard -36",
+	"Charles-45",
+	"Ruth C 2",
+	"Tokko C3",
+	"Promise C 4",
+	"Christina C 5",
+	"Martha C 6",
+	"Thomas C8",
+	"Paress C9",
+	"Ismail C10",
+	"Bashiru C11",
+	"Loveness C13",
+	"Mariam C18",
+	"Jabai Said C19",
+	"ChristoffC 21",
+	"Rejoyce C 22",
+	"Mercy C23",
+	"Leo C25",
+	"Fortunate C26",
+	"Selina C28",
+	"Tadiwanosch C29",
+	"Mphatso C30",
+	"Adumu C31",
+	"AHMD C32",
+	"InokC36",
+	"Mathews C42",
+	"John Gomo C43",
+	"Terrence 9",
+	"Cams 12",
+         "lsaack-1",
+	"Terrence-9",
+	"Raffic-10",
+	"Cams -12",
+	"Mike-21",
+	"Saidi-24",
+	"David-27",
+	"Moses-28",
+	"Promise-31",
+	"Affan-34",
+	"Aidu-37",
+	"Johan-42",
+	"Charles-45",
+	"RATIDZAI C2",
+        "SHAHDIUC3",
+	"Promise C4",
+	"Martha C6",
+	"Thomas C8",
+	"Paress C9",
+	"Ismail C10",
+	"Bashiru C11",
+	"Mariam C18",
+	"Jabai Sai C19",
+	"Rejoyce C22",
+	"Leo C25",
+	"Fortunate C26",
+	"Selina C28",
+	"Tadiwanosch C29",
+	"Mphatso C30",
+	"Adumu C31",
+	"AHMD C32",
+	"Inok C36",
+	"Mathews C42",
+	"John Gomo C43",
+	"Thomas C48",
+	"JOEL C62",
+	"JOJI C63",
+	"DUWQ C64",
+	"GRANT C65"
+	
+        ];
+        
+        // 发放单位映射
+        const payUnitNames = {
+            "day": "日薪",
+            "week": "周薪",
+            "month": "月薪"
+        };
+        
+        // 页面加载完成后初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            // 设置当前日期
+            const currentDateElement = document.getElementById('currentDate');
+            const currentDateMain = document.getElementById('currentDateMain');
+            const today = new Date();
+            const formattedDate = today.toLocaleDateString('zh-CN', { 
+                year: 'numeric', 
+                month: 'long', 
+                day: 'numeric',
+                weekday: 'long'
+            });
+            currentDateElement.textContent = formattedDate;
+            currentDateMain.textContent = formattedDate;
+            
+            // 设置表单日期为今天
+            document.getElementById('date').valueAsDate = today;
+            
+            // 初始化员工选择框
+            initEmployeeSelect();
+            
+            // 从本地存储加载数据
+            loadRecords();
+            checkLoginStatus();
+            
+            // 设置事件监听器
+            setupEventListeners();
+            
+            // 更新统计信息
+            updateStats();
+            updateEmployeeSummary();
+            updateSystemInfo();
+            
+            // 设置标签页切换
+            setupTabs();
+        });
+        
+        // 设置标签页切换
+        function setupTabs() {
+            const tabs = document.querySelectorAll('.tab');
+            const tabContents = document.querySelectorAll('.tab-content');
+            
+            tabs.forEach(tab => {
+                tab.addEventListener('click', function() {
+                    const tabId = this.id.replace('tab', '');
+                    
+                    // 移除所有active类
+                    tabs.forEach(t => t.classList.remove('active'));
+                    tabContents.forEach(tc => tc.classList.remove('active'));
+                    
+                    // 添加active类到当前标签
+                    this.classList.add('active');
+                    document.getElementById(`tab${tabId}Content`).classList.add('active');
+                });
+            });
+        }
+        
+        // 初始化员工选择框
+        function initEmployeeSelect() {
+            const employeeSelect = document.getElementById('employee');
+            const filterEmployee = document.getElementById('filterEmployee');
+            const selectEmployeeManage = document.getElementById('selectEmployeeManage');
+            
+            // 清空现有选项（除了第一个）
+            while (employeeSelect.options.length > 1) {
+                employeeSelect.remove(1);
+            }
+            
+            if (filterEmployee) {
+                while (filterEmployee.options.length > 1) {
+                    filterEmployee.remove(1);
+                }
+            }
+            
+            if (selectEmployeeManage) {
+                while (selectEmployeeManage.options.length > 1) {
+                    selectEmployeeManage.remove(1);
+                }
+            }
+            
+            // 添加员工选项
+            employees.forEach(employee => {
+                const option = document.createElement('option');
+                option.value = employee;
+                option.textContent = employee;
+                employeeSelect.appendChild(option.cloneNode(true));
+                
+                if (filterEmployee) {
+                    filterEmployee.appendChild(option.cloneNode(true));
+                }
+                
+                if (selectEmployeeManage) {
+                    selectEmployeeManage.appendChild(option.cloneNode(true));
+                }
+            });
+        }
+        
+        // 检查登录状态
+        function checkLoginStatus() {
+            const savedPassword = localStorage.getItem('salaryPassword');
+            const loginTime = localStorage.getItem('loginTime');
+            const now = Date.now();
+            
+            // 如果没有设置密码，使用默认密码
+            if (!savedPassword) {
+                localStorage.setItem('salaryPassword', DEFAULT_PASSWORD);
+            }
+            
+            // 检查是否已登录（登录状态保持24小时）
+            if (loginTime && (now - parseInt(loginTime)) < 24 * 60 * 60 * 1000) {
+                isLoggedIn = true;
+                showMainApp();
+                
+                // 检查是否是管理员
+                const isAdmin = localStorage.getItem('isAdmin') === 'true';
+                if (isAdmin) {
+                    enterAdminMode();
+                }
+            } else {
+                // 清除过期的登录状态
+                localStorage.removeItem('loginTime');
+                localStorage.removeItem('isAdmin');
+                isLoggedIn = false;
+                isAdminMode = false;
+                showLoginPage();
+            }
+        }
+        
+        // 显示登录页面
+        function showLoginPage() {
+            document.getElementById('loginPage').style.display = 'block';
+            document.getElementById('mainApp').style.display = 'none';
+            isLoggedIn = false;
+            isAdminMode = false;
+        }
+        
+        // 显示主应用
+        function showMainApp() {
+            document.getElementById('loginPage').style.display = 'none';
+            document.getElementById('mainApp').style.display = 'block';
+            isLoggedIn = true;
+            
+            // 显示管理员模式按钮
+            document.getElementById('toggleAdminBtn').style.display = 'block';
+        }
+        
+        // 进入管理员模式
+        function enterAdminMode() {
+            isAdminMode = true;
+            localStorage.setItem('isAdmin', 'true');
+            
+            // 更新界面
+            document.getElementById('toggleAdminBtn').textContent = '退出管理员模式';
+            document.getElementById('mainHeader').classList.add('admin-mode');
+            document.getElementById('adminControls').style.display = 'flex';
+            
+            // 显示通知
+            showNotification('success', '管理员模式已开启', '您现在可以管理所有员工记录，包括删除操作。');
+            
+            // 重新显示记录（添加删除按钮）
+            displayRecords();
+        }
+        
+        // 退出管理员模式
+        function exitAdminMode() {
+            isAdminMode = false;
+            localStorage.removeItem('isAdmin');
+            
+            // 更新界面
+            document.getElementById('toggleAdminBtn').textContent = '进入管理员模式';
+            document.getElementById('mainHeader').classList.remove('admin-mode');
+            document.getElementById('adminControls').style.display = 'none';
+            
+            // 显示通知
+            showNotification('info', '管理员模式已关闭', '您已退出管理员模式，现在只能查看记录。');
+            
+            // 重新显示记录（移除删除按钮）
+            displayRecords();
+        }
+        
+        // 从本地存储加载记录
+        function loadRecords() {
+            const storedRecords = localStorage.getItem('salaryRecords');
+            if (storedRecords) {
+                records = JSON.parse(storedRecords);
+                displayRecords();
+            }
+        }
+        
+        // 保存记录到本地存储
+        function saveRecords() {
+            localStorage.setItem('salaryRecords', JSON.stringify(records));
+            // 更新最后更新时间
+            localStorage.setItem('lastUpdateTime', new Date().toISOString());
+            updateSystemInfo();
+        }
+        
+        // 设置事件监听器
+        function setupEventListeners() {
+            // 登录按钮
+            document.getElementById('loginBtn').addEventListener('click', function() {
+                const password = document.getElementById('loginPassword').value;
+                const savedPassword = localStorage.getItem('salaryPassword') || DEFAULT_PASSWORD;
+                
+                if (password === savedPassword) {
+                    // 登录成功，保存登录时间
+                    localStorage.setItem('loginTime', Date.now().toString());
+                    isLoggedIn = true;
+                    showMainApp();
+                    
+                    // 显示登录成功通知
+                    showNotification('success', '登录成功', '欢迎使用员工工资发放流水账系统！');
+                } else {
+                    // 登录失败，显示错误
+                    document.getElementById('loginError').style.display = 'block';
+                    
+                    // 显示登录失败通知
+                    showNotification('error', '登录失败', '密码错误，请重试！');
+                }
+            });
+            
+            // 退出登录
+            document.getElementById('logoutBtn').addEventListener('click', function() {
+                localStorage.removeItem('loginTime');
+                localStorage.removeItem('isAdmin');
+                showLoginPage();
+                
+                // 显示退出登录通知
+                showNotification('info', '已退出系统', '您已成功退出系统，欢迎下次使用！');
+            });
+            
+            // 切换管理员模式
+            document.getElementById('toggleAdminBtn').addEventListener('click', function() {
+                if (!isAdminMode) {
+                    // 进入管理员模式需要验证密码
+                    pendingAction = 'enterAdmin';
+                    showPasswordModal('进入管理员模式');
+                } else {
+                    // 退出管理员模式
+                    exitAdminMode();
+                }
+            });
+            
+            // 表单提交
+            document.getElementById('recordForm').addEventListener('submit', function(e) {
+                e.preventDefault();
+                saveRecord();
+            });
+            
+            // 清空表单
+            document.getElementById('clearForm').addEventListener('click', function() {
+                clearForm();
+            });
+            
+            // 删除所有记录
+            document.getElementById('deleteAll').addEventListener('click', function() {
+                if (records.length === 0) {
+                    showNotification('warning', '删除失败', '当前没有记录可删除。');
+                    return;
+                }
+                
+                // 设置待执行操作为删除所有
+                pendingAction = 'deleteAll';
+                showPasswordModal('清除所有记录');
+            });
+            
+            // 导出数据
+            document.getElementById('exportData').addEventListener('click', function() {
+                if (records.length === 0) {
+                    showNotification('warning', '导出失败', '没有数据可导出。');
+                    return;
+                }
+                
+                // 设置待执行操作为导出数据
+                pendingAction = 'exportData';
+                showPasswordModal('导出数据');
+            });
+            
+            // 更新密码
+            document.getElementById('updatePasswordBtn').addEventListener('click', updatePassword);
+            
+            // 密码模态框事件
+            document.getElementById('cancelAction').addEventListener('click', hidePasswordModal);
+            document.getElementById('confirmAction').addEventListener('click', verifyPasswordForAction);
+            
+            // 监听密码输入框回车键
+            document.getElementById('modalPassword').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    verifyPasswordForAction();
+                }
+            });
+            
+            // 监听登录密码输入框回车键
+            document.getElementById('loginPassword').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    document.getElementById('loginBtn').click();
+                }
+            });
+            
+            // 员工筛选
+            document.getElementById('filterEmployee').addEventListener('change', function() {
+                displayRecords();
+            });
+            
+            document.getElementById('filterPeriod').addEventListener('change', function() {
+                displayRecords();
+            });
+            
+            // 删除员工记录
+            document.getElementById('deleteEmployeeRecords').addEventListener('click', function() {
+                const employee = document.getElementById('selectEmployeeManage').value;
+                if (!employee) {
+                    showNotification('warning', '操作失败', '请先选择要删除的员工！');
+                    return;
+                }
+                
+                selectedEmployeeForDeletion = employee;
+                document.getElementById('employeeToDelete').textContent = employee;
+                document.getElementById('deleteConfirm').style.display = 'block';
+            });
+            
+            // 确认删除员工记录
+            document.getElementById('confirmDeleteEmployee').addEventListener('click', function() {
+                if (selectedEmployeeForDeletion) {
+                    deleteEmployeeRecords(selectedEmployeeForDeletion);
+                    document.getElementById('deleteConfirm').style.display = 'none';
+                    selectedEmployeeForDeletion = null;
+                }
+            });
+            
+            // 取消删除员工记录
+            document.getElementById('cancelDeleteEmployee').addEventListener('click', function() {
+                document.getElementById('deleteConfirm').style.display = 'none';
+                selectedEmployeeForDeletion = null;
+            });
+            
+            // 员工管理选择
+            document.getElementById('selectEmployeeManage').addEventListener('change', function() {
+                const employee = this.value;
+                if (employee) {
+                    displayEmployeeRecords(employee);
+                    document.getElementById('noEmployeeSelected').style.display = 'none';
+                } else {
+                    document.getElementById('employeeRecordsList').innerHTML = '';
+                    document.getElementById('noEmployeeSelected').style.display = 'block';
+                }
+            });
+        }
+        
+        // 显示通知函数
+        function showNotification(type, title, message, details = null) {
+            const notificationContainer = document.getElementById('notificationContainer');
+            
+            // 创建通知元素
+            const notification = document.createElement('div');
+            notification.className = `notification ${type}`;
+            
+            // 根据类型设置图标
+            let icon = 'ℹ️';
+            if (type === 'success') icon = '✅';
+            else if (type === 'error') icon = '❌';
+            else if (type === 'warning') icon = '⚠️';
+            else if (type === 'info') icon = 'ℹ️';
+            
+            // 构建通知内容
+            let notificationContent = `
+                <div class="notification-header">
+                    <div class="notification-title">
+                        <span class="notification-icon">${icon}</span>
+                        ${title}
+                    </div>
+                    <button class="notification-close" onclick="this.parentElement.parentElement.classList.add('fade-out'); setTimeout(() => this.parentElement.parentElement.remove(), 300)">&times;</button>
+                </div>
+                <div class="notification-content">${message}</div>
+            `;
+            
+            // 如果有详细信息，添加到通知中
+            if (details) {
+                notificationContent += `
+                <div class="notification-details">
+                    ${details}
+                </div>
+                `;
+            }
+            
+            // 添加进度条
+            notificationContent += `
+                <div class="notification-progress">
+                    <div class="notification-progress-bar"></div>
+                </div>
+            `;
+            
+            notification.innerHTML = notificationContent;
+            
+            // 添加到通知容器
+            notificationContainer.appendChild(notification);
+            
+            // 5秒后自动移除通知
+            setTimeout(() => {
+                notification.classList.add('fade-out');
+                setTimeout(() => {
+                    if (notification.parentNode) {
+                        notification.parentNode.removeChild(notification);
+                    }
+                }, 300);
+            }, 3000);
+        }
+        
+        // 显示密码验证模态框
+        function showPasswordModal(actionName) {
+            document.getElementById('passwordModal').style.display = 'flex';
+            document.getElementById('modalPassword').value = '';
+            document.getElementById('modalError').style.display = 'none';
+            document.getElementById('confirmAction').textContent = '确认' + actionName;
+        }
+        
+        // 隐藏密码验证模态框
+        function hidePasswordModal() {
+            document.getElementById('passwordModal').style.display = 'none';
+            pendingAction = null;
+        }
+        
+        // 验证密码以执行操作
+        function verifyPasswordForAction() {
+            const password = document.getElementById('modalPassword').value;
+            const savedPassword = localStorage.getItem('salaryPassword') || DEFAULT_PASSWORD;
+            
+            if (password === savedPassword) {
+                // 密码正确，执行操作
+                if (pendingAction === 'deleteAll') {
+                    deleteAllRecords();
+                } else if (pendingAction === 'exportData') {
+                    exportData();
+                } else if (pendingAction === 'enterAdmin') {
+                    enterAdminMode();
+                }
+                hidePasswordModal();
+            } else {
+                // 密码错误
+                document.getElementById('modalError').style.display = 'block';
+                showNotification('error', '密码错误', '请输入正确的管理员密码！');
+            }
+        }
+        
+        // 保存工资记录
+        function saveRecord() {
+            // 获取表单数据
+            const date = document.getElementById('date').value;
+            const employee = document.getElementById('employee').value;
+            const amount = parseFloat(document.getElementById('amount').value);
+            const payUnit = document.getElementById('payUnit').value;
+            const description = document.getElementById('description').value;
+            
+            // 验证数据
+            if (!employee) {
+                showNotification('warning', '保存失败', '请选择员工！');
+                return;
+            }
+            
+            if (isNaN(amount) || amount <= 0) {
+                showNotification('warning', '保存失败', '请输入有效的工资金额！');
+                return;
+            }
+            
+            // 创建新记录对象
+            const record = {
+                id: Date.now(),
+                date: date,
+                employee: employee,
+                amount: amount,
+                payUnit: payUnit,
+                description: description,
+                created: new Date().toISOString()
+            };
+            
+            // 添加新记录
+            records.push(record);
+            
+            // 按日期排序（最新的在前面）
+            records.sort((a, b) => new Date(b.date) - new Date(a.date));
+            
+            // 保存到本地存储
+            saveRecords();
+            
+            // 更新显示
+            displayRecords();
+            updateStats();
+            updateEmployeeSummary();
+            
+            // 格式化日期
+            const formattedDate = new Date(date).toLocaleDateString('zh-CN', {
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+            });
+            
+            // 显示成功通知
+            const details = `
+                <div class="notification-detail-row">
+                    <span class="notification-detail-label">员工：</span>
+                    <span class="notification-detail-value">${employee}</span>
+                </div>
+                <div class="notification-detail-row">
+                    <span class="notification-detail-label">发放日期：</span>
+                    <span class="notification-detail-value">${formattedDate}</span>
+                </div>
+                <div class="notification-detail-row">
+                    <span class="notification-detail-label">发放单位：</span>
+                    <span class="notification-detail-value">${payUnitNames[payUnit] || payUnit}</span>
+                </div>
+                <div class="notification-detail-row">
+                    <span class="notification-detail-label">工资金额：</span>
+                    <span class="notification-detail-value notification-success-value">${amount.toFixed(2)} 元</span>
+                </div>
+                ${description ? `
+                <div class="notification-detail-row">
+                    <span class="notification-detail-label">备注：</span>
+                    <span class="notification-detail-value">${description}</span>
+                </div>
+                ` : ''}
+            `;
+            
+            showNotification('success', '记录保存成功', `员工 ${employee} 的工资记录已保存！`, details);
+            
+            // 清空表单
+            clearForm();
+        }
+        
+        // 清空表单
+        function clearForm() {
+            document.getElementById('recordForm').reset();
+            const today = new Date();
+            document.getElementById('date').valueAsDate = today;
+            document.getElementById('payUnit').value = 'month';
+            document.getElementById('description').value = '';
+        }
+        
+        // 删除所有记录
+        function deleteAllRecords() {
+            const recordCount = records.length;
+            records = [];
+            saveRecords();
+            displayRecords();
+            updateStats();
+            updateEmployeeSummary();
+            
+            // 显示删除通知
+            showNotification('success', '所有记录已删除', `成功删除了 ${recordCount} 条工资记录！`);
+        }
+        
+        // 删除员工所有记录
+        function deleteEmployeeRecords(employeeName) {
+            // 获取该员工的记录数量
+            const employeeRecords = records.filter(record => record.employee === employeeName);
+            const recordCount = employeeRecords.length;
+            
+            // 计算该员工的总工资
+            let totalAmount = 0;
+            employeeRecords.forEach(record => {
+                totalAmount += record.amount;
+            });
+            
+            // 过滤掉该员工的记录
+            records = records.filter(record => record.employee !== employeeName);
+            
+            // 保存到本地存储
+            saveRecords();
+            
+            // 更新显示
+            displayRecords();
+            updateStats();
+            updateEmployeeSummary();
+            
+            // 清空员工管理界面
+            document.getElementById('selectEmployeeManage').value = '';
+            document.getElementById('employeeRecordsList').innerHTML = '';
+            document.getElementById('noEmployeeSelected').style.display = 'block';
+            
+            // 显示删除通知
+            const details = `
+                <div class="notification-detail-row">
+                    <span class="notification-detail-label">员工：</span>
+                    <span class="notification-detail-value">${employeeName}</span>
+                </div>
+                <div class="notification-detail-row">
+                    <span class="notification-detail-label">删除记录数：</span>
+                    <span class="notification-detail-value notification-danger-value">${recordCount} 条</span>
+                </div>
+                <div class="notification-detail-row">
+                    <span class="notification-detail-label">总工资金额：</span>
+                    <span class="notification-detail-value notification-danger-value">${totalAmount.toFixed(2)} 元</span>
+                </div>
+            `;
+            
+            showNotification('success', '员工记录已删除', `成功删除员工 ${employeeName} 的所有工资记录！`, details);
+        }
+        
+        // 删除单条记录
+        function deleteRecord(recordId) {
+            if (!confirm('确定要删除这条记录吗？此操作不可恢复！')) {
+                return;
+            }
+            
+            // 找到记录
+            const index = records.findIndex(record => record.id === recordId);
+            if (index === -1) {
+                showNotification('error', '删除失败', '未找到要删除的记录！');
+                return;
+            }
+            
+            const record = records[index];
+            
+            // 格式化日期
+            const formattedDate = new Date(record.date).toLocaleDateString('zh-CN', {
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+            });
+            
+            // 删除记录
+            records.splice(index, 1);
+            
+            // 保存到本地存储
+            saveRecords();
+            
+            // 更新显示
+            displayRecords();
+            updateStats();
+            updateEmployeeSummary();
+            
+            // 显示删除通知
+            const details = `
+                <div class="notification-detail-row">
+                    <span class="notification-detail-label">员工：</span>
+                    <span class="notification-detail-value">${record.employee}</span>
+                </div>
+                <div class="notification-detail-row">
+                    <span class="notification-detail-label">发放日期：</span>
+                    <span class="notification-detail-value">${formattedDate}</span>
+                </div>
+                <div class="notification-detail-row">
+                    <span class="notification-detail-label">发放单位：</span>
+                    <span class="notification-detail-value">${payUnitNames[record.payUnit] || record.payUnit}</span>
+                </div>
+                <div class="notification-detail-row">
+                    <span class="notification-detail-label">工资金额：</span>
+                    <span class="notification-detail-value notification-danger-value">${record.amount.toFixed(2)} 元</span>
+                </div>
+                ${record.description ? `
+                <div class="notification-detail-row">
+                    <span class="notification-detail-label">备注：</span>
+                    <span class="notification-detail-value">${record.description}</span>
+                </div>
+                ` : ''}
+            `;
+            
+            showNotification('success', '记录删除成功', `成功删除员工 ${record.employee} 的工资记录！`, details);
+        }
+        
+        // 显示记录
+        function displayRecords() {
+            const recordsList = document.getElementById('recordsList');
+            const emptyState = document.getElementById('emptyState');
+            
+            // 获取筛选条件
+            const filterEmployee = document.getElementById('filterEmployee')?.value || '';
+            const filterPeriod = document.getElementById('filterPeriod')?.value || 'all';
+            
+            // 筛选记录
+            let filteredRecords = records;
+            
+            // 按员工筛选
+            if (filterEmployee) {
+                filteredRecords = filteredRecords.filter(record => record.employee === filterEmployee);
+            }
+            
+            // 按时间筛选
+            const today = new Date();
+            if (filterPeriod !== 'all') {
+                filteredRecords = filteredRecords.filter(record => {
+                    const recordDate = new Date(record.date);
+                    
+                    if (filterPeriod === 'today') {
+                        return recordDate.toDateString() === today.toDateString();
+                    } else if (filterPeriod === 'week') {
+                        const weekStart = new Date(today);
+                        weekStart.setDate(today.getDate() - today.getDay());
+                        weekStart.setHours(0, 0, 0, 0);
+                        
+                        const weekEnd = new Date(weekStart);
+                        weekEnd.setDate(weekStart.getDate() + 6);
+                        weekEnd.setHours(23, 59, 59, 999);
+                        
+                        return recordDate >= weekStart && recordDate <= weekEnd;
+                    } else if (filterPeriod === 'month') {
+                        return recordDate.getMonth() === today.getMonth() && 
+                               recordDate.getFullYear() === today.getFullYear();
+                    } else if (filterPeriod === 'year') {
+                        return recordDate.getFullYear() === today.getFullYear();
+                    }
+                    return true;
+                });
+            }
+            
+            // 如果没有记录，显示空状态
+            if (filteredRecords.length === 0) {
+                recordsList.innerHTML = '';
+                emptyState.style.display = 'block';
+                return;
+            }
+            
+            // 隐藏空状态
+            emptyState.style.display = 'none';
+            
+            // 按日期分组记录
+            const groupedRecords = {};
+            filteredRecords.forEach(record => {
+                if (!groupedRecords[record.date]) {
+                    groupedRecords[record.date] = [];
+                }
+                groupedRecords[record.date].push(record);
+            });
+            
+            // 生成HTML
+            let html = '';
+            
+            // 遍历每个日期组
+            Object.keys(groupedRecords).sort().reverse().forEach(date => {
+                const dateRecords = groupedRecords[date];
+                let dateTotal = 0;
+                
+                // 计算该日期的总工资
+                dateRecords.forEach(record => {
+                    dateTotal += record.amount;
+                });
+                
+                // 格式化日期
+                const formattedDate = new Date(date).toLocaleDateString('zh-CN', {
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric',
+                    weekday: 'long'
+                });
+                
+                // 添加日期标题
+                html += `
+                <div class="date-group">
+                    <div class="date-header">
+                        <span>${formattedDate}</span>
+                        <span class="date-total">发放工资总额: ${dateTotal.toFixed(2)} 元</span>
+                    </div>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>员工</th>
+                                <th>发放单位</th>
+                                <th>金额</th>
+                                <th>备注</th>
+                                <th>时间</th>
+                                ${isAdminMode ? '<th>操作</th>' : ''}
+                            </tr>
+                        </thead>
+                        <tbody>
+                `;
+                
+                // 添加该日期的每条记录
+                dateRecords.forEach((record, index) => {
+                    // 格式化创建时间
+                    const createdTime = new Date(record.created).toLocaleTimeString('zh-CN', {
+                        hour: '2-digit',
+                        minute: '2-digit'
+                    });
+                    
+                    // 确定CSS类
+                    let unitClass = 'type-paid';
+                    if (record.payUnit === 'day') unitClass = 'type-day';
+                    else if (record.payUnit === 'week') unitClass = 'type-week';
+                    else if (record.payUnit === 'month') unitClass = 'type-month';
+                    
+                    html += `
+                    <tr class="employee-row">
+                        <td><strong>${record.employee}</strong></td>
+                        <td>
+                            <span class="salary-paid ${unitClass}">
+                                ${payUnitNames[record.payUnit] || record.payUnit}
+                            </span>
+                        </td>
+                        <td class="total-amount" style="color: #e74c3c">
+                            ${record.amount.toFixed(2)}
+                        </td>
+                        <td>
+                            ${record.description || '-'}
+                            <div class="record-note">ID: ${record.id}</div>
+                        </td>
+                        <td>${createdTime}</td>
+                        ${isAdminMode ? `
+                        <td>
+                            <div class="record-actions">
+                                <button class="btn btn-sm btn-danger" onclick="deleteRecord(${record.id})">
+                                    删除
+                                </button>
+                            </div>
+                        </td>
+                        ` : ''}
+                    </tr>
+                    `;
+                });
+                
+                html += `
+                        </tbody>
+                    </table>
+                </div>
+                `;
+            });
+            
+            recordsList.innerHTML = html;
+        }
+        
+        // 显示员工记录
+        function displayEmployeeRecords(employeeName) {
+            const employeeRecordsList = document.getElementById('employeeRecordsList');
+            
+            // 筛选该员工的记录
+            const employeeRecords = records.filter(record => record.employee === employeeName);
+            
+            if (employeeRecords.length === 0) {
+                employeeRecordsList.innerHTML = `
+                    <div class="empty-state">
+                        <h3>该员工暂无工资发放记录</h3>
+                        <p>员工 ${employeeName} 还没有任何工资记录</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            // 按日期排序（最新的在前面）
+            employeeRecords.sort((a, b) => new Date(b.date) - new Date(a.date));
+            
+            // 计算该员工的总工资
+            let totalSalary = 0;
+            employeeRecords.forEach(record => {
+                totalSalary += record.amount;
+            });
+            
+            // 生成HTML
+            let html = `
+                <h3>员工 ${employeeName} 的工资记录</h3>
+                <p><strong>总发放工资：</strong> <span style="color: #e74c3c; font-weight: bold;">${totalSalary.toFixed(2)} 元</span></p>
+                <p><strong>记录数量：</strong> ${employeeRecords.length} 条</p>
+                
+                <table style="margin-top: 20px;">
+                    <thead>
+                        <tr>
+                            <th>发放日期</th>
+                            <th>发放单位</th>
+                            <th>金额</th>
+                            <th>备注</th>
+                            <th>时间</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+            
+            employeeRecords.forEach(record => {
+                // 格式化创建时间
+                const createdTime = new Date(record.created).toLocaleTimeString('zh-CN', {
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+                
+                // 格式化日期
+                const formattedDate = new Date(record.date).toLocaleDateString('zh-CN', {
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric'
+                });
+                
+                // 确定CSS类
+                let unitClass = 'type-paid';
+                if (record.payUnit === 'day') unitClass = 'type-day';
+                else if (record.payUnit === 'week') unitClass = 'type-week';
+                else if (record.payUnit === 'month') unitClass = 'type-month';
+                
+                html += `
+                <tr>
+                    <td>${formattedDate}</td>
+                    <td>
+                        <span class="salary-paid ${unitClass}">
+                            ${payUnitNames[record.payUnit] || record.payUnit}
+                        </span>
+                    </td>
+                    <td style="color: #e74c3c; font-weight: bold;">${record.amount.toFixed(2)}</td>
+                    <td>${record.description || '-'}</td>
+                    <td>${createdTime}</td>
+                    <td>
+                        <button class="btn btn-sm btn-danger" onclick="deleteRecord(${record.id})">
+                            删除
+                        </button>
+                    </td>
+                </tr>
+                `;
+            });
+            
+            html += `
+                    </tbody>
+                </table>
+            `;
+            
+            employeeRecordsList.innerHTML = html;
+        }
+        
+        // 更新统计信息
+        function updateStats() {
+            // 获取今天的日期字符串
+            const today = new Date();
+            const todayStr = today.toISOString().split('T')[0];
+            const currentMonth = today.getMonth() + 1;
+            const currentYear = today.getFullYear();
+            
+            let totalSalary = 0;
+            let todaySalary = 0;
+            let monthSalary = 0;
+            
+            // 计算统计信息
+            records.forEach(record => {
+                totalSalary += record.amount;
+                
+                // 检查是否是今天
+                if (record.date === todayStr) {
+                    todaySalary += record.amount;
+                }
+                
+                // 检查是否是本月
+                const recordDate = new Date(record.date);
+                if (recordDate.getMonth() + 1 === currentMonth && recordDate.getFullYear() === currentYear) {
+                    monthSalary += record.amount;
+                }
+            });
+            
+            // 更新统计
+            document.getElementById('totalSalary').textContent = totalSalary.toFixed(2);
+            document.getElementById('monthSalary').textContent = monthSalary.toFixed(2);
+            
+            // 计算平均工资和员工数量
+            const employeeSet = new Set();
+            records.forEach(record => {
+                employeeSet.add(record.employee);
+            });
+            
+            const employeeCount = employeeSet.size;
+            const avgSalary = records.length > 0 ? totalSalary / records.length : 0;
+            
+            document.getElementById('employeeCount').textContent = employeeCount;
+            document.getElementById('avgSalary').textContent = avgSalary.toFixed(2);
+        }
+        
+        // 更新员工工资汇总
+        function updateEmployeeSummary() {
+            const employeeTotals = {};
+            
+            // 统计每个员工的工资总额
+            records.forEach(record => {
+                if (employeeTotals[record.employee] !== undefined) {
+                    employeeTotals[record.employee] += record.amount;
+                } else {
+                    employeeTotals[record.employee] = record.amount;
+                }
+            });
+            
+            // 生成员工汇总HTML
+            let html = '';
+            
+            // 按工资总额排序
+            const sortedEmployees = Object.keys(employeeTotals).sort((a, b) => {
+                return employeeTotals[b] - employeeTotals[a];
+            });
+            
+            sortedEmployees.forEach(employee => {
+                if (employeeTotals[employee] > 0) {
+                    html += `
+                    <div class="employee-item" onclick="filterByEmployee('${employee}')">
+                        <div class="employee-name">${employee}</div>
+                        <div class="employee-salary">${employeeTotals[employee].toFixed(2)} 元</div>
+                    </div>
+                    `;
+                }
+            });
+            
+            // 如果没有数据，显示提示
+            if (html === '') {
+                html = '<div style="text-align:center;color:#95a5a6;padding:10px;grid-column:1/-1;">暂无工资发放记录</div>';
+            }
+            
+            document.getElementById('employeeSummary').innerHTML = html;
+        }
+        
+        // 按员工筛选
+        function filterByEmployee(employee) {
+            // 切换到记录管理标签
+            document.getElementById('tabRecords').click();
+            
+            // 设置筛选条件
+            document.getElementById('filterEmployee').value = employee;
+            
+            // 显示记录
+            displayRecords();
+            
+            // 显示筛选通知
+            showNotification('info', '筛选已应用', `当前仅显示员工 ${employee} 的记录`);
+        }
+        
+        // 更新系统信息
+        function updateSystemInfo() {
+            document.getElementById('totalRecords').textContent = records.length;
+            
+            // 计算数据大小
+            const data = JSON.stringify(records);
+            const dataSize = new Blob([data]).size;
+            document.getElementById('dataSize').textContent = (dataSize / 1024).toFixed(2) + ' KB';
+            
+            // 获取最后更新时间
+            const lastUpdateTime = localStorage.getItem('lastUpdateTime');
+            if (lastUpdateTime) {
+                const lastUpdate = new Date(lastUpdateTime);
+                document.getElementById('lastUpdate').textContent = lastUpdate.toLocaleString('zh-CN');
+            } else {
+                document.getElementById('lastUpdate').textContent = '暂无';
+            }
+        }
+        
+        // 更新密码
+        function updatePassword() {
+            const newPassword = document.getElementById('newPassword').value;
+            const confirmPassword = document.getElementById('confirmNewPassword').value;
+            
+            if (!newPassword || !confirmPassword) {
+                showNotification('warning', '更新失败', '请输入新密码并确认！');
+                return;
+            }
+            
+            if (newPassword !== confirmPassword) {
+                showNotification('error', '更新失败', '两次输入的密码不一致！');
+                return;
+            }
+            
+            if (newPassword.length < 6) {
+                showNotification('warning', '更新失败', '密码长度至少为6位！');
+                return;
+            }
+            
+            // 保存新密码
+            localStorage.setItem('salaryPassword', newPassword);
+            
+            // 清空输入框
+            document.getElementById('newPassword').value = '';
+            document.getElementById('confirmNewPassword').value = '';
+            
+            // 显示成功通知
+            showNotification('success', '密码更新成功', '系统密码已成功更新！');
+        }
+        
+        // 导出数据
+        function exportData() {
+            // 创建CSV内容
+            let csvContent = "data:text/csv;charset=utf-8,\uFEFF";
+            csvContent += "发放日期,员工,发放单位,工资金额,备注说明,记录ID,创建时间\n";
+            
+            records.forEach(record => {
+                const row = [
+                    record.date,
+                    record.employee,
+                    payUnitNames[record.payUnit] || record.payUnit,
+                    record.amount,
+                    record.description || '',
+                    record.id,
+                    new Date(record.created).toLocaleString('zh-CN')
+                ];
+                csvContent += row.map(item => `"${item}"`).join(",") + "\n";
+            });
+            
+            // 创建下载链接
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            const exportDate = new Date().toISOString().split('T')[0];
+            link.setAttribute("download", `员工工资发放记录_${exportDate}.csv`);
+            document.body.appendChild(link);
+            
+            // 触发下载
+            link.click();
+            document.body.removeChild(link);
+            
+            // 显示导出通知
+            const details = `
+                <div class="notification-detail-row">
+                    <span class="notification-detail-label">文件名：</span>
+                    <span class="notification-detail-value">员工工资发放记录_${exportDate}.csv</span>
+                </div>
+                <div class="notification-detail-row">
+                    <span class="notification-detail-label">记录数量：</span>
+                    <span class="notification-detail-value">${records.length} 条</span>
+                </div>
+            `;
+            
+            showNotification('success', '数据导出成功', '工资数据已成功导出为CSV文件！', details);
+        }
+    </script>
+</body>
+</html>
