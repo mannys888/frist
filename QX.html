@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>员工月工资管理系统 - 每日工资设置</title>
+  <link href="https://raw.githubusercontent.com/mannys888/frist/refs/heads/main/QX.css" rel="stylesheet">
+
+<script src="https://raw.githubusercontent.com/mannys888/frist/refs/heads/main/QX_2.js"> </script>
+
+<script src="https://raw.githubusercontent.com/mannys888/frist/refs/heads/main/QX.js"> </script>
+
+</head>
+<body>
+    <header>
+        <h1>📅 员工月工资管理系统</h1>
+        <div class="current-date" id="currentDate">正在加载日期...</div>
+    </header>
+    
+    <div class="tab-container">
+        <div class="tab active" id="tabDailySalary">💰 每日工资设置</div>
+        <div class="tab" id="tabAttendance">📝 员工出勤记录</div>
+        <div class="tab" id="tabSummary">📊 工资汇总</div>
+        <div class="tab" id="tabCalendar">📅 日历视图</div>
+        <div class="tab" id="tabPersonalSalary">👤 个人工资设置</div>
+        <div class="tab" id="tabManage">⚙️ 系统管理</div>
+    </div>
+    
+    <!-- 每日工资设置页面 -->
+    <div class="tab-content active" id="tabDailySalaryContent">
+        <div class="container">
+            <div class="left-column">
+                <div class="card">
+                    <h2>📅 选择月份</h2>
+                    <div class="month-selector">
+                        <select id="monthSelect">
+                            <!-- 月份选项将通过JavaScript动态生成 -->
+                        </select>
+                        <select id="yearSelect">
+                            <!-- 年份选项将通过JavaScript动态生成 -->
+                        </select>
+                        <button class="btn btn-primary" id="applyMonth">应用</button>
+                        <button class="btn" id="currentMonth">本月</button>
+                    </div>
+                    
+                    <div class="batch-settings">
+                        <h3>批量设置工资</h3>
+                        <div class="batch-setting-group">
+                            <label>工作日工资：</label>
+                            <input type="number" id="weekdaySalary" min="0" step="1" placeholder="如：160">
+                        </div>
+                        <div class="batch-setting-group">
+                            <label>周末工资：</label>
+                            <input type="number" id="weekendSalary" min="0" step="1" placeholder="如：200">
+                        </div>
+                        <div class="batch-setting-group">
+                            <label>法定节假日：</label>
+                            <input type="number" id="holidaySalary" min="0" step="1" placeholder="如：300">
+                        </div>
+                        <div class="actions">
+                            <button class="btn btn-primary" id="applyBatchSettings">应用批量设置</button>
+                        </div>
+                        
+                        <div class="preset-salary-buttons">
+                            <button class="preset-salary-btn" data-salary="150">150元/天</button>
+                            <button class="preset-salary-btn" data-salary="160">160元/天</button>
+                            <button class="preset-salary-btn" data-salary="180">180元/天</button>
+                            <button class="preset-salary-btn" data-salary="200">200元/天</button>
+                            <button class="preset-salary-btn" data-salary="250">250元/天</button>
+                        </div>
+                    </div>
+                    
+                    <div class="daily-salary-container">
+                        <h3 id="currentMonthTitle">2026年1月 每日工资设置</h3>
+                        <div class="daily-salary-grid" id="dailySalaryGrid">
+                            <!-- 每日工资设置网格将通过JavaScript动态生成 -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="right-column">
+                <div class="card">
+                    <h2>📋 员工每日工资预览</h2>
+                    <div class="salary-table-container">
+                        <table class="salary-table" id="dailySalaryPreviewTable">
+                            <!-- 每日工资预览表格将通过JavaScript动态生成 -->
+                        </table>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <h2>📈 本月工资分析</h2>
+                    <div id="monthSalaryStats">
+                        <div class="stats">
+                            <div class="stat-box total-salary">
+                                <h3>本月总工资</h3>
+                                <div class="amount" id="monthTotalSalary">0</div>
+                            </div>
+                            <div class="stat-box avg-salary">
+                                <h3>平均日工资</h3>
+                                <div class="amount" id="avgDailySalary">0</div>
+                            </div>
+                            <div class="stat-box workday-count">
+                                <h3>工作日数</h3>
+                                <div class="amount" id="workdayCount">0</div>
+                            </div>
+                            <div class="stat-box employee-count">
+                                <h3>员工数量</h3>
+                                <div class="amount" id="employeeCount">10</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="salary-chart-container" id="salaryChartContainer">
+                        <!-- 工资图表将通过JavaScript动态生成 -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 员工出勤记录页面 -->
+    <div class="tab-content" id="tabAttendanceContent">
+        <div class="container">
+            <div class="left-column">
+                <div class="card">
+                    <h2>👥 员工出勤记录</h2>
+                    <div class="form-group">
+                        <label>选择日期</label>
+                        <input type="date" id="attendanceDate" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>选择员工（可选，不选则为所有员工）</label>
+                        <div class="employee-selector" id="attendanceEmployeeSelector">
+                            <!-- 员工选择器将通过JavaScript动态生成 -->
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>批量设置出勤</label>
+                        <select id="batchAttendance">
+                            <option value="present">全部出勤</option>
+                            <option value="absent">全部缺勤</option>
+                            <option value="custom">自定义</option>
+                        </select>
+                    </div>
+                    
+                    <div class="actions">
+                        <button class="btn btn-primary" id="saveAttendance">
+                            💾 保存出勤记录
+                        </button>
+                        <button class="btn btn-warning" id="clearAttendance">
+                            🧹 清除今日记录
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <h2>📋 员工列表</h2>
+                    <div class="employee-summary" id="attendanceEmployeeSummary">
+                        <!-- 员工出勤摘要将通过JavaScript动态生成 -->
+                    </div>
+                </div>
+            </div>
+            
+            <div class="right-column">
+                <div class="card">
+                    <h2>📅 本月出勤日历</h2>
+                    <div id="attendanceCalendar">
+                        <!-- 出勤日历将通过JavaScript动态生成 -->
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <h2>📊 出勤统计</h2>
+                    <div class="salary-table-container">
+                        <table class="salary-table">
+                            <thead>
+                                <tr>
+                                    <th>员工</th>
+                                    <th>出勤天数</th>
+                                    <th>缺勤天数</th>
+                                    <th>出勤率</th>
+                                </tr>
+                            </thead>
+                            <tbody id="attendanceStatsTable">
+                                <!-- 出勤统计表格将通过JavaScript动态生成 -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 工资汇总页面 -->
+    <div class="tab-content" id="tabSummaryContent">
+        <div class="container">
+            <div class="left-column">
+                <div class="card">
+                    <h2>📊 员工工资汇总</h2>
+                    <div class="salary-table-container">
+                        <table class="salary-summary-table">
+                            <thead>
+                                <tr>
+                                    <th>员工</th>
+                                    <th>出勤天数</th>
+                                    <th>总工资</th>
+                                    <th>平均日工资</th>
+                                    <th>工资来源</th>
+                                </tr>
+                            </thead>
+                            <tbody id="employeeSalarySummaryTable">
+                                <!-- 员工工资汇总表格将通过JavaScript动态生成 -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <h2>📅 每日工资汇总</h2>
+                    <div class="salary-table-container">
+                        <table class="salary-summary-table">
+                            <thead>
+                                <tr>
+                                    <th>日期</th>
+                                    <th>出勤员工数</th>
+                                    <th>当日总工资</th>
+                                    <th>平均工资</th>
+                                </tr>
+                            </thead>
+                            <tbody id="dailySalarySummaryTable">
+                                <!-- 每日工资汇总表格将通过JavaScript动态生成 -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="right-column">
+                <div class="card">
+                    <h2>💰 详细工资表格</h2>
+                    <div class="salary-table-container">
+                        <table class="salary-table" id="detailedSalaryTable">
+                            <!-- 详细工资表格将通过JavaScript动态生成 -->
+                        </table>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <h2>👤 个人工资详情</h2>
+                    <div id="personalSalaryDetails">
+                        <!-- 个人工资详情将通过JavaScript动态生成 -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 日历视图页面 -->
+    <div class="tab-content" id="tabCalendarContent">
+        <div class="container">
+            <div class="left-column">
+                <div class="card">
+                    <h2>📅 工资日历视图</h2>
+                    <div class="month-selector">
+                        <select id="calendarMonthSelect">
+                            <!-- 月份选项将通过JavaScript动态生成 -->
+                        </select>
+                        <select id="calendarYearSelect">
+                            <!-- 年份选项将通过JavaScript动态生成 -->
+                        </select>
+                        <button class="btn btn-primary" id="applyCalendarMonth">应用</button>
+                    </div>
+                    
+                    <div class="calendar-view" id="calendarView">
+                        <!-- 日历视图将通过JavaScript动态生成 -->
+                    </div>
+                </div>
+            </div>
+            
+            <div class="right-column">
+                <div class="card">
+                    <h2>📈 工资趋势图</h2>
+                    <div class="salary-chart-container" id="salaryTrendChart">
+                        <!-- 工资趋势图将通过JavaScript动态生成 -->
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <h2>📋 本月关键数据</h2>
+                    <div class="stats">
+                        <div class="stat-box total-salary">
+                            <h3>本月总支出</h3>
+                            <div class="amount" id="calendarTotalSalary">0</div>
+                        </div>
+                        <div class="stat-box avg-salary">
+                            <h3>人均工资</h3>
+                            <div class="amount" id="calendarAvgSalary">0</div>
+                        </div>
+                        <div class="stat-box workday-count">
+                            <h3>总出勤天数</h3>
+                            <div class="amount" id="calendarAttendanceDays">0</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 个人工资设置页面 -->
+    <div class="tab-content" id="tabPersonalSalaryContent">
+        <div class="container">
+            <div class="left-column">
+                <div class="card">
+                    <h2>👤 选择员工设置个人工资</h2>
+                    <div class="form-group">
+                        <label>选择员工</label>
+                        <select id="personalSalaryEmployeeSelect" class="employee-select">
+                            <!-- 员工选项将通过JavaScript动态生成 -->
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>选择月份</label>
+                        <div class="personal-salary-selector">
+                            <select id="personalSalaryMonthSelect">
+                                <!-- 月份选项将通过JavaScript动态生成 -->
+                            </select>
+                            <select id="personalSalaryYearSelect">
+                                <!-- 年份选项将通过JavaScript动态生成 -->
+                            </select>
+                            <button class="btn btn-primary" id="applyPersonalSalaryMonth">应用</button>
+                        </div>
+                    </div>
+                    
+                    <div class="personal-batch-settings">
+                        <h3>批量设置个人工资</h3>
+                        <div class="batch-setting-group">
+                            <label>统一设置工资：</label>
+                            <input type="number" id="personalUniformSalary" min="0" step="1" placeholder="如：180">
+                        </div>
+                        <div class="quick-actions">
+                            <button class="quick-action-btn" id="applyPersonalUniform">应用统一设置</button>
+                            <button class="quick-action-btn" id="clearPersonalSalaries">清除个人设置</button>
+                            <button class="quick-action-btn" id="copyFromGlobal">复制全局设置</button>
+                        </div>
+                    </div>
+                    
+                    <div class="personal-salary-container">
+                        <h3 id="personalSalaryMonthTitle">2026年1月 个人工资设置</h3>
+                        <div class="personal-salary-grid" id="personalSalaryGrid">
+                            <!-- 个人工资设置网格将通过JavaScript动态生成 -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="right-column">
+                <div class="card">
+                    <h2>📊 个人工资预览</h2>
+                    <div class="personal-salary-summary">
+                        <div class="summary-item">
+                            <span>员工姓名：</span>
+                            <span id="personalSalaryEmployeeName">-</span>
+                        </div>
+                        <div class="summary-item">
+                            <span>设置月份：</span>
+                            <span id="personalSalaryMonthDisplay">-</span>
+                        </div>
+                        <div class="summary-item">
+                            <span>全局工资天数：</span>
+                            <span id="personalGlobalDays">0</span>
+                        </div>
+                        <div class="summary-item">
+                            <span>个人工资天数：</span>
+                            <span id="personalCustomDays">0</span>
+                        </div>
+                        <div class="summary-item total">
+                            <span>本月预计工资：</span>
+                            <span id="personalEstimatedSalary">0</span>
+                        </div>
+                    </div>
+                    
+                    <div class="salary-table-container" style="margin-top: 20px;">
+                        <table class="salary-table">
+                            <thead>
+                                <tr>
+                                    <th>日期</th>
+                                    <th>全局工资</th>
+                                    <th>个人工资</th>
+                                    <th>最终工资</th>
+                                </tr>
+                            </thead>
+                            <tbody id="personalSalaryPreviewTable">
+                                <!-- 个人工资预览表格将通过JavaScript动态生成 -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <h2>📈 个人工资分析</h2>
+                    <div class="salary-chart-container" id="personalSalaryChart">
+                        <!-- 个人工资图表将通过JavaScript动态生成 -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 系统管理页面 -->
+    <div class="tab-content" id="tabManageContent">
+        <div class="container">
+            <div class="left-column">
+                <div class="card">
+                    <h2>💾 数据管理</h2>
+                    <div class="actions">
+                        <button class="btn btn-success" id="saveDataBtn">
+                            💾 保存所有数据
+                        </button>
+                        <button class="btn btn-primary" id="loadDataBtn">
+                            📂 加载数据
+                        </button>
+                        <button class="btn btn-success" id="exportDataBtn">
+                            📥 导出数据为CSV
+                        </button>
+                        <button class="btn btn-warning" id="importDataBtn">
+                            📤 导入CSV数据
+                        </button>
+                    </div>
+                    
+                    <div class="export-range-selector">
+                        <h3>📅 按日期范围导出</h3>
+                        <div class="form-group">
+                            <label>开始日期</label>
+                            <input type="date" id="exportStartDate" value="2026-01-01">
+                        </div>
+                        <div class="form-group">
+                            <label>结束日期</label>
+                            <input type="date" id="exportEndDate" value="2026-01-31">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>选择员工（可选，不选则为所有员工）</label>
+                            <div class="export-employee-selector" id="exportEmployeeSelector">
+                                <!-- 员工选择器将通过JavaScript动态生成 -->
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>支付方式</label>
+                            <input type="text" id="exportPaymentMethod" placeholder="例如：银行转账、现金、支付宝、微信等">
+                        </div>
+                        
+                        <div class="export-options">
+                            <button class="export-option-btn active" data-export-type="salary">工资数据</button>
+                            <button class="export-option-btn" data-export-type="attendance">出勤数据</button>
+                            <button class="export-option-btn" data-export-type="personal">个人工资数据</button>
+                            <button class="export-option-btn" data-export-type="calculation">工资计算表</button>
+                            <button class="export-option-btn" data-export-type="payroll">工资发放表</button>
+                        </div>
+                        
+                        <div class="export-preview-container" id="exportPreviewContainer" style="display: none;">
+                            <div class="export-preview-title">
+                                <h4>📋 导出数据预览</h4>
+                                <span id="exportPreviewCount">0条记录</span>
+                            </div>
+                            <div id="exportPreviewContent">
+                                <!-- 导出预览内容将通过JavaScript动态生成 -->
+                            </div>
+                            <div class="export-preview-actions">
+                                <button class="btn btn-primary" id="confirmExport">确认导出</button>
+                                <button class="btn" id="cancelExport">取消</button>
+                            </div>
+                        </div>
+                        
+                        <div class="actions">
+                            <button class="btn btn-primary" id="previewExportDataBtn">
+                                👁️ 预览导出数据
+                            </button>
+                            <button class="btn btn-success" id="exportRangeDataBtn" style="display: none;">
+                                📤 导出选定范围
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="work-hours-setting">
+                        <h3>💼 每日工作小时数设置</h3>
+                        <div class="form-group">
+                            <label>每日工作小时数：</label>
+                            <input type="number" id="dailyWorkHours" min="1" max="24" step="0.5" value="8">
+                        </div>
+                        <div class="actions">
+                            <button class="btn btn-primary" id="saveWorkHours">保存设置</button>
+                        </div>
+                    </div>
+                    
+                    <div class="payment-method-setting">
+                        <h3>💰 默认支付方式设置</h3>
+                        <div class="form-group">
+                            <label>默认支付方式：</label>
+                            <input type="text" id="defaultPaymentMethod" placeholder="例如：银行转账">
+                        </div>
+                        <div class="actions">
+                            <button class="btn btn-primary" id="savePaymentMethod">保存设置</button>
+                        </div>
+                    </div>
+                    
+                    <div style="margin-top: 20px;">
+                        <h3>系统信息</h3>
+                        <p><strong>记录月份：</strong> <span id="currentMonthData">2026年1月</span></p>
+                        <p><strong>员工数量：</strong> <span id="systemEmployeeCount">10</span> 人</p>
+                        <p><strong>数据大小：</strong> <span id="dataSize">0 KB</span></p>
+                        <p><strong>最后保存：</strong> <span id="lastSave">暂无</span></p>
+                        <p><strong>未导出数据：</strong> <span id="unexportedCount">0</span> 条记录</p>
+                        <p><strong>默认支付方式：</strong> <span id="currentPaymentMethod">未设置</span></p>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <h2>🔄 重置选项</h2>
+                    <div class="actions">
+                        <button class="btn btn-warning" id="resetCurrentMonth">
+                            🔄 重置本月数据
+                        </button>
+                        <button class="btn btn-danger" id="resetAllData">
+                            🗑️ 清除所有数据
+                        </button>
+                    </div>
+                    <p style="margin-top: 10px; color: #7f8c8d; font-size: 0.9rem;">
+                        注意：清除操作不可恢复，请谨慎操作！
+                    </p>
+                </div>
+            </div>
+            
+            <div class="right-column">
+                <div class="card">
+                    <h2>👥 员工管理</h2>
+                    <div id="employeeManagementList">
+                        <!-- 员工管理列表将通过JavaScript动态生成 -->
+                    </div>
+                    <div class="actions" style="margin-top: 15px;">
+                        <button class="btn btn-personal" id="managePersonalSalaries">
+                            👤 批量管理个人工资
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <h2>📊 未导出数据预览</h2>
+                    <div id="unexportedDataPreview">
+                        <!-- 未导出数据预览将通过JavaScript动态生成 -->
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <h2>⚙️ 系统设置</h2>
+                    <div class="form-group">
+                        <label>默认工作日工资</label>
+                        <input type="number" id="defaultWeekdaySalary" min="0" step="1" value="160">
+                    </div>
+                    <div class="form-group">
+                        <label>默认周末工资</label>
+                        <input type="number" id="defaultWeekendSalary" min="0" step="1" value="200">
+                    </div>
+                    <div class="form-group">
+                        <label>默认节假日工资</label>
+                        <input type="number" id="defaultHolidaySalary" min="0" step="1" value="300">
+                    </div>
+                    <div class="actions">
+                        <button class="btn btn-primary" id="saveSettings">保存设置</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <footer>
+        <p>员工月工资管理系统 &copy; 2026 | 可设置整个月每天不同的工资标准，记录员工出勤，自动计算总工资</p>
+    </footer>
+    
+    <!-- 个人工资设置模态框 -->
+    <div class="modal" id="personalSalaryModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>👤 个人工资设置</h2>
+                <button class="modal-close" id="closePersonalSalaryModal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="personalSalaryModalContent">
+                    <!-- 模态框内容将通过JavaScript动态生成 -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-primary" id="savePersonalSalaries">保存设置</button>
+                <button class="btn" id="cancelPersonalSalaries">取消</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 批量管理个人工资模态框 -->
+    <div class="modal" id="bulkPersonalSalaryModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>👥 批量管理个人工资</h2>
+                <button class="modal-close" id="closeBulkPersonalSalaryModal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="bulkPersonalSalaryModalContent">
+                    <!-- 批量管理内容将通过JavaScript动态生成 -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-primary" id="applyBulkPersonalSalaries">应用批量设置</button>
+                <button class="btn" id="cancelBulkPersonalSalaries">取消</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 文件导入输入框（隐藏） -->
+    <input type="file" id="importFileInput" accept=".csv" style="display: none;">
+    
+ 
+</body>
+</html>
