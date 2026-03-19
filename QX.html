@@ -4748,7 +4748,7 @@ function generateAttendancePreview(startDate, endDate, selectedEmployees) {
  * @param {string} startDate 开始日期 YYYY-MM-DD
  * @param {string} endDate 结束日期 YYYY-MM-DD
  * @param {string[]} selectedEmployees 选中的员工姓名数组
- * @returns {string} HTML内容
+ * @returns {string} HTML内容⭕️7️⃣7️⃣7️⃣⭕️
  */
 
 function generateHistoryPreview(startDate, endDate, selectedEmployees) {
@@ -4763,17 +4763,17 @@ function generateHistoryPreview(startDate, endDate, selectedEmployees) {
         return emp && (selectedEmployees.length === 0 || selectedEmployees.includes(emp.name));
     });
 
-    // 按时间正倒序（使用完整 datetime 或 date+time）
+    // 按时间倒序
     filtered.sort((a, b) => {
-    const aTime = a.datetime || `${a.date} ${a.time || '00:00:00'}`;
-    const bTime = b.datetime || `${b.date} ${b.time || '00:00:00'}`;
-    //return bTime.localeCompare(aTime); // 倒序
-    return aTime.localeCompare(bTime); // 升序（旧的在前）
-});
+        const aTime = a.datetime || `${a.date} ${a.time || '00:00:00'}`;
+        const bTime = b.datetime || `${b.date} ${b.time || '00:00:00'}`;
+        return bTime.localeCompare(bTime); //顺序
+         //return bTime.localeCompare(bTime);//倒序
+    });
 
     let rows = '';
-    let totalWageTransfer = 0;   // 工资转入总额（amount>0）
-    let totalRepayment = 0;      // 还款总额（amount<0的绝对值）
+    let totalWageTransfer = 0;   // 工资转入总额（amount>0 且 type 不是“设为欠款/累加欠款”）
+    let totalRepayment = 0;      // 还款总额（amount<0 的绝对值）
 
     filtered.forEach(h => {
         const emp = systemData.employees.find(e => e.idCard === h.employeeId);
@@ -4783,14 +4783,26 @@ function generateHistoryPreview(startDate, endDate, selectedEmployees) {
         const note = h.note || '';
         const balance = h.balanceAfter !== undefined ? h.balanceAfter : 0;
         const datetime = h.datetime || `${h.date} ${h.time || '--:--:--'}`;
+        const type = h.type || '';   // 操作类型
 
         let wageTransfer = '', repayment = '';
+        let extraNote = note;
+
+        // 判断是否为“设为欠款”或“累加欠款”
+        const isBalanceAdjustment = (type === '设为欠款' || type === '累加欠款');
+
         if (amount > 0) {
-            wageTransfer = `${currencySymbol} ${formatMoney(amount)}`;
-            totalWageTransfer += amount;
+            if (isBalanceAdjustment) {
+                // 不计入工资转入，将信息放入备注
+                extraNote = (note ? note + '；' : '') + `${type}: ${currencySymbol} ${formatMoney(amount)}`;
+            } else {
+                wageTransfer = `${currencySymbol} ${formatMoney(amount)}`;
+                totalWageTransfer += amount;
+            }
         } else if (amount < 0) {
             repayment = `${currencySymbol} ${formatMoney(-amount)}`;
             totalRepayment += -amount;
+            // 如果还款也有特殊类型，可以类似处理，但通常还款就是还款
         }
 
         rows += `<tr>
@@ -4799,27 +4811,23 @@ function generateHistoryPreview(startDate, endDate, selectedEmployees) {
             <td>${ticket}</td>
             <td>${wageTransfer}</td>
             <td>${repayment}</td>
-            <td>${note}</td>
+            <td>${extraNote}</td>
             <td>${currencySymbol} ${formatMoney(balance)}</td>
         </tr>`;
     });
 
-   // 计算选中员工的当前总余额
-let totalBalance = 0;
-if (systemData.employeeBalances && selectedEmployees.length > 0) {
-    // 获取所有选中员工的ID（从员工列表映射）
-    const selectedIds = systemData.employees
-        .filter(emp => selectedEmployees.includes(emp.name))
-        .map(emp => emp.idCard);
-    
-    // 累加这些员工的余额
-    selectedIds.forEach(id => {
-        totalBalance += systemData.employeeBalances[id] || 0;
-    });
-} else if (systemData.employeeBalances) {
-    // 如果没有选择员工，默认全部（或保持原逻辑）
-    totalBalance = Object.values(systemData.employeeBalances).reduce((sum, val) => sum + (val || 0), 0);
-}
+    // 计算选中员工的当前总余额（与原来一致）
+    let totalBalance = 0;
+    if (systemData.employeeBalances && selectedEmployees.length > 0) {
+        const selectedIds = systemData.employees
+            .filter(emp => selectedEmployees.includes(emp.name))
+            .map(emp => emp.idCard);
+        selectedIds.forEach(id => {
+            totalBalance += systemData.employeeBalances[id] || 0;
+        });
+    } else if (systemData.employeeBalances) {
+        totalBalance = Object.values(systemData.employeeBalances).reduce((sum, val) => sum + (val || 0), 0);
+    }
 
     if (rows === '') {
         rows = `<tr><td colspan="7" style="padding:20px; text-align:center;">所选范围内无交易记录</td></tr>`;
@@ -4837,7 +4845,7 @@ if (systemData.employeeBalances && selectedEmployees.length > 0) {
                         <th>时间</th>
                         <th>员工姓名</th>
                         <th>票号</th>
-                        <th>工资转入</th>
+                        <th>货款转入</th>
                         <th>还款</th>
                         <th>备注</th>
                         <th>余额</th>
@@ -6002,8 +6010,8 @@ function generateHistoryPdf(pdf, startDate, endDate, selectedEmployees, template
     }).sort((a, b) => {
         const aTime = a.datetime || `${a.date} ${a.time || '00:00:00'}`;
         const bTime = b.datetime || `${b.date} ${b.time || '00:00:00'}`;
-        return bTime.localeCompare(aTime); //倒序
-         return aTime.localeCompare(bTime); //正序
+        //return bTime.localeCompare(aTime); // 倒序
+        return bTime.localeCompare(bTime); // 顺序
     });
 
     // 准备表格数据
@@ -6018,17 +6026,25 @@ function generateHistoryPdf(pdf, startDate, endDate, selectedEmployees, template
         const note = h.note || '';
         const balance = h.balanceAfter !== undefined ? h.balanceAfter : 0;
         const datetime = h.datetime || `${h.date} ${h.time || '--:--:--'}`;
+        const type = h.type || '';
 
-        let wageStr = '', repaymentStr = '';
+        const isBalanceAdjustment = (type === '设为欠款' || type === '累加欠款');
+
+        let wageStr = '', repaymentStr = '', extraNote = note;
+
         if (amount > 0) {
-            wageStr = `${currencySymbol} ${formatMoney(amount)}`;
-            totalWageTransfer += amount;
+            if (isBalanceAdjustment) {
+                extraNote = (note ? note + '；' : '') + `${type}: ${currencySymbol} ${formatMoney(amount)}`;
+            } else {
+                wageStr = `${currencySymbol} ${formatMoney(amount)}`;
+                totalWageTransfer += amount;
+            }
         } else if (amount < 0) {
             repaymentStr = `${currencySymbol} ${formatMoney(-amount)}`;
             totalRepayment += -amount;
         }
 
-        tableData.push([datetime, name, ticket, wageStr, repaymentStr, note, `${currencySymbol} ${formatMoney(balance)}`]);
+        tableData.push([datetime, name, ticket, wageStr, repaymentStr, extraNote, `${currencySymbol} ${formatMoney(balance)}`]);
     });
 
     // 标题
@@ -6039,10 +6055,10 @@ function generateHistoryPdf(pdf, startDate, endDate, selectedEmployees, template
     pdf.setTextColor(0, 0, 0);
     pdf.text(`日期范围：${startDate} 至 ${endDate}`, pageWidth / 2, 30, { align: 'center' });
 
-    // 生成表格（列宽需调整，因增加了时间列）
+    // 生成表格（列宽与原一致）
     pdf.autoTable({
         startY: 40,
-        head: [[ '时间', '员工姓名', '票号', '工资转入', '还款', '备注', '余额' ]],
+        head: [[ '时间', '员工姓名', '票号', '货款转入', '还款', '备注', '余额' ]],
         body: tableData,
         margin: { left: margin, right: margin },
         headStyles: { fillColor: headerBg, textColor: headerText, fontStyle: 'bold' },
@@ -6081,18 +6097,18 @@ function generateHistoryPdf(pdf, startDate, endDate, selectedEmployees, template
 
     // 总计信息
     const finalY = pdf.lastAutoTable.finalY + 10;
-    // 计算选中员工的当前总余额
-let totalBalance = 0;
-if (systemData.employeeBalances && selectedEmployees.length > 0) {
-    const selectedIds = systemData.employees
-        .filter(emp => selectedEmployees.includes(emp.name))
-        .map(emp => emp.idCard);
-    selectedIds.forEach(id => {
-        totalBalance += systemData.employeeBalances[id] || 0;
-    });
-} else if (systemData.employeeBalances) {
-    totalBalance = Object.values(systemData.employeeBalances).reduce((sum, val) => sum + (val || 0), 0);
-}
+    let totalBalance = 0;
+    if (systemData.employeeBalances && selectedEmployees.length > 0) {
+        const selectedIds = systemData.employees
+            .filter(emp => selectedEmployees.includes(emp.name))
+            .map(emp => emp.idCard);
+        selectedIds.forEach(id => {
+            totalBalance += systemData.employeeBalances[id] || 0;
+        });
+    } else if (systemData.employeeBalances) {
+        totalBalance = Object.values(systemData.employeeBalances).reduce((sum, val) => sum + (val || 0), 0);
+    }
+
     pdf.setFontSize(10);
     pdf.setFont("helvetica", "bold");
     pdf.text(`工资转入总额: ${currencySymbol} ${formatMoney(totalWageTransfer)}`, margin, finalY);
