@@ -1510,22 +1510,22 @@
         <ul class="nav-menu">
             <li class="nav-item">
                 <a href="#" class="nav-link active" data-target="daily-salary">
-                    <i class="fas fa-cog"></i>①每天工资设置
+                    <i class="fas fa-cog"></i>①🚫每天工资设置
                 </a>
             </li>
             <li class="nav-item">
                 <a href="#" class="nav-link" data-target="attendance-record">
-                    <i class="fas fa-clipboard-check"></i> ②员工出勤记录
+                    <i class="fas fa-clipboard-check"></i> ②🚫员工出勤记录
                 </a>
             </li>
             <li class="nav-item">
                 <a href="#" class="nav-link" data-target="personal-attendance">
-                    <i class="fas fa-user-check"></i> ③个人出勤选择
+                    <i class="fas fa-user-check"></i> ③🚫个人出勤选择
                 </a>
             </li>
             <li class="nav-item">
                 <a href="#" class="nav-link" data-target="personal-salary">
-                    <i class="fas fa-money-bill-wave"></i> ④个人工资设置
+                    <i class="fas fa-money-bill-wave"></i> ④出货任务
                 </a>
             </li>
             <li class="nav-item">
@@ -1674,7 +1674,7 @@
                             <option value="30trad150" data-price="0.0" data-ps="150">30trad 150ps</option>
                             <option value="30trad130" data-price="0.0" data-ps="130">30trad 130ps</option>
                             <option value="18trad300" data-price="0.0" data-ps="300">18trad 300ps</option>
-                            <option value="2x6220" data-price="1.0" data-ps="220">2x6 220ps</option>
+                            <option value="2x6220" data-price="1.1" data-ps="220">2x6 220ps</option>
                             <option value="tops450" data-price="0.0" data-ps="450">Tops 450ps</option>
                             <option value="jump90" data-price="0.0" data-ps="90">Jump 90ps</option>
                             <option value="print220" data-price="1.0" data-ps="220">print 220ps</option>
@@ -1879,6 +1879,19 @@
                     <i class="fas fa-trash-alt"></i>清空所有数据
                 </button>
             </div>
+            <!-- 出勤操作控制（系统管理内） -->
+<div class="system-settings-container">
+    <h3 class="section-title">
+        <i class="fas fa-ban"></i> 出勤操作控制
+    </h3>
+    <label style="display: flex; align-items: center; gap: 10px;">
+        <input type="checkbox" id="pause-attendance-toggle" checked>
+        <span>🛑 临时禁止修改出勤记录（勾选后不可新增/修改出勤）</span>
+    </label>
+    <p style="font-size: 0.85rem; color: #666; margin-top: 5px;">
+        开启后，所有标记出勤/缺勤、个人出勤日历的点击操作均被阻止。
+    </p>
+</div>
             
             <!-- 员工欠款管理 -->
 <div class="system-settings-container" style="margin-top: 20px;">
@@ -2307,12 +2320,14 @@
        tableHeaderText: '#000000',    // 表头文字色
        tableRowOddBg: '#ffffff',      // 奇数行背景色
        tableRowEvenBg: '#f9f9f9',     // 偶数行背景色
-       tableBorderColor: '#dddddd'    // 表格边框颜色
+       tableBorderColor: '#dddddd',    // 表格边框颜色
+       attendancePaused: true  // 默认阻止出勤操作
       
     };
     
     	// 在 systemData 定义后面添加
       let editingIndex = null; // 用于记录正在编辑的员工索引
+      let attendancePaused = true;   // 初始值，实际值会在加载系统设置后同步
     
     
     // 十六进制颜色转 RGB 数组
@@ -3594,6 +3609,10 @@ if (savedHistory) {
             const savedSettings = localStorage.getItem('qx_system_settings');
             if (savedSettings) {
                 systemSettings = JSON.parse(savedSettings);
+                  // 确保 attendancePaused 字段存在（默认 true）
+            if (systemSettings.attendancePaused === undefined) {
+                systemSettings.attendancePaused = true;
+            }
                 if (systemSettings.printDensity === undefined){
 systemSettings.printDensity = 20;
     document.getElementById('print-density').value = systemSettings.printDensity;
@@ -6564,6 +6583,10 @@ function generatePersonalAttendanceCalendar(year, month, employeeId) {
         
         // 点击日期其他区域切换状态（不包含备注图标）
         dayElement.addEventListener('click', function(e) {
+          if (attendancePaused) {
+        showNotification('当前禁止修改出勤记录，请先在“系统管理”中关闭禁止开关', 'warning');
+        return;
+    }
             if (e.target.classList.contains('remark-icon')) return; // 如果点击的是图标，不处理切换状态
             toggleAttendanceStatus(employeeId, dateKey, monthKey, year, month, day);
         });
@@ -6589,6 +6612,10 @@ function generatePersonalAttendanceCalendar(year, month, employeeId) {
 //🔯5️⃣新增从原点击事件抽取(出勤状态副助)
 
 function toggleAttendanceStatus(employeeId, dateKey, monthKey, year, month, day) {
+   if (attendancePaused) {
+        showNotification('当前禁止修改出勤记录，请先在“系统管理”中关闭禁止开关', 'warning');
+        return;
+    }
     if (!systemData.attendanceRecords[monthKey]) {
         systemData.attendanceRecords[monthKey] = {};
     }
@@ -8120,6 +8147,10 @@ function getEmployeeRemarksSummary(employeeId, startDate, endDate) {
     
     // ③员工出勤记录 - 记录出勤
     document.getElementById('mark-present').addEventListener('click', function() {
+       if (attendancePaused) {
+        showNotification('当前禁止修改出勤记录，请先在“系统管理”中关闭禁止开关', 'warning');
+        return;
+    }
         const date = document.getElementById('attendance-date').value;
         if (!date) {
             showNotification('请选择日期', 'error');
@@ -8174,6 +8205,10 @@ function getEmployeeRemarksSummary(employeeId, startDate, endDate) {
     
     // 员工出勤记录 - 记录缺勤
     document.getElementById('mark-absent').addEventListener('click', function() {
+      if (attendancePaused) {
+        showNotification('当前禁止修改出勤记录，请先在“系统管理”中关闭禁止开关', 'warning');
+        return;
+    }
         const date = document.getElementById('attendance-date').value;
         if (!date) {
             showNotification('请选择日期', 'error');
@@ -8228,6 +8263,10 @@ function getEmployeeRemarksSummary(employeeId, startDate, endDate) {
     
     // 员工出勤记录 - 清除出勤记录
     document.getElementById('clear-attendance').addEventListener('click', function() {
+       if (attendancePaused) {
+        showNotification('当前禁止修改出勤记录，请先在“系统管理”中关闭禁止开关', 'warning');
+        return;
+    }
         const date = document.getElementById('attendance-date').value;
         if (!date) {
             showNotification('请选择日期', 'error');
@@ -8428,7 +8467,8 @@ function getEmployeeRemarksSummary(employeeId, startDate, endDate) {
     
     
                  
-  //第5️⃣步  ➕转入欠款 
+  //第5️⃣步  ➕转入欠款 双份
+  /*
            document.getElementById('addCurrentBillBtn').addEventListener('click', function() {
                     const empId = document.getElementById('personal-salary-employee').value;
                     if (!empId) { showNotification('请先选择员工', 'warning'); return; }
@@ -8444,6 +8484,8 @@ function getEmployeeRemarksSummary(employeeId, startDate, endDate) {
                     showNotification(empId+'工资已转入欠款', 'success');
                 });
 
+    */
+    
     
     // ==================== 工具函数（欠款管理 & 任务加载） ====================
 
@@ -9057,7 +9099,7 @@ document.getElementById('addCurrentBillBtn').addEventListener('click', function(
     document.getElementById('pendingAmountDisplay').innerText = '待操作: 0.00';
     document.getElementById('ticketNumberInput').value = '';
     document.getElementById('memoInput').value = '';
-    showNotification(empId + '工资已转入欠款', 'success');
+    showNotification(empId + '工资已转入欠款'+currentBill, 'success');
 });
 
 // 辅助函数：获取票号和备注（如果原代码中没有，请添加）
@@ -9295,7 +9337,12 @@ if (taskTypeSelect && unitPriceInput && psInputGroup && psInput) {
     taskTypeSelect.dispatchEvent(new Event('change'));
 }
 
- 
+ document.getElementById('pause-attendance-toggle').addEventListener('change', function(e) {
+    attendancePaused = e.target.checked;
+    systemSettings.attendancePaused = attendancePaused;
+    saveSystemSettings();   // 可选，立即保存
+    showNotification(attendancePaused ? '出勤操作已禁止' : '出勤操作已允许', 'info');
+});
         
         
    }
