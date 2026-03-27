@@ -8074,6 +8074,10 @@ function calculateTaskSalaryTotal() {
     
       // ①每天工资设置 - 应用批量设置
     document.getElementById('apply-daily-salary').addEventListener('click', function() {
+       if (attendancePaused) {
+        showNotification('当前禁止修改出勤记录，请先在“系统管理”中关闭禁止开关', 'warning');
+        return;
+    }
         const monthInput = document.getElementById('daily-salary-month').value;
         const salaryAmount = parseFloat(document.getElementById('daily-salary-amount').value);
         
@@ -8466,26 +8470,7 @@ function getEmployeeRemarksSummary(employeeId, startDate, endDate) {
                 
     
     
-                 
-  //第5️⃣步  ➕转入欠款 双份
-  /*
-           document.getElementById('addCurrentBillBtn').addEventListener('click', function() {
-                    const empId = document.getElementById('personal-salary-employee').value;
-                    if (!empId) { showNotification('请先选择员工', 'warning'); return; }
-                    const currentBill = parseFloat(document.getElementById('currentBillDisplay').innerText) || 0;
-                    if (currentBill === 0) { showNotification('本期应付工资为0', 'warning'); return; }
-                    currentTaskList.forEach(task => task.confirmed = false); renderTaskList();
-                    const oldBal = systemData.employeeBalances[empId] || 0;
-                    const { ticket, memo } = getTicketAndMemo();
-                    const selectedDate = document.getElementById('personal-salary-date').value; // 获取选择的日期
-                    saveBalanceForEmployee(empId, oldBal + currentBill, '工资转入', currentBill, ticket, memo || '本期货款转入', selectedDate);
-                    paymentInput.value = ''; pendingDisplay.innerText = '待操作: 0.00';
-                    document.getElementById('ticketNumberInput').value = ''; document.getElementById('memoInput').value = '';
-                    showNotification(empId+'工资已转入欠款', 'success');
-                });
 
-    */
-    
     
     // ==================== 工具函数（欠款管理 & 任务加载） ====================
 
@@ -9099,7 +9084,7 @@ document.getElementById('addCurrentBillBtn').addEventListener('click', function(
     document.getElementById('pendingAmountDisplay').innerText = '待操作: 0.00';
     document.getElementById('ticketNumberInput').value = '';
     document.getElementById('memoInput').value = '';
-    showNotification(empId + '工资已转入欠款'+currentBill, 'success');
+    showNotification(empId + currentBill+'工资已转入欠款', 'success');
 });
 
 // 辅助函数：获取票号和备注（如果原代码中没有，请添加）
@@ -9696,7 +9681,7 @@ switch (currentPdfType) {
             // 创建下载链接
             const a = document.createElement('a');
             a.href = url;
-            a.download = ` ①号蛋托_${new Date().toISOString().split('T')[0]}.json`;
+            a.download = `②出货🚚_${new Date().toISOString().split('T')[0]}.json`;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
