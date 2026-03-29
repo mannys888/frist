@@ -9,9 +9,7 @@
     {
       "id": "vei.nga",
       "name": "NGA",
-         "descs_html": [
-         "<iframe src='https://vd3.bdstatic.com/mda-kbez8mfipha31hiw/mda-kbez8mfipha31hiw.mp4?pd=-1&pt=1&cr=0&vt=0&cd=0&did=cfcd208495d565ef66e7dff9f98764da&logid=3526447635&vid=14646426729713022387&auth_key=1652254126-0-0-41d6fdfe0012951df6bd1cd5ea46d902&bcevod_channel' width='100%' height='400px' style='border:none'></iframe>"
-            ],
+         "descs_url": "https://raw.githubusercontent.com/mannys888/frist/refs/heads/main/QX.html",
 
 
       "keys": ["vei_nga_cookie", "vei_nga_content_type", "vei_nga_user_agent", "vei_nga_mission", "vei_nga_body"],
