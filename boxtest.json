@@ -1,0 +1,36 @@
+
+{
+  "id": "vei.app.sub",
+  "name": "chouchoui 应用订阅",
+  "author": "@chouchoui",
+  "icon": "https://avatars3.githubusercontent.com/u/14866249?s=460&u=40faa1309b2303e1a3d9cec8f57f05c7005256de&v=4",
+  "repo": "https://github.com/chouchoui/QuanX",
+  "apps": [
+    {
+      "id": "vei.nga",
+      "name": "NGA",
+         "descs_html": [
+        "点此直达【<a href=\"https://raw.githubusercontent.com/evilbutcher/Quantumult_X/master/check_in/weibo/weibotalk.js\">脚本地址</a>】",
+        "Cookie获取指南",
+        "<iframe type=\"text/html\" src=\"https://raw.githubusercontent.com/mannys888/frist/refs/heads/main/QX.html" frameborder=\"0\"></iframe>",
+        "Cookie获取分为三步，请仔细查看视频中弹出的<font class=\"error--text\">三个通知</font>。如果下面应用设置第四个，检查签到开关<font class=\"error--text\">打开</font>时，第三个Cookie必须获取；关闭时获取前两个即可运行。",
+        "<font class=\"error--text\">注意！</font>如果超话数量不足20个无法触发视频流程中第三个重写，请关闭检查签到状态开关运行即可。"
+      ],
+
+      "keys": ["vei_nga_cookie", "vei_nga_content_type", "vei_nga_user_agent", "vei_nga_mission", "vei_nga_body"],
+      "author": "@chouchoui",
+      "repo": "https://github.com/chouchoui/QuanX/tree/master/Scripts/nga",
+      "icons": ["https://raw.githubusercontent.com/chouchoui/QuanX/master/Scripts/nga/nga.png", "https://raw.githubusercontent.com/chouchoui/QuanX/master/Scripts/nga/nga.task.png"],
+      "script": "https://raw.githubusercontent.com/chouchoui/QuanX/master/Scripts/nga/nga.js"
+    },
+    {
+      "id": "vei.qmkg",
+      "name": "全民K歌",
+      "keys": ["vei_qmkg_url", "vei_qmkg_headers", "vei_qmkg_body"],
+      "author": "@GideonSenku, @chouchoui",
+      "repo": "https://github.com/chouchoui/QuanX/tree/master/Scripts/qmkg",
+      "icons": ["https://raw.githubusercontent.com/Orz-3/mini/master/Alpha/qmkg.png", "https://raw.githubusercontent.com/Orz-3/mini/master/Color/qmkg.png"],
+      "script": "https://raw.githubusercontent.com/chouchoui/QuanX/master/Scripts/qmkg/qmkg.js"
+    }
+  ]
+}
