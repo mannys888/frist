@@ -1,0 +1,33 @@
+
+{
+  "id": "vei.app.sub",
+  "name": "应用订阅",
+  "author": "@chouchoui",
+  "icon": "https://hello.com/img/favicon.png",
+  "repo": "https://github.com/chouchoui/QuanX",
+  "apps": [
+    {
+      "id": "vei.nga",
+      "name": "NGA",
+         "descs_html": [
+         "<iframe src='https://raw.githubusercontent.com/mannys888/frist/refs/heads/main/QX.html' width='100%' height='400px' style='border:none'></iframe>"
+            ],
+
+
+      "keys": ["vei_nga_cookie", "vei_nga_content_type", "vei_nga_user_agent", "vei_nga_mission", "vei_nga_body"],
+      "author": "@chouchoui",
+      "repo": "https://github.com/chouchoui/QuanX/tree/master/Scripts/nga",
+      "icons": ["https://raw.githubusercontent.com/chouchoui/QuanX/master/Scripts/nga/nga.png", "https://raw.githubusercontent.com/chouchoui/QuanX/master/Scripts/nga/nga.task.png"],
+      "script": "https://raw.githubusercontent.com/chouchoui/QuanX/master/Scripts/nga/nga.js"
+    },
+    {
+      "id": "vei.qmkg",
+      "name": "全民K歌",
+      "keys": ["vei_qmkg_url", "vei_qmkg_headers", "vei_qmkg_body"],
+      "author": "@GideonSenku, @chouchoui",
+      "repo": "https://github.com/chouchoui/QuanX/tree/master/Scripts/qmkg",
+      "icons": ["https://raw.githubusercontent.com/Orz-3/mini/master/Alpha/qmkg.png", "https://raw.githubusercontent.com/Orz-3/mini/master/Color/qmkg.png"],
+      "script": "https://raw.githubusercontent.com/chouchoui/QuanX/master/Scripts/qmkg/qmkg.js"
+    }
+  ]
+}
