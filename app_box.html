@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <title>应用中心 - 独立存储 + 远程导入 + 快速添加</title>
+  <link href="https://fonts.googleapis.com/css?family=Roboto:100,300,400,500,700,900" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/@mdi/font@5.x/css/materialdesignicons.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/vuetify@2.4.x/dist/vuetify.min.css" rel="stylesheet">
+  <style>
+    [v-cloak] { display: none; }
+    .v-main { margin-top: 56px; margin-bottom: 56px; }
+    .app-icon {
+      border-radius: 12px;
+      transition: transform 0.2s;
+      cursor: pointer;
+    }
+    .app-icon:hover { transform: scale(1.05); }
+    iframe {
+      width: 100%;
+      height: 100%;
+      border: none;
+    }
+    .iframe-container {
+      position: relative;
+      width: 100%;
+      height: 100%;
+    }
+    .iframe-error {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      text-align: center;
+      color: #999;
+    }
+    .json-viewer {
+      background: #1e1e2f;
+      color: #f8f8f2;
+      padding: 16px;
+      font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
+      font-size: 14px;
+      overflow: auto;
+      height: 100%;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    /* 美化快速添加卡片 */
+    .quick-add-card {
+      background: linear-gradient(135deg, #f5f7fa 0%, #eef2f6 100%);
+      border-radius: 20px;
+    }
+    .theme--dark .quick-add-card {
+      background: linear-gradient(135deg, #2c2c3a 0%, #1f1f2a 100%);
+    }
+    /* 订阅页面按钮组自适应 */
+    .action-buttons {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: flex-start;
+      margin-bottom: 16px;
+    }
+    .action-buttons .v-btn {
+      flex: 0 0 auto;
+    }
+  </style>
+</head>
+<body>
+<div id="app" v-cloak>
+  <v-app>
+    <v-app-bar app color="primary" dark>
+      <v-toolbar-title>📱 应用中心</v-toolbar-title>
+      <v-spacer></v-spacer>
+      <v-btn icon @click="showSearchDialog = true"><v-icon>mdi-magnify</v-icon></v-btn>
+      <v-btn icon @click="drawer = !drawer"><v-icon>mdi-menu</v-icon></v-btn>
+    </v-app-bar>
+
+    <v-navigation-drawer v-model="drawer" app right temporary>
+      <v-list dense>
+        <v-subheader>设置</v-subheader>
+        <v-list-item>
+          <v-list-item-content>
+            <v-select v-model="settings.theme" :items="[{text:'自动',value:'auto'},{text:'深色',value:'dark'},{text:'浅色',value:'light'}]" label="外观" @change="applyTheme"></v-select>
+          </v-list-item-content>
+        </v-list-item>
+        <v-list-item>
+          <v-list-item-content><v-switch v-model="settings.notify" label="操作通知" dense></v-switch></v-list-item-content>
+        </v-list-item>
+        <v-list-item>
+          <v-list-item-content><v-btn block text @click="clearAllData">清除所有数据</v-btn></v-list-item-content>
+        </v-list-item>
+      </v-list>
+    </v-navigation-drawer>
+
+    <v-dialog v-model="showSearchDialog" fullscreen>
+      <v-card>
+        <v-toolbar dark color="primary">
+          <v-btn icon @click="showSearchDialog = false"><v-icon>mdi-close</v-icon></v-btn>
+          <v-text-field v-model="searchKeyword" label="搜索应用" hide-details solo></v-text-field>
+        </v-toolbar>
+        <v-list>
+          <v-list-item v-for="app in filteredApps" :key="app.id" @click="viewApp(app)">
+            <v-list-item-avatar><v-img :src="app.icon || defaultIcon"></v-img></v-list-item-avatar>
+            <v-list-item-content><v-list-item-title>{{ app.name }}</v-list-item-title><v-list-item-subtitle>{{ app.id }}</v-list-item-subtitle></v-list-item-content>
+          </v-list-item>
+        </v-list>
+      </v-card>
+    </v-dialog>
+
+    <v-main>
+      <v-container fluid>
+        <!-- ========= 主页：仅显示收藏应用网格 ========= -->
+        <v-row v-if="currentView === 'home'" no-gutters>
+          <v-col cols="12" v-if="favApps.length === 0 && allApps.length === 0" class="text-center grey--text py-8">
+            <v-icon size="64" color="grey lighten-2">mdi-heart-broken</v-icon>
+            <div class="mt-2">暂无应用，请从「应用」页快速添加或订阅源导入</div>
+            <v-btn class="mt-4" color="primary" @click="currentView = 'apps'">前往添加应用</v-btn>
+          </v-col>
+          <v-col cols="12" v-else-if="favApps.length === 0 && allApps.length > 0" class="text-center grey--text py-6">
+            <v-icon size="48">mdi-star-outline</v-icon>
+            <div>还没有收藏，在「应用」页点击⭐收藏你喜欢的应用吧</div>
+          </v-col>
+          <template v-else>
+            <v-col cols="3" md="2" v-for="app in favApps" :key="app.id" class="d-flex justify-center">
+              <div class="text-center ma-2 app-icon" @click="openInIframe(app)">
+                <v-img :src="app.icon || defaultIcon" width="60" height="60" contain class="elevation-2 rounded-lg"></v-img>
+                <div class="caption font-weight-bold mt-1 text-truncate" style="max-width: 70px;">{{ app.name }}</div>
+              </div>
+            </v-col>
+          </template>
+        </v-row>
+
+        <!-- ========= 应用列表页（顶部新增快速添加任意网站） ========= -->
+        <v-row v-if="currentView === 'apps'">
+          <v-col cols="12">
+            <!-- 快速添加卡片 -->
+            <v-card class="quick-add-card mb-4 elevation-2" shaped>
+              <v-card-title class="pb-0">
+                <v-icon left color="primary">mdi-rocket-launch</v-icon>
+                <span class="text-h6 font-weight-bold">🚀 快速添加任意网站</span>
+              </v-card-title>
+              <v-card-text>
+                <v-row align="center">
+                  <v-col cols="12" md="5">
+                    <v-text-field
+                      v-model="quickAddUrl"
+                      label="网站地址 *"
+                      placeholder="https://www.calculator.net/ 或任意网址"
+                      outlined
+                      dense
+                      clearable
+                      prepend-inner-icon="mdi-web"
+                      @keyup.enter="quickAddWebsite"
+                      hint="支持 http/https，自动补全协议"
+                    ></v-text-field>
+                  </v-col>
+                  <v-col cols="12" md="4">
+                    <v-text-field
+                      v-model="quickAddName"
+                      label="应用名称 (可选)"
+                      placeholder="留空则自动获取网站标题/域名"
+                      outlined
+                      dense
+                      clearable
+                      prepend-inner-icon="mdi-format-title"
+                    ></v-text-field>
+                  </v-col>
+                  <v-col cols="12" md="3" class="d-flex align-center">
+                    <v-btn
+                      color="primary"
+                      block
+                      large
+                      :loading="quickAdding"
+                      @click="quickAddWebsite"
+                      class="mt-md-0 mt-2"
+                    >
+                      <v-icon left>mdi-plus</v-icon> 添加为应用
+                    </v-btn>
+                  </v-col>
+                </v-row>
+                <div class="caption grey--text text--darken-1 mt-1">
+                  💡 任意网站均可添加，若目标网站禁止iframe嵌入，应用内会提供「在新标签页打开」按钮。支持收藏、独立存储隔离（对本地/远程HTML生效）。
+                </div>
+              </v-card-text>
+            </v-card>
+
+            <!-- 应用列表展开面板 -->
+            <v-expansion-panels multiple>
+              <v-expansion-panel>
+                <v-expansion-panel-header>⭐ 收藏应用 ({{ favApps.length }})</v-expansion-panel-header>
+                <v-expansion-panel-content>
+                  <v-list dense>
+                    <v-list-item v-for="app in favApps" :key="app.id" @click="viewApp(app)">
+                      <v-list-item-avatar><v-img :src="app.icon || defaultIcon"></v-img></v-list-item-avatar>
+                      <v-list-item-content><v-list-item-title>{{ app.name }}</v-list-item-title><v-list-item-subtitle>{{ app.id }}</v-list-item-subtitle></v-list-item-content>
+                      <v-list-item-action>
+                        <v-btn icon @click.stop="toggleFav(app.id)"><v-icon color="red">mdi-star</v-icon></v-btn>
+                        <v-btn v-if="getAppUrl(app)" icon @click.stop="openInIframe(app)"><v-icon color="primary">mdi-open-in-new</v-icon></v-btn>
+                        <v-btn v-if="getAppUrl(app)" icon @click.stop="copyAppUrl(app)"><v-icon color="green">mdi-content-copy</v-icon></v-btn>
+                      </v-list-item-action>
+                    </v-list-item>
+                  </v-list>
+                </v-expansion-panel-content>
+              </v-expansion-panel>
+              <v-expansion-panel>
+                <v-expansion-panel-header>📦 全部应用 ({{ allApps.length }})</v-expansion-panel-header>
+                <v-expansion-panel-content>
+                  <v-list dense>
+                    <v-list-item v-for="app in allApps" :key="app.id" @click="viewApp(app)">
+                      <v-list-item-avatar><v-img :src="app.icon || defaultIcon"></v-img></v-list-item-avatar>
+                      <v-list-item-content><v-list-item-title>{{ app.name }}</v-list-item-title><v-list-item-subtitle>{{ app.id }}</v-list-item-subtitle></v-list-item-content>
+                      <v-list-item-action>
+                        <v-btn icon @click.stop="toggleFav(app.id)"><v-icon :color="isFav(app.id) ? 'red' : 'grey'">mdi-star{{ isFav(app.id) ? '' : '-outline' }}</v-icon></v-btn>
+                        <v-btn v-if="getAppUrl(app)" icon @click.stop="openInIframe(app)"><v-icon color="primary">mdi-open-in-new</v-icon></v-btn>
+                        <v-btn v-if="getAppUrl(app)" icon @click.stop="copyAppUrl(app)"><v-icon color="green">mdi-content-copy</v-icon></v-btn>
+                      </v-list-item-action>
+                    </v-list-item>
+                  </v-list>
+                </v-expansion-panel-content>
+              </v-expansion-panel>
+            </v-expansion-panels>
+          </v-col>
+        </v-row>
+
+        <!-- ========= 订阅管理页（重新布局按钮，更美观） ========= -->
+        <v-row v-if="currentView === 'subs'">
+          <v-col cols="12">
+            <v-card>
+              <v-card-title class="pb-2">
+                订阅源 & 高级导入
+              </v-card-title>
+              <v-divider></v-divider>
+              <v-card-text class="pt-4">
+                <!-- 按钮组：分两行或自适应网格，美观且功能清晰 -->
+                <div class="action-buttons">
+                  <v-btn small color="primary" outlined @click="showAddSubDialog = true">
+                    <v-icon left>mdi-plus</v-icon> 添加订阅
+                  </v-btn>
+                  <v-btn small color="secondary" outlined @click="showManualAppDialog = true">
+                    <v-icon left>mdi-hand-pointing-right</v-icon> 手动添加应用
+                  </v-btn>
+                  <v-btn small color="info" outlined @click="showAddHtmlAppDialog = true">
+                    <v-icon left>mdi-file-document</v-icon> 本地HTML
+                  </v-btn>
+                  <v-btn small color="info" outlined @click="showRemoteHtmlDialog = true">
+                    <v-icon left>mdi-cloud-download</v-icon> 远程HTML
+                  </v-btn>
+                  <v-btn small color="success" outlined @click="showRemoteJsonDialog = true">
+                    <v-icon left>mdi-code-json</v-icon> 远程JSON
+                  </v-btn>
+                </div>
+                <v-divider class="my-3"></v-divider>
+                <v-list dense>
+                  <v-list-item v-for="(sub, idx) in subscriptions" :key="sub.id">
+                    <v-list-item-content>
+                      <v-list-item-title>{{ sub.name || '未命名订阅' }}</v-list-item-title>
+                      <v-list-item-subtitle>{{ sub.url }}</v-list-item-subtitle>
+                      <v-list-item-subtitle>应用数: {{ sub.apps?.length || 0 }}</v-list-item-subtitle>
+                    </v-list-item-content>
+                    <v-list-item-action>
+                      <v-btn icon @click="refreshSub(sub)" :loading="sub.loading"><v-icon>mdi-refresh</v-icon></v-btn>
+                      <v-btn icon @click="deleteSub(idx)"><v-icon color="error">mdi-delete</v-icon></v-btn>
+                    </v-list-item-action>
+                  </v-list-item>
+                  <v-list-item v-if="subscriptions.length === 0">
+                    <v-list-item-content class="text-center grey--text py-4">
+                      暂无订阅，点击上方按钮添加订阅或手动导入
+                    </v-list-item-content>
+                  </v-list-item>
+                </v-list>
+              </v-card-text>
+            </v-card>
+          </v-col>
+        </v-row>
+
+        <!-- 我的页面 -->
+        <v-row v-if="currentView === 'profile'">
+          <v-col cols="12">
+            <v-card>
+              <v-card-title>我的数据</v-card-title>
+              <v-card-text>
+                <div>⭐ 收藏应用: {{ favApps.length }}</div>
+                <div>📦 订阅应用总数: {{ allApps.length }}</div>
+                <div>📡 订阅源数量: {{ subscriptions.length }}</div>
+                <div class="mt-2 text-caption">✨ 快速添加任意网站功能已集成在「应用」页顶部</div>
+              </v-card-text>
+              <v-card-actions>
+                <v-spacer></v-spacer>
+                <v-btn small text @click="exportData">导出数据</v-btn>
+                <v-btn small text @click="importData">导入数据</v-btn>
+              </v-card-actions>
+            </v-card>
+          </v-col>
+        </v-row>
+
+        <!-- 应用详情页 -->
+        <v-row v-if="currentView === 'appDetail' && selectedApp">
+          <v-col cols="12">
+            <v-card>
+              <v-card-title>
+                {{ selectedApp.name }}
+                <v-spacer></v-spacer>
+                <v-btn icon @click="toggleFav(selectedApp.id)"><v-icon :color="isFav(selectedApp.id) ? 'red' : 'grey'">mdi-star{{ isFav(selectedApp.id) ? '' : '-outline' }}</v-icon></v-btn>
+                <v-btn v-if="getAppUrl(selectedApp)" icon @click="openInIframe(selectedApp)"><v-icon color="primary">mdi-open-in-new</v-icon></v-btn>
+                <v-btn v-if="getAppUrl(selectedApp)" icon @click="copyAppUrl(selectedApp)"><v-icon color="green">mdi-content-copy</v-icon></v-btn>
+                <v-btn icon @click="currentView = 'apps'"><v-icon>mdi-close</v-icon></v-btn>
+              </v-card-title>
+              <v-divider></v-divider>
+              <v-card-text>
+                <p><strong>ID:</strong> {{ selectedApp.id }}</p>
+                <p><strong>作者:</strong> {{ selectedApp.author || '未知' }}</p>
+                <p v-if="selectedApp.repo"><strong>来源/URL:</strong> <a :href="selectedApp.repo" target="_blank" rel="noopener">{{ selectedApp.repo }}</a></p>
+                <p v-if="selectedApp.jsonUrl"><strong>JSON数据源:</strong> <a :href="selectedApp.jsonUrl" target="_blank" rel="noopener">{{ selectedApp.jsonUrl }}</a></p>
+                <p v-if="selectedApp.pageUrl && selectedApp.pageUrl !== '__local_html__' && selectedApp.pageUrl !== '__local_json__'"><strong>页面地址:</strong> <a :href="selectedApp.pageUrl" target="_blank" rel="noopener">{{ selectedApp.pageUrl }}</a></p>
+                <p v-if="selectedApp.desc"><strong>描述:</strong> {{ selectedApp.desc }}</p>
+                <p v-if="selectedApp.htmlContent"><strong>类型:</strong> 本地/远程HTML页面（已启用独立存储隔离：localStorage + sessionStorage + IndexedDB）</p>
+                <p v-if="selectedApp.jsonContent"><strong>类型:</strong> JSON代码应用（可直接查看格式化代码）</p>
+              </v-card-text>
+            </v-card>
+          </v-col>
+        </v-row>
+      </v-container>
+    </v-main>
+
+    <v-bottom-navigation v-model="currentView" grow app>
+      <v-btn value="home"><v-icon>mdi-home</v-icon><span>主页</span></v-btn>
+      <v-btn value="apps"><v-icon>mdi-apps</v-icon><span>应用</span></v-btn>
+      <v-btn value="subs"><v-icon>mdi-database</v-icon><span>订阅</span></v-btn>
+      <v-btn value="profile"><v-icon>mdi-account</v-icon><span>我的</span></v-btn>
+    </v-bottom-navigation>
+
+    <!-- 各种对话框保持不变，仅优化样式 -->
+    <v-dialog v-model="showAddSubDialog" max-width="500">
+      <v-card>
+        <v-card-title>添加订阅</v-card-title>
+        <v-card-text>
+          <v-text-field v-model="newSubUrl" label="订阅地址 (JSON 或 HTML)" placeholder="https://example.com/sub.json 或 https://example.com/apps.html" outlined></v-text-field>
+          <v-checkbox v-model="isHtmlSub" label="强制当作 HTML 解析" hint="如果地址是 HTML 页面，请勾选"></v-checkbox>
+          <div v-if="parseError" class="error--text mt-2">解析失败: {{ parseError }}</div>
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer></v-spacer>
+          <v-btn text @click="showAddSubDialog = false">取消</v-btn>
+          <v-btn color="primary" @click="addSubscription" :loading="addingSub">添加</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <v-dialog v-model="showManualAppDialog" max-width="500">
+      <v-card>
+        <v-card-title>手动添加应用</v-card-title>
+        <v-card-text>
+          <v-text-field v-model="manualApp.name" label="应用名称" placeholder="例如: 我的工具" outlined></v-text-field>
+          <v-text-field v-model="manualApp.url" label="页面地址" placeholder="https://example.com" outlined></v-text-field>
+          <v-text-field v-model="manualApp.icon" label="图标地址（可选）" placeholder="https://..." outlined></v-text-field>
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer></v-spacer>
+          <v-btn text @click="showManualAppDialog = false">取消</v-btn>
+          <v-btn color="primary" @click="addManualApp">添加</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <v-dialog v-model="showAddHtmlAppDialog" max-width="500">
+      <v-card>
+        <v-card-title>从本地 HTML 文件导入应用（独立存储）</v-card-title>
+        <v-card-text>
+          <v-file-input v-model="htmlAppFile" accept=".html,.htm" label="选择 HTML 文件" @change="previewHtmlAppName" show-size></v-file-input>
+          <v-text-field v-model="htmlAppName" label="应用名称" placeholder="自动使用文件名" outlined></v-text-field>
+          <v-text-field v-model="htmlAppIcon" label="图标地址（可选）" placeholder="https://... 或留空使用默认图标" outlined></v-text-field>
+          <div v-if="htmlAppFileSize > 1024 * 1024" class="error--text mt-2">
+            ⚠️ 文件较大 ({{ (htmlAppFileSize / 1024 / 1024).toFixed(2) }} MB)，保存后可能导致数据备份过大或存储失败。
+          </div>
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer></v-spacer>
+          <v-btn text @click="cancelAddHtmlApp">取消</v-btn>
+          <v-btn color="primary" @click="addHtmlApp" :disabled="!htmlAppFile">导入并添加</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <v-dialog v-model="showRemoteHtmlDialog" max-width="500">
+      <v-card>
+        <v-card-title>从远程网址导入 HTML 页面</v-card-title>
+        <v-card-text>
+          <v-text-field v-model="remoteHtmlUrl" label="HTML 页面网址" placeholder="https://example.com/page.html" outlined></v-text-field>
+          <v-text-field v-model="remoteHtmlName" label="应用名称（可选）" placeholder="留空则自动从标题获取" outlined></v-text-field>
+          <v-text-field v-model="remoteHtmlIcon" label="图标地址（可选）" placeholder="https://..." outlined></v-text-field>
+          <div v-if="remoteHtmlError" class="error--text mt-2">{{ remoteHtmlError }}</div>
+          <v-progress-linear v-if="remoteHtmlLoading" indeterminate></v-progress-linear>
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer></v-spacer>
+          <v-btn text @click="cancelRemoteHtml">取消</v-btn>
+          <v-btn color="primary" @click="addRemoteHtml" :loading="remoteHtmlLoading" :disabled="!remoteHtmlUrl">获取并导入</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <v-dialog v-model="showRemoteJsonDialog" max-width="500">
+      <v-card>
+        <v-card-title>从远程 JSON 导入应用（代码查看器）</v-card-title>
+        <v-card-text>
+          <v-text-field v-model="remoteJsonUrl" label="JSON 数据网址" placeholder="https://example.com/data.json" outlined></v-text-field>
+          <v-text-field v-model="remoteJsonName" label="应用名称（可选）" placeholder="留空则自动从URL提取" outlined></v-text-field>
+          <v-text-field v-model="remoteJsonIcon" label="图标地址（可选）" placeholder="https://..." outlined></v-text-field>
+          <div v-if="remoteJsonError" class="error--text mt-2">{{ remoteJsonError }}</div>
+          <v-progress-linear v-if="remoteJsonLoading" indeterminate></v-progress-linear>
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer></v-spacer>
+          <v-btn text @click="cancelRemoteJson">取消</v-btn>
+          <v-btn color="success" @click="addRemoteJsonApp" :loading="remoteJsonLoading" :disabled="!remoteJsonUrl">获取JSON并添加</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <v-dialog v-model="showIframeDialog" fullscreen hide-overlay transition="dialog-bottom-transition" @click:outside="closeIframeDialog">
+      <v-card>
+        <v-toolbar dark color="primary">
+          <v-btn icon @click="closeIframeDialog"><v-icon>mdi-close</v-icon></v-btn>
+          <v-toolbar-title>{{ iframeTitle }}</v-toolbar-title>
+          <v-spacer></v-spacer>
+          <v-btn icon @click="copyCurrentUrl"><v-icon>mdi-content-copy</v-icon></v-btn>
+          <v-btn icon @click="openInNewTab"><v-icon>mdi-open-in-new</v-icon></v-btn>
+        </v-toolbar>
+        <div class="iframe-container" style="height: calc(100vh - 56px);">
+          <iframe v-if="!isJsonViewer" :src="iframeUrl" @load="iframeLoaded" @error="iframeError" sandbox="allow-same-origin allow-scripts allow-popups allow-forms"></iframe>
+          <div v-else class="json-viewer" ref="jsonViewerContainer">
+            <pre style="margin:0; white-space:pre-wrap; font-family:monospace;">{{ jsonPrettyContent }}</pre>
+          </div>
+          <div v-if="iframeLoadError && !isJsonViewer" class="iframe-error">
+            <v-icon size="48" color="error">mdi-alert-circle</v-icon>
+            <p>无法加载该页面，可能是网站禁止嵌入（X-Frame-Options）或地址无效。</p>
+            <v-btn small color="primary" @click="openInNewTab">在新标签页打开</v-btn>
+          </div>
+        </div>
+      </v-card>
+    </v-dialog>
+
+    <v-snackbar v-model="snackbar.show" :color="snackbar.color" :timeout="3000" top>{{ snackbar.text }}<v-btn dark text @click="snackbar.show = false">关闭</v-btn></v-snackbar>
+  </v-app>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/vue@2.x/dist/vue.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/vuetify@2.4.x/dist/vuetify.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/axios@0.x/dist/axios.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/uuid@8.x/dist/umd/uuidv4.min.js"></script>
+<script>
+  const defaultIcon = 'https://raw.githubusercontent.com/Orz-3/mini/master/Alpha/appstore.png';
+  const NAV_WORDS = ['首页', '主页', '登录', '注册', '关于', '帮助', '反馈', '联系', '设置', '个人中心', '我的', 'Home', 'Login', 'Sign', 'About', 'Help', 'Contact', 'Settings', 'Profile'];
+
+  new Vue({
+    el: '#app',
+    vuetify: new Vuetify(),
+    data() {
+      return {
+        drawer: false,
+        showSearchDialog: false,
+        showAddSubDialog: false,
+        showManualAppDialog: false,
+        showIframeDialog: false,
+        iframeUrl: '',
+        iframeTitle: '',
+        iframeLoadError: false,
+        isJsonViewer: false,
+        jsonPrettyContent: '',
+        addingSub: false,
+        parseError: '',
+        searchKeyword: '',
+        currentView: 'home',
+        selectedApp: null,
+        subscriptions: [],
+        allApps: [],
+        favAppIds: [],
+        settings: { theme: 'auto', notify: true },
+        snackbar: { show: false, text: '', color: 'success' },
+        newSubUrl: '',
+        isHtmlSub: false,
+        manualApp: { name: '', url: '', icon: '' },
+        showAddHtmlAppDialog: false,
+        htmlAppFile: null,
+        htmlAppName: '',
+        htmlAppIcon: '',
+        htmlAppFileSize: 0,
+        showRemoteHtmlDialog: false,
+        remoteHtmlUrl: '',
+        remoteHtmlName: '',
+        remoteHtmlIcon: '',
+        remoteHtmlLoading: false,
+        remoteHtmlError: '',
+        showRemoteJsonDialog: false,
+        remoteJsonUrl: '',
+        remoteJsonName: '',
+        remoteJsonIcon: '',
+        remoteJsonLoading: false,
+        remoteJsonError: '',
+        currentBlobUrl: null,
+        quickAddUrl: '',
+        quickAddName: '',
+        quickAdding: false,
+      };
+    },
+    computed: {
+      favApps() { return this.allApps.filter(app => this.favAppIds.includes(app.id)); },
+      filteredApps() {
+        if (!this.searchKeyword) return this.allApps;
+        const kw = this.searchKeyword.toLowerCase();
+        return this.allApps.filter(app => app.id.toLowerCase().includes(kw) || app.name.toLowerCase().includes(kw));
+      }
+    },
+    watch: {
+      settings: { deep: true, handler() { this.saveSettings(); } },
+      favAppIds: { deep: true, handler() { this.saveFavs(); } },
+      subscriptions: { deep: true, handler() { this.saveSubs(); this.rebuildApps(); } }
+    },
+    mounted() {
+      this.loadData();
+      this.applyTheme();
+    },
+    methods: {
+      _forceNotify(text, color = 'success') {
+        this.snackbar = { show: true, text, color };
+        console.log(`[通知] ${color}: ${text}`);
+      },
+      notify(text, color = 'success') { if (this.settings.notify) this.snackbar = { show: true, text, color }; },
+
+      async quickAddWebsite() {
+        let url = this.quickAddUrl.trim();
+        if (!url) {
+          this._forceNotify('请输入网站地址', 'error');
+          return;
+        }
+        this.quickAdding = true;
+        try {
+          if (!url.startsWith('http://') && !url.startsWith('https://')) {
+            url = 'https://' + url;
+          }
+          new URL(url);
+          let appName = this.quickAddName.trim();
+          if (!appName) {
+            try {
+              const urlObj = new URL(url);
+              let host = urlObj.hostname.replace(/^www\./, '');
+              appName = host.split('.')[0];
+              appName = appName.charAt(0).toUpperCase() + appName.slice(1);
+              if (!appName) appName = '网页应用';
+            } catch (e) { appName = '网页应用'; }
+          }
+          const newApp = {
+            id: 'web_' + Date.now() + '_' + Math.random().toString(36).substr(2, 8),
+            name: appName,
+            icon: defaultIcon,
+            author: '快速添加',
+            repo: url,
+            desc: `通过快速添加功能加入的网站: ${url}`,
+            pageUrl: url,
+          };
+          this.addAppToManualSub(newApp);
+          this.rebuildApps();
+          this._forceNotify(`✅ 应用“${newApp.name}”已添加，可在「应用」页查看`, 'success');
+          this.quickAddUrl = '';
+          this.quickAddName = '';
+        } catch (err) {
+          this._forceNotify(`无效的网址: ${err.message}`, 'error');
+        } finally {
+          this.quickAdding = false;
+        }
+      },
+
+      getAppUrl(app) {
+        if (app.htmlContent) return '__local_html__';
+        if (app.jsonContent) return '__local_json__';
+        return app.pageUrl;
+      },
+
+      openInIframe(app) {
+        if (app.jsonContent) {
+          this.iframeTitle = app.name;
+          this.isJsonViewer = true;
+          this.jsonPrettyContent = app.jsonContent;
+          this.iframeLoadError = false;
+          this.showIframeDialog = true;
+          return;
+        }
+        if (app.htmlContent) {
+          const isolatedContent = this.injectStorageIsolation(app.htmlContent, app.id);
+          const blob = new Blob([isolatedContent], { type: 'text/html' });
+          if (this.currentBlobUrl) URL.revokeObjectURL(this.currentBlobUrl);
+          this.iframeUrl = URL.createObjectURL(blob);
+          this.currentBlobUrl = this.iframeUrl;
+          this.isJsonViewer = false;
+          this.iframeTitle = app.name;
+          this.iframeLoadError = false;
+          this.showIframeDialog = true;
+          return;
+        }
+        if (app.pageUrl) {
+          let url = app.pageUrl.trim();
+          if (!url.startsWith('http://') && !url.startsWith('https://')) url = 'https://' + url;
+          this.iframeUrl = url;
+          this.isJsonViewer = false;
+          this.iframeTitle = app.name;
+          this.iframeLoadError = false;
+          this.showIframeDialog = true;
+          return;
+        }
+        this._forceNotify('该应用没有可打开的内容', 'warning');
+      },
+
+      closeIframeDialog() { this.showIframeDialog = false; if (this.currentBlobUrl) { URL.revokeObjectURL(this.currentBlobUrl); this.currentBlobUrl = null; } this.iframeUrl = ''; this.isJsonViewer = false; this.jsonPrettyContent = ''; },
+      iframeLoaded() { this.iframeLoadError = false; },
+      iframeError() { this.iframeLoadError = true; },
+      copyCurrentUrl() { if (this.isJsonViewer) { this.copyToClipboard(this.jsonPrettyContent); this._forceNotify('JSON代码已复制', 'success'); return; } let url = this.iframeUrl; if (url && url.startsWith('blob:')) { this._forceNotify('当前为本地HTML页面，无法复制原始链接', 'warning'); return; } if (url) this.copyToClipboard(url); },
+      openInNewTab() { if (this.isJsonViewer) { const blob = new Blob([this.jsonPrettyContent], { type: 'application/json' }); const url = URL.createObjectURL(blob); window.open(url, '_blank'); setTimeout(() => URL.revokeObjectURL(url), 1000); return; } let url = this.iframeUrl; if (url && url.startsWith('blob:')) { this._forceNotify('本地HTML页面无法在新标签页中打开', 'warning'); return; } if (url) window.open(url, '_blank'); },
+      copyToClipboard(text) { if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(text).then(() => this._forceNotify('已复制', 'success')).catch(() => this.fallbackCopy(text)); } else { this.fallbackCopy(text); } },
+      fallbackCopy(text) { const textarea = document.createElement('textarea'); textarea.value = text; document.body.appendChild(textarea); textarea.select(); const success = document.execCommand('copy'); document.body.removeChild(textarea); if (success) this._forceNotify('已复制', 'success'); else this._forceNotify('复制失败，请手动复制', 'error'); },
+      copyAppUrl(app) { if (app.htmlContent) { this._forceNotify('本地/远程HTML页面没有可复制的网络地址', 'warning'); return; } if (app.jsonContent) { this._forceNotify('JSON应用无网络地址，可复制代码内容', 'info'); return; } if (!app.pageUrl) { this._forceNotify('该应用没有页面地址', 'warning'); return; } let url = app.pageUrl.trim(); if (!url.startsWith('http://') && !url.startsWith('https://')) url = 'https://' + url; this.copyToClipboard(url); },
+      toggleFav(appId) { const idx = this.favAppIds.indexOf(appId); if (idx === -1) { this.favAppIds.push(appId); this.notify('已添加到收藏', 'success'); } else { this.favAppIds.splice(idx, 1); this.notify('已取消收藏', 'info'); } },
+      isFav(appId) { return this.favAppIds.includes(appId); },
+      viewApp(app) { this.selectedApp = JSON.parse(JSON.stringify(app)); this.currentView = 'appDetail'; },
+      addManualApp() { if (!this.manualApp.name.trim() || !this.manualApp.url.trim()) { this._forceNotify('请填写应用名称和页面地址', 'error'); return; } const newApp = { id: this.manualApp.name.toLowerCase().replace(/[^a-z0-9]/g, '_') + '_' + Date.now(), name: this.manualApp.name, icon: this.manualApp.icon || defaultIcon, author: '手动添加', repo: this.manualApp.url, desc: '手动添加的应用', pageUrl: this.manualApp.url, settings: [], datas: [] }; this.addAppToManualSub(newApp); this.rebuildApps(); this._forceNotify(`应用“${newApp.name}”已添加`, 'success'); this.showManualAppDialog = false; this.manualApp = { name: '', url: '', icon: '' }; },
+      addAppToManualSub(appObj) { const manualSub = this.subscriptions.find(s => s.name === '📝 手动添加'); if (manualSub) { manualSub.apps.push(appObj); } else { this.subscriptions.push({ id: uuidv4(), name: '📝 手动添加', url: 'manual', apps: [appObj], isHtml: false, loading: false }); } },
+      previewHtmlAppName() { if (this.htmlAppFile) { this.htmlAppFileSize = this.htmlAppFile.size; let name = this.htmlAppFile.name.replace(/\.html?$/i, ''); this.htmlAppName = name; } else { this.htmlAppName = ''; this.htmlAppFileSize = 0; } },
+      async addHtmlApp() { if (!this.htmlAppFile) return; const content = await this.readFileAsText(this.htmlAppFile); if (!content) { this._forceNotify('读取文件失败', 'error'); return; } const appName = this.htmlAppName.trim() || this.htmlAppFile.name.replace(/\.html?$/i, ''); const newApp = { id: 'localhtml_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6), name: appName, icon: this.htmlAppIcon.trim() || defaultIcon, author: '本地HTML导入', repo: 'local', desc: `本地HTML页面，已启用存储隔离`, pageUrl: '__local_html__', htmlContent: content, }; this.addAppToManualSub(newApp); this.rebuildApps(); this._forceNotify(`本地HTML“${newApp.name}”已添加`, 'success'); this.cancelAddHtmlApp(); },
+      readFileAsText(file) { return new Promise((resolve) => { const reader = new FileReader(); reader.onload = (e) => resolve(e.target.result); reader.onerror = () => resolve(null); reader.readAsText(file, 'UTF-8'); }); },
+      cancelAddHtmlApp() { this.showAddHtmlAppDialog = false; this.htmlAppFile = null; this.htmlAppName = ''; this.htmlAppIcon = ''; this.htmlAppFileSize = 0; },
+      async addRemoteHtml() { if (!this.remoteHtmlUrl.trim()) { this.remoteHtmlError = '请输入有效的网址'; return; } this.remoteHtmlLoading = true; this.remoteHtmlError = ''; try { const url = this.remoteHtmlUrl.trim(); const response = await axios.get(url, { responseType: 'text', timeout: 30000 }); let title = this.remoteHtmlName.trim(); if (!title) { const titleMatch = response.data.match(/<title>([^<]+)<\/title>/i); title = titleMatch ? titleMatch[1].trim() : url; } const newApp = { id: 'remotehtml_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6), name: title, icon: this.remoteHtmlIcon.trim() || defaultIcon, author: '远程HTML导入', repo: url, desc: `远程HTML页面，已启用存储隔离`, pageUrl: '__local_html__', htmlContent: response.data, }; this.addAppToManualSub(newApp); this.rebuildApps(); this._forceNotify(`远程HTML“${newApp.name}”已添加`, 'success'); this.cancelRemoteHtml(); } catch (err) { this.remoteHtmlError = `导入失败: ${err.message}`; this._forceNotify(this.remoteHtmlError, 'error'); } finally { this.remoteHtmlLoading = false; } },
+      cancelRemoteHtml() { this.showRemoteHtmlDialog = false; this.remoteHtmlUrl = ''; this.remoteHtmlName = ''; this.remoteHtmlIcon = ''; this.remoteHtmlError = ''; },
+      async addRemoteJsonApp() { if (!this.remoteJsonUrl.trim()) { this.remoteJsonError = '请输入有效的JSON网址'; return; } this.remoteJsonLoading = true; this.remoteJsonError = ''; try { const url = this.remoteJsonUrl.trim(); const response = await axios.get(url, { responseType: 'json', timeout: 30000 }); let formattedJson = JSON.stringify(response.data, null, 2); let appName = this.remoteJsonName.trim(); if (!appName) { const urlParts = url.split('/').pop() || 'json_app'; appName = urlParts.replace(/\.json$/i, '') || 'JSON数据'; } const newApp = { id: 'remotejson_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6), name: appName, icon: this.remoteJsonIcon.trim() || defaultIcon, author: '远程JSON导入', repo: url, jsonUrl: url, desc: `远程JSON数据源，可直接查看格式化代码。`, pageUrl: '__local_json__', jsonContent: formattedJson, }; this.addAppToManualSub(newApp); this.rebuildApps(); this._forceNotify(`JSON应用“${newApp.name}”已添加，点击即可查看代码`, 'success'); this.cancelRemoteJson(); } catch (err) { this.remoteJsonError = `获取失败: ${err.message}`; this._forceNotify(this.remoteJsonError, 'error'); } finally { this.remoteJsonLoading = false; } },
+      cancelRemoteJson() { this.showRemoteJsonDialog = false; this.remoteJsonUrl = ''; this.remoteJsonName = ''; this.remoteJsonIcon = ''; this.remoteJsonError = ''; },
+      generateStorageIsolationScript(appId) { const prefix = `__app_${appId}__`; return `(function() { const origLocal = window.localStorage; const origSession = window.sessionStorage; function prefixedKey(key) { return '${prefix}' + key; } function unprefixedKey(prefixed) { if(prefixed && prefixed.startsWith('${prefix}')) return prefixed.substring('${prefix}'.length); return null; } const isolatedLocal = { getItem: function(key) { return origLocal.getItem(prefixedKey(key)); }, setItem: function(key, value) { origLocal.setItem(prefixedKey(key), value); }, removeItem: function(key) { origLocal.removeItem(prefixedKey(key)); }, clear: function() { const keysToRemove = []; for (let i = 0; i < origLocal.length; i++) { const k = origLocal.key(i); if (k && k.startsWith('${prefix}')) keysToRemove.push(k); } keysToRemove.forEach(k => origLocal.removeItem(k)); }, get length() { let count = 0; for (let i = 0; i < origLocal.length; i++) { if (origLocal.key(i)?.startsWith('${prefix}')) count++; } return count; }, key: function(index) { let count = 0; for (let i = 0; i < origLocal.length; i++) { const k = origLocal.key(i); if (k && k.startsWith('${prefix}')) { if (count === index) return unprefixedKey(k); count++; } } return null; } }; const isolatedSession = { getItem: function(key) { return origSession.getItem(prefixedKey(key)); }, setItem: function(key, value) { origSession.setItem(prefixedKey(key), value); }, removeItem: function(key) { origSession.removeItem(prefixedKey(key)); }, clear: function() { const keysToRemove = []; for (let i = 0; i < origSession.length; i++) { const k = origSession.key(i); if (k && k.startsWith('${prefix}')) keysToRemove.push(k); } keysToRemove.forEach(k => origSession.removeItem(k)); }, get length() { let count = 0; for (let i = 0; i < origSession.length; i++) { if (origSession.key(i)?.startsWith('${prefix}')) count++; } return count; }, key: function(index) { let count = 0; for (let i = 0; i < origSession.length; i++) { const k = origSession.key(i); if (k && k.startsWith('${prefix}')) { if (count === index) return unprefixedKey(k); count++; } } return null; } }; Object.defineProperty(window, 'localStorage', { value: isolatedLocal, configurable: true, writable: false }); Object.defineProperty(window, 'sessionStorage', { value: isolatedSession, configurable: true, writable: false }); try { window.localStorage = isolatedLocal; window.sessionStorage = isolatedSession; } catch(e) {} if (window.indexedDB) { const origIDB = window.indexedDB; const prefixedDBName = (name) => '${prefix}' + name; const isolatedIDB = { open: (name, version) => origIDB.open(prefixedDBName(name), version), deleteDatabase: (name) => origIDB.deleteDatabase(prefixedDBName(name)), databases: () => origIDB.databases ? origIDB.databases().then(list => list.filter(db => db.name?.startsWith('${prefix}')).map(db => ({ name: db.name.substring('${prefix}'.length), version: db.version }))) : Promise.resolve([]), cmp: (a,b) => origIDB.cmp(a,b) }; Object.defineProperty(window, 'indexedDB', { value: isolatedIDB, configurable: true }); try { window.indexedDB = isolatedIDB; } catch(e) {} } })();`; },
+      injectStorageIsolation(htmlContent, appId) { const script = this.generateStorageIsolationScript(appId); let injected = htmlContent; if (injected.match(/<\/head>/i)) injected = injected.replace(/<\/head>/i, `<script>${script}<\/script>\n</head>`); else if (injected.match(/<body[^>]*>/i)) injected = injected.replace(/<body[^>]*>/i, match => `${match}\n<script>${script}<\/script>`); else injected = `<script>${script}<\/script>\n` + injected; return injected; },
+      parseHtmlToApps(html, baseUrl, fallbackName = 'HTML订阅') { let apps = []; let subName = fallbackName; const titleMatch = html.match(/<title>([^<]+)<\/title>/i); if (titleMatch) subName = titleMatch[1].trim(); const scriptRegex = /<script[^>]*>([\s\S]*?)<\/script>/gi; let match; while ((match = scriptRegex.exec(html)) !== null) { const assignMatch = /window\.BOXJS_APPS\s*=\s*(\[[\s\S]*?\]);?/.exec(match[1]); if (assignMatch) { try { apps = JSON.parse(assignMatch[1]); break; } catch(e) {} } } if (!apps.length) { const preRegex = /<(pre|code)[^>]*>([\s\S]*?)<\/\1>/gi; while ((match = preRegex.exec(html)) !== null) { const text = match[2].trim(); if (text.startsWith('[') && text.endsWith(']')) { try { apps = JSON.parse(text); break; } catch(e) {} } } } if (!apps.length) { const linkRegex = /<a\s+(?:[^>]*?\s+)?href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi; const seen = new Set(); while ((match = linkRegex.exec(html)) !== null) { let href = match[1]; let rawText = match[2].trim(); let text = rawText.replace(/<[^>]+>/g, '').trim(); if (!href || !text) { const imgMatch = rawText.match(/<img[^>]+(?:alt|title)=["']([^"']+)["']/i); if (imgMatch) text = imgMatch[1]; } if (!href || !text) continue; if (href.startsWith('#') || href.startsWith('javascript:') || href.startsWith('mailto:')) continue; if (NAV_WORDS.includes(text)) continue; if (seen.has(href)) continue; seen.add(href); let fullUrl = href; if (!fullUrl.startsWith('http://') && !fullUrl.startsWith('https://')) { if (baseUrl) { try { fullUrl = new URL(href, baseUrl).href; } catch(e) { fullUrl = ''; } } else { fullUrl = ''; } } if (fullUrl) { apps.push({ id: text.toLowerCase().replace(/[^a-z0-9]/g, '_') + '_' + Math.random().toString(36).substr(2, 4), name: text, url: fullUrl, icon: defaultIcon, author: 'HTML提取' }); } } } apps = apps.map(app => ({ id: app.id, name: app.name, icon: app.icon || defaultIcon, author: app.author || '未知', repo: app.repo || app.url, desc: app.desc, pageUrl: app.url || app.pageUrl || null, settings: app.settings || [], datas: [] })); return { apps, name: subName }; },
+      async addSubscription() { if (!this.newSubUrl.trim()) { this.notify('请输入订阅地址', 'error'); return; } this.addingSub = true; this.parseError = ''; try { const url = this.newSubUrl.trim(); const isHtml = this.isHtmlSub || url.toLowerCase().endsWith('.html') || url.includes('?'); let apps = [], subName = ''; if (isHtml) { const resp = await axios.get(url, { responseType: 'text' }); const parsed = this.parseHtmlToApps(resp.data, url, 'HTML订阅'); apps = parsed.apps; subName = parsed.name; } else { const resp = await axios.get(url); const data = resp.data; if (data.apps && Array.isArray(data.apps)) { apps = data.apps; subName = data.name || 'JSON订阅'; } else throw new Error('无效的JSON订阅格式：缺少 apps 数组'); } this.subscriptions.push({ id: uuidv4(), name: subName, url, apps, isHtml, loading: false }); this.notify(`订阅添加成功，共 ${apps.length} 个应用`, 'success'); this.newSubUrl = ''; this.isHtmlSub = false; this.showAddSubDialog = false; } catch (err) { this.parseError = err.message; this.notify(`添加失败: ${err.message}`, 'error'); } finally { this.addingSub = false; } },
+      async refreshSub(sub) { if (sub.loading) return; sub.loading = true; try { let apps = []; if (sub.isHtml) { const resp = await axios.get(sub.url, { responseType: 'text' }); const parsed = this.parseHtmlToApps(resp.data, sub.url, sub.name); apps = parsed.apps; } else { const resp = await axios.get(sub.url); const data = resp.data; if (data.apps && Array.isArray(data.apps)) apps = data.apps; else throw new Error('无效JSON格式'); } sub.apps = apps; this.notify(`订阅已刷新，共 ${apps.length} 个应用`, 'success'); } catch (err) { this.notify(`刷新失败: ${err.message}`, 'error'); } finally { sub.loading = false; } },
+      deleteSub(idx) { if (confirm('确定删除该订阅吗？')) { this.subscriptions.splice(idx, 1); this.notify('订阅已删除', 'info'); } },
+      rebuildApps() { const appMap = new Map(); this.subscriptions.forEach(sub => { if (sub.apps && Array.isArray(sub.apps)) { sub.apps.forEach(app => { if (!appMap.has(app.id)) appMap.set(app.id, app); else { const existing = appMap.get(app.id); if (!existing.settings && app.settings) existing.settings = app.settings; if (!existing.datas && app.datas) existing.datas = app.datas; if (!existing.pageUrl && app.pageUrl) existing.pageUrl = app.pageUrl; if (!existing.htmlContent && app.htmlContent) existing.htmlContent = app.htmlContent; if (!existing.jsonContent && app.jsonContent) existing.jsonContent = app.jsonContent; } }); } }); this.allApps = Array.from(appMap.values()); this.favAppIds = this.favAppIds.filter(id => appMap.has(id)); },
+      loadData() { const savedSubs = localStorage.getItem('boxjs_subs'); if (savedSubs) this.subscriptions = JSON.parse(savedSubs); const savedFavs = localStorage.getItem('boxjs_favs'); if (savedFavs) this.favAppIds = JSON.parse(savedFavs); const savedSettings = localStorage.getItem('boxjs_settings'); if (savedSettings) Object.assign(this.settings, JSON.parse(savedSettings)); this.rebuildApps(); },
+      saveSubs() { localStorage.setItem('boxjs_subs', JSON.stringify(this.subscriptions)); }, saveFavs() { localStorage.setItem('boxjs_favs', JSON.stringify(this.favAppIds)); }, saveSettings() { localStorage.setItem('boxjs_settings', JSON.stringify(this.settings)); },
+      clearAllData() { if (confirm('清除所有数据（包括订阅、收藏）？')) { localStorage.clear(); this.subscriptions = []; this.favAppIds = []; this.allApps = []; this.notify('所有数据已清除', 'info'); } },
+      exportData() { const data = { subscriptions: this.subscriptions, favAppIds: this.favAppIds, settings: this.settings }; const str = JSON.stringify(data, null, 2); const blob = new Blob([str], {type: 'application/json'}); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = 'boxjs_backup.json'; a.click(); URL.revokeObjectURL(url); this.notify('数据已导出', 'success'); },
+      importData() { const input = document.createElement('input'); input.type = 'file'; input.accept = 'application/json'; input.onchange = e => { const file = e.target.files[0]; if (!file) return; const reader = new FileReader(); reader.onload = ev => { try { const data = JSON.parse(ev.target.result); if (data.subscriptions) this.subscriptions = data.subscriptions; if (data.favAppIds) this.favAppIds = data.favAppIds; if (data.settings) Object.assign(this.settings, data.settings); this.rebuildApps(); this.notify('数据导入成功', 'success'); } catch (err) { this.notify('导入失败：无效JSON', 'error'); } }; reader.readAsText(file); }; input.click(); },
+      applyTheme() { const theme = this.settings.theme; if (theme === 'dark') this.$vuetify.theme.dark = true; else if (theme === 'light') this.$vuetify.theme.dark = false; else this.$vuetify.theme.dark = window.matchMedia('(prefers-color-scheme: dark)').matches; }
+    }
+  });
+</script>
+</body>
+</html>
