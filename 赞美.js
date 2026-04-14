@@ -291,7 +291,7 @@ function getVodeolist(vodId) {
         
         // 央视直播流地址
         let streamUrls = {
-            "EPGC1386744804340101": "https://cctv1h5cctv.aikan.miguvideo.com/cctv1_2/index.m3u8",
+            "EPGC1386744804340101": "https://m3u8.38cdn.com/newhd/202312/658c5d677ebb8b1bc4c9e4f0/hls/index.m3u8",
             "EPGC1386744804340102": "https://cctv2h5cctv.aikan.miguvideo.com/cctv2_2/index.m3u8",
             "EPGC1386744804340103": "https://cctv3h5cctv.aikan.miguvideo.com/cctv3_2/index.m3u8",
             "EPGC1386744804340104": "https://cctv4h5cctv.aikan.miguvideo.com/cctv4_2/index.m3u8",
