@@ -1,0 +1,69 @@
+{
+
+    "warningText":"ZYB家庭专用",   
+     "spider": "./jar/spider_py.jar",
+    "spider": "./jar/分享者_py.jar",
+     "spider": "./jar/custom_spider.jar",
+    "lives": [
+      {
+          "name": "直播",
+          "type": 0,
+          "url": "./mv/2.txt",
+          "playerType": 1,
+          "ua": "okhttp/3.15",
+          "epg": "http://epg.112114.xyz/?ch={name}&date={date}",
+          "logo": "https://epg.112114.xyz/logo/{name}.png"
+      }
+    ],
+    
+    "sites":[
+    
+    {
+      "key": "豆瓣胖虎",
+      "name": "🍥┃胖虎┃🍥",
+      "type": 3,
+      "api": "./app/胖虎APP.py",
+      "searchable": 1,
+      "quickSearch": 1,
+      "filterable": 0
+    }, 
+    {
+		"key": "py_cctv远",
+		"name": "live2vod远程",
+		"type": 3,
+		"api": "https://raw.githubusercontent.com/mannys888/frist/refs/heads/main/live2vod.js",
+		"searchable": 0,
+		"quickSearch": 0,
+		"filterable": 1,
+		"ext": "./m3u/feimaolive(1).json"
+	},
+	 {
+		"key": "py_c远",
+		"name": "live2vod远程",
+		"type": 3,
+		"api": "https://raw.githubusercontent.com/mannys888/frist/refs/heads/main/赞美.js",
+		"searchable": 0,
+		"quickSearch": 0,
+		"filterable": 1,
+		"ext": "./m3u/feimaolive(1).json"
+	},
+    {
+		"key": "py_cctv_full2",
+		"name": "live2vod(2上)",
+		"type": 3,
+		"api": "./MV-js(1)/live2vod(2).js",
+		"searchable": 0,
+		"quickSearch": 0,
+		"filterable": 1,
+		"ext": "./m3u/feimaolive(1).json"
+	},
+    {
+      "key": "js_nangua",
+      "name": "📺┃cctv(3)🟣",
+      "type": 3,
+      "api": "https://raw.githubusercontent.com/mannys888/frist/refs/heads/main/cctv.js",
+      "searchable": 1,
+      "quickSearch": 1,
+      "filterable": 1,
+      "ext": "./m3u/feimaolive(1).json"
+    }]
