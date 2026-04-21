@@ -1,340 +1,388 @@
-// ==================== 可读版本 ====================
-// 全局变量
-let headers = { "User-Agent": "Mozilla/5.0" };
-let classes = [];          // 分类列表
-let cates = {};            // 每个分类下的视频缓存
-let picUrl = '';           // 封面图基础URL
-let webPaths = {};         // 分类对应的服务器路径
 
-// ==================== 初始化 ====================
-function init(configStr) {
+//· 主要用于解析直播源（M3U8格式）和点播资源
+//· 支持FM广播源和普通视频源的解析
+
+
+
+// 解混淆后的代码
+let headers = {
+    'User-Agent': 'Mozilla/5.0'
+};
+let classes = [];
+let cates = {};
+let picUrl = '';
+let webPaths = {};
+
+function init(input) {
     let baseUrl = '';
-    // 提取基础URL（如果配置中包含 "://"）
-    if (configStr.indexOf('://') > 0) {
-        let parts = configStr.split('://');
-        baseUrl = parts[0] + '://';
-        configStr = parts[1].trim();
+    
+    // 处理基础URL
+    if (input.indexOf('http') > 0) {
+        baseUrl = input.split('http')[0].trim();
+        input = input.split('http')[1].trim();
     }
-    // 提取封面图URL（如果配置中包含 "&&&"）
-    if (configStr.indexOf('&&&') > 0) {
-        let parts = configStr.split('&&&');
-        picUrl = parts[1].trim();
-        if (picUrl.indexOf('://') < 0) {
+    
+    // 处理图片URL
+    if (input.indexOf('picUrl:') > 0) {
+        picUrl = input.split('picUrl:')[1].trim();
+        if (picUrl.indexOf('http') < 0) {
             picUrl = baseUrl + picUrl;
         }
-        configStr = parts[0].trim();
+        input = input.split('picUrl:')[0].trim();
     }
+    
     console.log('picUrl: ' + picUrl);
-
-    // 配置字符串格式：分类1#分类2#分类3...
-    let rawCates = configStr.split('#');
-    for (let raw of rawCates) {
-        if (raw.indexOf('$') > 0) {
-            // 格式：分类名$频道列表文件URL
-            let parts = raw.split('$');
-            let typeName = parts[0];
-            let typeId = parts[1];
-            if (typeId.indexOf('://') < 0) {
-                typeId = baseUrl + typeId;
+    
+    let sections = input.split('#');
+    for (const section of sections) {
+        if (section.indexOf('$') > 0) {
+            // 处理分类
+            let typeId = section;
+            let typeName = section.split('$')[0];
+            if (typeId.indexOf('http') < 0) {
+                typeId = typeId.replace('$', '$' + baseUrl);
             }
             classes.push({
-                type_id: typeId,
-                type_name: typeName.replace('!!', '')
+                'type_id': typeId,
+                'type_name': typeName.replace('!!', '')
             });
         } else {
-            // 格式：频道列表文件URL（可能包含通配符 {name} {cate}）
-            let fileUrl = raw;
-            if (fileUrl.indexOf('://') < 0) {
-                fileUrl = baseUrl + fileUrl;
+            // 处理频道数据
+            let channelUrl = section;
+            if (channelUrl.indexOf('http') < 0) {
+                channelUrl = baseUrl + channelUrl;
             }
-            fileUrl = fileUrl.replace('/livesourcelist', '/file/livesourcelist');
-            let response = req(fileUrl, { method: 'GET', headers: headers });
+            channelUrl = channelUrl.replace('/file/livesourcelist', '/livesourcelist');
+            
+            let response = req(channelUrl, {
+                'method': 'GET',
+                'headers': headers
+            });
+            
             try {
-                let data = JSON.parse(response.content);
-                let prefix = fileUrl.substring(0, fileUrl.lastIndexOf('/') + 1);
-                for (let item of data) {
-                    let cateName = item.name;
-                    let cateUrl = item.url;
-                    let typeId = cateName + '$' + (cateUrl.indexOf('://') < 0 ? prefix : '') + cateUrl;
+                let dataList = JSON.parse(response.content);
+                let basePath = channelUrl.substring(0, channelUrl.lastIndexOf('/') + 1);
+                
+                for (const item of dataList) {
+                    let name = item.name;
+                    let url = item.url;
+                    let typeId = name + '$' + (url.indexOf('http') < 0 ? basePath : '') + url;
                     classes.push({
-                        type_id: typeId,
-                        type_name: cateName.replace('!!', '')
+                        'type_id': typeId,
+                        'type_name': name.replace('!!', '')
                     });
-                    webPaths[typeId] = prefix;
+                    webPaths[typeId] = basePath;
                 }
-            } catch (e) {
-                console.log('解析JSON失败：' + e);
+            } catch(e) {
+                console.log('error: ' + e);
             }
         }
     }
 }
 
-// ==================== 首页（分类列表） ====================
 function home() {
-    return JSON.stringify({ class: classes, filters: null });
+    return JSON.stringify({
+        'class': classes,
+        'filters': null
+    });
 }
 
-// ==================== 解析M3U格式直播源 ====================
-function parseM3u(content, channelName) {
-    let groups = {};
-    let regex = /#EXTINF:.+?,([^,]+?)\s*\n(.+?)\s*\n/g;
-    let match;
+function parseM3u(content, groupName) {
+    let result = {};
+    let regex = /(#EXTINF:.+?,([^,]+?)\s*\n(.+?)\s*\n)/g;
+    let match = null;
+    
     while ((match = regex.exec(content)) != null) {
         let extinf = match[1];
         let title = match[2];
         let url = match[3];
-        if (!title || !url) continue;
+        
+        if (title == null || url == null || title == '' || url == '') {
+            continue;
+        }
+        
         title = title.trim();
         url = url.trim();
-        let group = channelName;
-        let groupMatch = /group-title="(.*?)"/.exec(extinf);
-        if (groupMatch) {
-            group = groupMatch[1];
+        
+        let group = groupName;
+        let groupRegex = /group-title="(.*?)"/;
+        if (groupRegex.test(extinf)) {
+            group = extinf.match(groupRegex)[1];
         }
-        if (!groups[group]) groups[group] = [];
-        groups[group].push(title + ',' + url);
+        
+        if (!result[group]) {
+            result[group] = [];
+        }
+        result[group].push(title + ',' + url);
     }
-    let result = '';
-    for (let g in groups) {
-        result += g + '\n';
-        for (let line of groups[g]) {
-            result += line + '\n';
+    
+    let output = '';
+    for (const group in result) {
+        output += group + '\n';
+        let items = result[group];
+        for (const item of items) {
+            output += item + '\n';
         }
     }
-    return result;
+    return output;
 }
 
-// ==================== 解析FM格式（JSON） ====================
-function parseFm(jsonStr) {
-    let result = '';
-    let data = JSON.parse(jsonStr);
-    for (let prov of data) {
-        let provName = prov.name;
-        result += provName + ',#genre#\n';
-        for (let channel of prov.urls) {
-            let channelName = channel.name;
-            for (let url of channel.url) {
-                result += channelName + ',' + url + '\n';
-            }
-        }
-    }
-    return result;
-}
-
-// ==================== 解析LU格式（JSON） ====================
-function parseLu(jsonStr) {
-    let result = '';
-    let data = JSON.parse(jsonStr);
-    let datalist = data.datalist;
-    for (let item of datalist.list) {
+function parseFm(data) {
+    let output = '';
+    let parsed = JSON.parse(data);
+    
+    for (const item of parsed) {
         let name = item.name;
-        let prov = item.prov;
-        result += name + ',#genre#\n';
-        for (let channel of prov) {
-            let channelName = channel.name;
-            for (let url of channel.url) {
-                result += channelName + '---' + url.line + ',' + url.url + '\n';
+        let urls = item.urls;
+        output += name + ',#genre#\n';
+        
+        for (const urlItem of urls) {
+            let urlName = urlItem.name;
+            let urlList = urlItem.urls;
+            for (const url of urlList) {
+                output += urlName + ',' + url + '\n';
             }
         }
     }
-    return result;
+    return output;
 }
 
-// ==================== 获取某个分类下的视频列表 ====================
-function getCateData(typeId) {
-    let coverBase = picUrl;
-    if (typeId.indexOf('&&&') > 0) {
-        coverBase = typeId.split('&&&')[1].trim();
-        if (coverBase.indexOf('://') < 0 && webPaths[typeId]) {
-            coverBase = webPaths[typeId] + coverBase;
+function parseLu(data) {
+    let output = '';
+    let parsed = JSON.parse(data);
+    let dataList = parsed.datalist;
+    
+    for (const item of dataList.list) {
+        let line = item.line;
+        let prov = item.prov;
+        output += line + ',#genre#\n';
+        
+        for (const provItem of prov) {
+            let name = provItem.name;
+            let urls = provItem.urls;
+            for (const urlItem of urls) {
+                output += name + '----' + urlItem.name + ',' + urlItem.url + '\n';
+            }
         }
-        typeId = typeId.split('&&&')[0].trim();
     }
-    console.log('webPicUrl: ' + coverBase);
+    return output;
+}
 
-    let parts = typeId.split('$');
-    let url = parts[1];
-    let channelName = parts[0];
-
+function getCateData(typeId) {
+    let currentPicUrl = picUrl;
+    
+    if (typeId.indexOf('picUrl:') > 0) {
+        currentPicUrl = typeId.split('picUrl:')[1].trim();
+        if (currentPicUrl.indexOf('http') < 0 && webPaths[typeId]) {
+            currentPicUrl = webPaths[typeId] + currentPicUrl;
+        }
+        typeId = typeId.split('picUrl:')[0].trim();
+    }
+    
+    console.log('webPicUrl: ' + currentPicUrl);
+    
+    let urlPart = typeId.split('$')[1];
+    let groupName = typeId.split('$')[0];
+    
     if (!cates[typeId]) {
         cates[typeId] = [];
-        let reqHeaders = headers;
-        // 如果URL中包含自定义请求头（格式：url|header1=value1&header2=value2）
-        if (url.indexOf('|') > 0) {
-            let headerStr = decodeURIComponent(url.split('|')[1]);
-            url = url.split('|')[0];
-            for (let pair of headerStr.split('&')) {
-                if (pair.indexOf('=') > 0) {
-                    let key = pair.split('=')[0];
-                    let val = pair.split('=')[1];
-                    reqHeaders[key] = val;
+        let customHeaders = headers;
+        
+        // 处理自定义请求头
+        if (urlPart.indexOf('|') > 0) {
+            let headerStr = decodeURIComponent(urlPart.split('|')[1]);
+            urlPart = urlPart.split('|')[0];
+            
+            for (const headerItem of headerStr.split('&')) {
+                if (headerItem.indexOf('=') > 0) {
+                    let key = headerItem.split('=')[0];
+                    let value = headerItem.split('=')[1];
+                    customHeaders[key] = value;
                 }
             }
         }
-
-        let response = req(url, { method: 'GET', headers: reqHeaders });
+        
+        let response = req(urlPart, {
+            'method': 'GET',
+            'headers': customHeaders
+        });
+        
         let content = response.content.trim();
-
-        // 根据内容格式选择解析器
+        
         if (content.indexOf('#EXTM3U') >= 0) {
-            content = parseM3u(content, channelName);
+            content = parseM3u(content, groupName);
         } else if (content.indexOf('"channel"') > 0 && content.indexOf('"urls"') > 0) {
             content = parseFm(content);
         } else if (content.indexOf('"datalist"') > 0 && content.indexOf('"urls"') > 0) {
             content = parseLu(content);
         }
-
-        let lines = (channelName + '\n' + content.replace(/\r/g, '')).split('\n');
-        let currentName = channelName;
-        let currentUrlList = '';
-        let tempCover = '';
-
+        
+        let lines = (groupName + '\n' + content.replace('\r', '')).split('\n');
+        let currentGroup = groupName;
+        let currentUrls = '';
+        let currentTitle = '';
+        
         for (let i = 0; i < lines.length; i++) {
             let line = lines[i].replace(/\s+/g, '');
-            if (line != '' && line.indexOf('://') < 0 && (line.indexOf(',') < 0 || line.indexOf('#genre#') > 0)) {
-                // 这是一个分组名（频道组）
-                if (currentUrlList != '') {
-                    // 生成上一个频道的视频项
-                    let cover = coverBase.replace('{name}', encodeURIComponent(currentName))
-                                         .replace('{cate}', encodeURIComponent(channelName));
-                    let left = cover.indexOf('<');
-                    let right = cover.indexOf('>');
-                    if (left > -1 && right > left) {
-                        let patternStr = cover.substring(left, right + 1);
-                        let regex = new RegExp(patternStr.replace(/<|>/g, ''));
-                        let replaced = currentName.replace(regex, function(match, group) { return group; });
-                        cover = cover.replace(patternStr, replaced);
-                        console.log(currentName + ', ' + cover);
+            
+            if (line != '' && line.indexOf('http') < 0 && (line.indexOf(',') < 0 || line.indexOf('#genre#') > 0)) {
+                if (currentUrls != '') {
+                    let picHtml = currentPicUrl.replace('{name}', encodeURIComponent(currentGroup))
+                                               .replace('{cate}', encodeURIComponent(groupName));
+                    let startIdx = picHtml.indexOf('<');
+                    let endIdx = picHtml.lastIndexOf('>');
+                    
+                    if (startIdx > -1 && endIdx > startIdx) {
+                        let tag = picHtml.substring(startIdx, endIdx + 1);
+                        let regex = new RegExp(tag.replace(/<|>/g, ''));
+                        let matched = currentGroup.match(regex);
+                        let replaceStr = matched ? matched[1] : 'null';
+                        picHtml = picHtml.replace(tag, replaceStr);
+                        console.log(currentGroup + ', ' + picHtml);
                     }
-                    let vod = {
-                        vod_id: typeId + '$$' + cates[typeId].length,
-                        vod_name: currentName,
-                        vod_pic: cover,
-                        vod_remarks: '',
-                        type_name: '直播列表',
-                        vod_year: '',
-                        vod_area: '',
-                        vod_actor: '',
-                        vod_director: '',
-                        vod_content: '',
-                        vod_play_from: channelName,
-                        vod_play_url: currentUrlList
+                    
+                    let vodItem = {
+                        'vod_id': typeId + '$$' + cates[typeId].length,
+                        'vod_name': currentGroup,
+                        'vod_pic': picHtml,
+                        'vod_remarks': '',
+                        'type_name': '直播列表',
+                        'vod_year': '',
+                        'vod_area': '',
+                        'vod_actor': '',
+                        'vod_director': '',
+                        'vod_content': '',
+                        'vod_play_from': groupName,
+                        'vod_play_url': currentUrls
                     };
-                    cates[typeId].push(vod);
+                    cates[typeId].push(vodItem);
                 }
-                currentName = line.split(',')[0].trim();
-                currentUrlList = '';
+                currentGroup = line.split(',')[0].trim();
+                currentUrls = '';
             } else if (line.indexOf(',') > 0 && /http|rtmp|rtsp|rsp/.test(line)) {
-                // 这是一个具体的直播流
-                let pair = line.split(',');
-                if (currentUrlList != '') currentUrlList += '#';
-                currentUrlList += pair[0].trim() + '$' + pair[1].trim();
+                let parts = line.split(',');
+                if (currentUrls != '') {
+                    currentUrls += '#';
+                }
+                currentUrls += parts[0].trim() + '$' + parts[1].trim();
             }
         }
-        // 处理最后一个频道
-        if (currentUrlList != '') {
-            let cover = coverBase.replace('{name}', encodeURIComponent(currentName))
-                                 .replace('{cate}', encodeURIComponent(channelName));
-            let left = cover.indexOf('<');
-            let right = cover.indexOf('>');
-            if (left > -1 && right > left) {
-                let patternStr = cover.substring(left, right + 1);
-                let regex = new RegExp(patternStr.replace(/<|>/g, ''));
-                let replaced = regex.test(currentName) ? currentName.match(regex)[1] : 'null';
-                cover = cover.replace(patternStr, replaced);
+        
+        if (currentUrls != '') {
+            let picHtml = currentPicUrl.replace('{name}', encodeURIComponent(currentGroup))
+                                       .replace('{cate}', encodeURIComponent(groupName));
+            let startIdx = picHtml.indexOf('<');
+            let endIdx = picHtml.lastIndexOf('>');
+            
+            if (startIdx > -1 && endIdx > startIdx) {
+                let tag = picHtml.substring(startIdx, endIdx + 1);
+                let regex = new RegExp(tag.replace(/<|>/g, ''));
+                let replaceStr = regex.test(currentGroup) ? currentGroup.match(regex)[1] : 'null';
+                picHtml = picHtml.replace(tag, replaceStr);
             }
-            let vod = {
-                vod_id: typeId + '$$' + cates[typeId].length,
-                vod_name: currentName,
-                vod_pic: cover,
-                vod_remarks: '',
-                type_name: '直播列表',
-                vod_year: '',
-                vod_area: '',
-                vod_actor: '',
-                vod_director: '',
-                vod_content: '',
-                vod_play_from: channelName,
-                vod_play_url: currentUrlList
+            
+            let vodItem = {
+                'vod_id': typeId + '$$' + cates[typeId].length,
+                'vod_name': currentGroup,
+                'vod_pic': picHtml,
+                'vod_remarks': '',
+                'type_name': '直播列表',
+                'vod_year': '',
+                'vod_area': '',
+                'vod_actor': '',
+                'vod_director': '',
+                'vod_content': '',
+                'vod_play_from': groupName,
+                'vod_play_url': currentUrls
             };
-            cates[typeId].push(vod);
+            cates[typeId].push(vodItem);
         }
     }
     return cates[typeId];
 }
 
-// ==================== 首页视频列表（默认第一个分类） ====================
 function homeVod() {
-    let list = getCateData(classes[0].type_id);
-    return JSON.stringify({ list: list });
+    let dataList = getCateData(classes[0].type_id);
+    return JSON.stringify({ 'list': dataList });
 }
 
-// ==================== 分类页面（按页获取） ====================
-function category(tid, pg, filter, extend) {
-    let list = [];
-    if (pg == 1) {
-        list = getCateData(tid);
+function category(typeId, page, sort, style) {
+    let dataList = [];
+    if (page == 1) {
+        dataList = getCateData(typeId);
     }
-    return JSON.stringify({ list: list });
+    return JSON.stringify({ 'list': dataList });
 }
 
-// ==================== 详情页面 ====================
 function detail(vodId) {
     let parts = vodId.split('$$');
     let typeId = parts[0];
+    let groupName = typeId.split('$')[0];
     let index = parseInt(parts[1]);
-    let vod = getCateData(typeId)[index];
-    console.log(JSON.stringify(vod));
-
-    let channelName = vod.vod_play_from;
-    if (channelName.indexOf('!!') >= 0) {
-        channelName = channelName.replace('!!', '');
-        const urls = vod.vod_play_url.split('#');
-        console.log(JSON.stringify(urls));
+    let vodData = getCateData(typeId)[index];
+    
+    console.log(JSON.stringify(vodData));
+    
+    if (groupName.indexOf('!!') >= 0) {
+        groupName = groupName.replace('!!', '');
+        const playUrls = vodData.vod_play_url.split('#');
+        console.log(JSON.stringify(playUrls));
+        
+        let nameCount = {};
         let groupMap = {};
-        let finalMap = {};
-        for (let urlItem of urls) {
+        
+        for (const urlItem of playUrls) {
             let name = urlItem.split('$')[0];
-            let group = channelName;
-            if (name.indexOf('---') > 0) {
-                group = name.split('---')[1];
-                name = name.split('---')[0];
+            let displayGroup = groupName;
+            
+            if (name.indexOf('----') > 0) {
+                displayGroup = name.split('----')[1];
+                name = name.split('----')[0];
             }
-            if (!groupMap.hasOwnProperty(name)) groupMap[name] = 0;
-            else groupMap[name]++;
-            group = channelName + (groupMap[name] > 1 ? ' ' + groupMap[name] : '');
-            if (!finalMap.hasOwnProperty(group)) finalMap[group] = [];
-            finalMap[group].push(name + '$' + urlItem.split('$')[1]);
+            
+            if (!nameCount.hasOwnProperty(name)) {
+                nameCount[name] = 1;
+            } else {
+                nameCount[name]++;
+            }
+            
+            displayGroup = groupName + (nameCount[name] > 1 ? ' ' + nameCount[name] : '');
+            
+            if (!groupMap.hasOwnProperty(displayGroup)) {
+                groupMap[displayGroup] = [];
+            }
+            groupMap[displayGroup].push(name + '$' + urlItem.split('$')[1]);
         }
-        let groups = [];
-        let urlsGroup = [];
-        for (let g in finalMap) {
-            groups.push(g);
-            urlsGroup.push(finalMap[g].join('#'));
+        
+        let groupNames = [];
+        let groupUrls = [];
+        
+        for (let group in groupMap) {
+            groupNames.push(group);
+            groupUrls.push(groupMap[group].join('#'));
         }
-        vod.vod_play_from = groups.join('$$');
-        vod.vod_play_url = urlsGroup.join('$$');
+        
+        vodData.vod_play_from = groupNames.join('$$');
+        vodData.vod_play_url = groupUrls.join('$$');
     }
-    return JSON.stringify({ list: [vod] });
+    
+    return JSON.stringify({ 'list': [vodData] });
 }
 
-// ==================== 播放 ====================
-function play(flag, id, vipFlags) {
-    return JSON.stringify({ parse: 0, url: id });
+function play(flag, url, parseUrl) {
+    return JSON.stringify({ 'parse': 0, 'url': url });
 }
 
-// ==================== 搜索（未实现） ====================
 function search(keyword, page) {
     return null;
 }
 
-// ==================== 导出 ====================
 __JS_SPIDER__ = {
-    init: init,
-    home: home,
-    homeVod: homeVod,
-    category: category,
-    detail: detail,
-    play: play,
-    search: search
+    'init': init,
+    'home': home,
+    'homeVod': homeVod,
+    'category': category,
+    'detail': detail,
+    'play': play,
+    'search': search
 };
