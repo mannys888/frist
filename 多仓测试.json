@@ -29,7 +29,7 @@
     }, 
     {
 		"key": "py_cctv远",
-		"name": "live2vod远程",
+		"name": "1️⃣live2vod远程feimaolive",
 		"type": 3,
 		"api": "https://raw.githubusercontent.com/mannys888/frist/refs/heads/main/live2vod.js",
 		"searchable": 0,
@@ -39,7 +39,7 @@
 	},
 	 {
 		"key": "py_c远",
-		"name": "live2vod远程",
+		"name": "2️⃣live2vod远程",
 		"type": 3,
 		"api": "https://raw.githubusercontent.com/mannys888/frist/refs/heads/main/赞美.js",
 		"searchable": 0,
