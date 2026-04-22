@@ -49,9 +49,9 @@
 	},
     {
 		"key": "py_cctv_full2",
-		"name": "live2vod(2上)",
+		"name": "⭕️内在cctv⭕️",
 		"type": 3,
-		"api": "./MV-js(1)/live2vod(2).js",
+		"api": "https://raw.githubusercontent.com/mannys888/frist/refs/heads/main/内在.js",
 		"searchable": 0,
 		"quickSearch": 0,
 		"filterable": 1,
