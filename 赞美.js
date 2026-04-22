@@ -58,8 +58,8 @@ function home() {
     try {
         let classes = [
             { type_name: "音乐排行", type_id: "yypy" },
-            { type_name: "迦南诗歌", type_id: "赞美诗.txt" },
-            { type_name: "赞美🩷诗歌", type_id: "zm.txt" },
+            { type_name: "迦南🩷诗歌", type_id: "迦南诗歌.txt" },
+            { type_name: "赞美诗歌", type_id: "zm" },
             { type_name: "央视栏目", type_id: "TOPC" }
         ];
         
@@ -108,9 +108,9 @@ function category(tid, pg, filter, extend) {
         if (tid === "yypy") {
             result = getRank("yypy.txt", pg);
         } else if (tid === "zm") {
-            result = getRank("赞美诗.txt", pg);
-        } else if (tid === "赞美诗.txt") {
-            result = getRank("赞美诗.txt", pg);
+            result = getRank("zm.txt", pg);
+        } else if (tid === "迦南诗歌.txt") {
+            result = getRank("迦南诗歌.txt", pg);
         } else if (tid && tid === "TOPC") {
             result = getCCTVList(pg);
         } else {
@@ -130,7 +130,7 @@ function category(tid, pg, filter, extend) {
 function getRank(tidParam, pg) {
     try {
         txt = "True111";
-        let url = "https://raw.githubusercontent.com/mannys888/frist/refs/heads/main/赞美诗.txt"
+        let url = "https://raw.githubusercontent.com/mannys888/frist/refs/heads/main/" + tidParam;
         let response = fetchSync(url);
         
         let videos = [];
@@ -291,7 +291,7 @@ function getVodeolist(vodId) {
         
         // 央视直播流地址
         let streamUrls = {
-            "EPGC1386744804340101": "https://m3u8.38cdn.com/newhd/202312/658c5d677ebb8b1bc4c9e4f0/hls/index.m3u8",
+            "EPGC1386744804340101": "https://cctv1h5cctv.aikan.miguvideo.com/cctv1_2/index.m3u8",
             "EPGC1386744804340102": "https://cctv2h5cctv.aikan.miguvideo.com/cctv2_2/index.m3u8",
             "EPGC1386744804340103": "https://cctv3h5cctv.aikan.miguvideo.com/cctv3_2/index.m3u8",
             "EPGC1386744804340104": "https://cctv4h5cctv.aikan.miguvideo.com/cctv4_2/index.m3u8",
