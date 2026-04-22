@@ -66,5 +66,15 @@
       "quickSearch": 1,
       "filterable": 1,
       "ext": "./m3u/feimaolive(1).json"
+    },
+    {
+    "key": "live2vod_fixed",
+    "name": "📺 直播点播(修复版)",
+    "type": 3,
+    "api": "https://raw.githubusercontent.com/userfree66666/TVpg/refs/heads/main/live2vod_fixed.js",
+    "searchable": 0,
+    "quickSearch": 0,
+    "filterable": 1,
+    "ext": "https://raw.githubusercontent.com/mannys888/frist/refs/heads/main/feimaolive(1).json"
     }]
     }
