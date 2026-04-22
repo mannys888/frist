@@ -78,6 +78,16 @@
     "ext": "https://raw.githubusercontent.com/mannys888/frist/refs/heads/main/feimaolive(1).json"
     },
     {
+    "key": "live2vod_enhanced",
+    "name": "☸️集合js爬虫☸️",
+    "type": 3,
+    "api": "https://raw.githubusercontent.com/mannys888/frist/refs/heads/main/集合.js",
+    "searchable": 0,
+    "quickSearch": 0,
+    "filterable": 1,
+    "ext": "https://raw.githubusercontent.com/mannys888/frist/refs/heads/main/feimaolive(1).json"
+    },
+    {
     "key": "_测试",
     "name": "🪢迦南诗歌🪢",
     "type": 3,
