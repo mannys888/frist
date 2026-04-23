@@ -27,9 +27,19 @@
       "quickSearch": 1,
       "filterable": 0
     }, 
+     {
+    "key": " ⑥live2vod_fixed",
+    "name": " ⑥ ⑥ ⑥live2vod_1远",
+    "type": 3,
+    "api": "https://raw.githubusercontent.com/userfree66666/TVpg/refs/heads/main/live2vod_1.js",
+    "searchable": 0,
+    "quickSearch": 0,
+    "filterable": 1,
+    "ext": "https://raw.githubusercontent.com/mannys888/frist/refs/heads/main/feimaolive(1).json"
+    },
     {
 		"key": "py_cctv远",
-		"name": "1️⃣live2vod远程feimaolive",
+		"name": "live2vod远程feimaolive",
 		"type": 3,
 		"api": "https://raw.githubusercontent.com/mannys888/frist/refs/heads/main/live2vod.js",
 		"searchable": 0,
@@ -38,8 +48,8 @@
 		"ext": "https://raw.githubusercontent.com/mannys888/frist/refs/heads/main/feimaolive(1).json"
 	},
 	 {
-		"key": "py_c远",
-		"name": "2️⃣live2vod远程",
+		"key": "py_c",
+		"name": "1️⃣live2vod远程",
 		"type": 3,
 		"api": "https://raw.githubusercontent.com/mannys888/frist/refs/heads/main/赞美.js",
 		"searchable": 0,
@@ -49,7 +59,7 @@
 	},
     {
 		"key": "py_cctv_full2",
-		"name": "⭕️内在cctv⭕️",
+		"name": "2️⃣⭕️内在cctv⭕️",
 		"type": 3,
 		"api": "https://raw.githubusercontent.com/mannys888/frist/refs/heads/main/内在.js",
 		"searchable": 0,
@@ -59,7 +69,7 @@
 	},
     {
       "key": "js_nangua",
-      "name": "📺┃cctv(3)🟣",
+      "name": "3️⃣┃cctv(3)🟣",
       "type": 3,
       "api": "https://raw.githubusercontent.com/mannys888/frist/refs/heads/main/cctv.js",
       "searchable": 1,
