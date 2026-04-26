@@ -1,0 +1,122 @@
+{
+  "sites": [
+    {
+      "name": "📁 示例1：基础文本分类（华语经典+欧美流行）",
+      "api": "./spider.js",
+      "ext": {
+        "basePath": "https://example.com/m3u/",
+        "cover": {
+          "type": "random",
+          "themes": ["music", "nature", "animal"],
+          "baseUrl": "https://picsum.photos",
+          "width": 240,
+          "height": 320
+        },
+        "sites": [
+          {
+            "name": "华语经典",
+            "url": "hymusic.txt",
+            "parseConfig": { "autoExt": ".txt", "separators": [",", "|"] }
+          },
+          {
+            "name": "欧美流行",
+            "url": "western.txt",
+            "parseConfig": { "autoExt": ".txt", "separators": ["\t"] }
+          }
+        ]
+      }
+    },
+    {
+      "name": "🌐 示例2：JSON API + 自定义请求头",
+      "api": "./spider.js",
+      "ext": {
+        "basePath": "https://api.myvod.com/",
+        "headers": {
+          "User-Agent": "MyApp/1.0",
+          "Authorization": "Bearer token123"
+        },
+        "customHandlers": {
+          "fetchJson": "function(ctx) { let url = ctx.parseConfig.url; let resp = req(url, {headers: ctx.globalHeaders}); let data = JSON.parse(resp.content); return data.list.map(item => ({vod_id: item.id, vod_name: item.title, vod_pic: item.thumb, vod_remarks: item.duration})); }"
+        },
+        "sites": [
+          {
+            "name": "最新电影",
+            "url": "movie/list",
+            "handler": "fetchJson",
+            "parseConfig": { "url": "https://api.myvod.com/movie/list?type=hot" }
+          }
+        ]
+      }
+    },
+    {
+      "name": "🔍 示例3：正则解析 HTML 页面",
+      "api": "./spider.js",
+      "ext": {
+        "sites": [
+          {
+            "name": "热门推荐",
+            "url": "https://example.com/hot.html",
+            "parseConfig": {
+              "type": "regex",
+              "pattern": "<a href=\"([^\"]+)\" class=\"title\">([^<]+)</a>",
+              "titleGroup": 2,
+              "urlGroup": 1
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "🎵 示例4：多源合并 + 固定封面",
+      "api": "./spider.js",
+      "ext": {
+        "basePath": "https://cdn.example.com/",
+        "cover": { "type": "fixed", "url": "https://example.com/default.jpg" },
+        "sites": [
+          {
+            "name": "音乐站A",
+            "url": "songsA.json",
+            "parseConfig": { "type": "json", "titleField": "songName", "urlField": "playUrl" }
+          },
+          {
+            "name": "音乐站B",
+            "url": "playlist.txt",
+            "parseConfig": { "separators": ["#"] }
+          }
+        ]
+      }
+    },
+    {
+      "name": "📦 示例5：完整测试（GitHub 文本文件）",
+      "api": "./spider.js",
+      "ext": {
+        "basePath": "https://raw.githubusercontent.com/mannys888/frist/main/",
+        "cover": {
+          "type": "random",
+          "themes": ["music", "abstract"],
+          "baseUrl": "https://picsum.photos",
+          "width": 200,
+          "height": 300
+        },
+        "headers": { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" },
+        "sites": [
+          {
+            "name": "迦南诗选",
+            "url": "迦南诗歌.txt",
+            "parseConfig": { "autoExt": ".txt", "separators": [","] }
+          },
+          {
+            "name": "经典咏流传",
+            "url": "yypy.txt",
+            "parseConfig": { "autoExt": ".txt", "separators": ["|"] }
+          },
+          {
+            "name": "赞美诗歌",
+            "url": "zm.txt",
+            "parseConfig": { "autoExt": ".txt", "separators": ["\t"] }
+          }
+        ]
+      }
+    }
+  ]
+}
