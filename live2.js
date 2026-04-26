@@ -1,4 +1,4 @@
-// ==================== 终极通用动态爬虫 v14.0 (修复播放列表空白) ====================
+// ==================== 通用动态爬虫 v15 (兼容单集/多集) ====================
 const header = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
 };
@@ -7,7 +7,7 @@ let dynamicClasses = [];
 let extBasePath = "";
 let defaultBasePath = "https://raw.githubusercontent.com/mannys888/frist/refs/heads/main/";
 let cache = {};
-let debugMode = true;          // 开启调试日志
+let debugMode = true;
 const CACHE_TTL = 10 * 60 * 1000;
 
 function log(msg, level = "INFO") {
@@ -72,16 +72,9 @@ function getCover(title, url, originalPic = null) {
 }
 
 /**
- * 强力解析文本内容为播放串
- * 支持格式: 
- *   标题|地址
- *   标题,地址
- *   标题$地址
- *   标题 地址 (空格分隔)
- *   纯地址
- *   地址 备注
+ * 解析文本内容，返回 { items: [{title, url}], count }
  */
-function buildPlaylistFromText(content, baseUrl) {
+function parseTextToItems(content, baseUrl) {
     let items = [];
     let lines = content.split(/\r?\n/);
     for (let line of lines) {
@@ -90,7 +83,6 @@ function buildPlaylistFromText(content, baseUrl) {
         if (trimmed.startsWith('#') || trimmed.startsWith('//')) continue;
         
         let title = "", url = "";
-        // 尝试多种分隔符
         let separators = ['|', ',', '$', '\t', ' '];
         let bestSep = null, bestIdx = -1;
         for (let sep of separators) {
@@ -100,39 +92,33 @@ function buildPlaylistFromText(content, baseUrl) {
                 bestSep = sep;
             }
         }
-        if (bestSep && bestSep !== ' ') {
+        if (bestSep) {
             title = trimmed.substring(0, bestIdx).trim();
             let rest = trimmed.substring(bestIdx + 1).trim();
-            // 提取第一个 URL（可能后面有备注）
             let urlMatch = rest.match(/^(https?:\/\/[^\s]+)/);
             if (urlMatch) url = urlMatch[1];
             else if (rest.match(/^https?:\/\//i)) url = rest;
-            else continue;
         } else if (trimmed.match(/^https?:\/\//i)) {
             url = trimmed;
             title = "媒体文件";
         } else {
-            // 尝试按空格分割：可能 "标题 地址"
+            // 尝试 "标题 地址" 空格分隔
             let parts = trimmed.split(/\s+/);
             if (parts.length >= 2 && parts[1].match(/^https?:\/\//i)) {
                 title = parts[0];
                 url = parts[1];
-            } else {
-                continue;
             }
         }
-        // 相对路径解析
-        if (url && !url.match(/^https?:\/\//i)) url = resolvePath(url, baseUrl);
-        if (url) items.push(`${title}$${url}`);
+        if (url) {
+            if (!url.match(/^https?:\/\//i)) url = resolvePath(url, baseUrl);
+            if (!title) title = "媒体文件";
+            items.push({ title, url });
+        }
     }
-    log(`解析到 ${items.length} 个媒体项`, "DEBUG");
-    if (items.length === 0) {
-        log(`无法解析任何内容，原始内容前200字符: ${content.substring(0,200)}`, "WARN");
-    }
-    return items.join("#");
+    return { items, count: items.length };
 }
 
-function buildPlaylistFromJSON(content, baseUrl) {
+function parseJSONToItems(content, baseUrl) {
     let items = [];
     try {
         let json = JSON.parse(content);
@@ -142,14 +128,14 @@ function buildPlaylistFromJSON(content, baseUrl) {
             let url = item.url || item.link || item.src || item.play_url;
             if (url) {
                 if (!url.match(/^https?:\/\//i)) url = resolvePath(url, baseUrl);
-                items.push(`${title}$${url}`);
+                items.push({ title, url });
             }
         }
-    } catch(e) { log("JSON 解析失败，降级为文本处理", "DEBUG"); }
-    return items.join("#");
+    } catch(e) { log("JSON解析失败", "DEBUG"); }
+    return { items, count: items.length };
 }
 
-// ==================== ext 配置解析 ====================
+// ext 配置解析（与之前相同，略）
 function parseExtConfig(extParam, basePath) {
     let classes = [];
     try {
@@ -200,7 +186,7 @@ function parseExtConfig(extParam, basePath) {
 }
 
 function init(extend) {
-    log("========== 爬虫初始化 v14.0 ==========", "INFO");
+    log("========== 爬虫初始化 v15 (兼容单集/多集) ==========", "INFO");
     extBasePath = defaultBasePath;
     if (extend && extend.match(/^https?:\/\//i)) {
         let lastSlash = extend.lastIndexOf('/');
@@ -246,45 +232,50 @@ function category(tid, pg, filter, extend) {
             if (!fileUrl.match(/^https?:\/\//i)) fileUrl = resolvePath(tid, extBasePath);
             let content = fetchSync(fileUrl);
             if (content && content.length > 0) {
-                // 先尝试 JSON 解析
+                let items = [];
                 if (content.trim().startsWith('{') || content.trim().startsWith('[')) {
-                    try {
-                        let json = JSON.parse(content);
-                        let arr = Array.isArray(json) ? json : (json.list || json.data || []);
-                        for (let item of arr) {
-                            let title = item.title || item.name || "未命名";
-                            let url = item.url || item.link || item.src;
-                            if (url) {
-                                if (!url.match(/^https?:\/\//i)) {
-                                    let base = fileUrl.substring(0, fileUrl.lastIndexOf('/') + 1);
-                                    url = resolvePath(url, base);
-                                }
-                                videos.push({
-                                    vod_id: url + "###single",
-                                    vod_name: title,
-                                    vod_pic: getCover(title, url, item.pic || item.cover),
-                                    vod_remarks: getFileType(url)
-                                });
-                            }
+                    let parsed = parseJSONToItems(content, fileUrl.substring(0, fileUrl.lastIndexOf('/') + 1));
+                    items = parsed.items;
+                }
+                if (items.length === 0) {
+                    let parsed = parseTextToItems(content, fileUrl.substring(0, fileUrl.lastIndexOf('/') + 1));
+                    items = parsed.items;
+                }
+                if (items.length > 0) {
+                    // 对于 JSON 格式，生成独立卡片；对于文本文件，生成单个多集卡片
+                    if (content.trim().startsWith('{') || content.trim().startsWith('[')) {
+                        for (let item of items) {
+                            videos.push({
+                                vod_id: item.url + "###single",
+                                vod_name: item.title,
+                                vod_pic: getCover(item.title, item.url, null),
+                                vod_remarks: getFileType(item.url)
+                            });
                         }
                         total = videos.length;
                         pagecount = Math.ceil(total / PAGE_SIZE);
                         let start = (pg - 1) * PAGE_SIZE;
                         videos = videos.slice(start, start + PAGE_SIZE);
-                    } catch(e) { log("JSON 解析失败，降级为文本", "DEBUG"); }
-                }
-                // 非 JSON 或 JSON 解析失败 → 作为文本多集文件
-                if (videos.length === 0) {
-                    let lineCount = content.split(/\r?\n/).filter(l => l.trim() && !l.startsWith('#') && !l.startsWith('//')).length;
-                    let displayName = fileUrl.split('/').pop().replace(/\.(txt|js|m3u)$/i, '') || "媒体合集";
+                    } else {
+                        // 文本文件：生成一个卡片，进入后显示多集列表
+                        let displayName = fileUrl.split('/').pop().replace(/\.(txt|js|m3u)$/i, '') || "媒体合集";
+                        videos.push({
+                            vod_id: fileUrl + "###multi",
+                            vod_name: displayName,
+                            vod_pic: getCover(displayName, fileUrl, null),
+                            vod_remarks: `${items.length} 个媒体`
+                        });
+                        total = 1;
+                        pagecount = 1;
+                    }
+                } else {
                     videos.push({
-                        vod_id: fileUrl + "###multi",
-                        vod_name: displayName,
-                        vod_pic: getCover(displayName, fileUrl, null),
-                        vod_remarks: `${lineCount} 个媒体`
+                        vod_id: "error###test",
+                        vod_name: `⚠️ 文件无有效内容: ${tid.substring(0, 40)}`,
+                        vod_pic: "https://picsum.photos/200/300?random=999",
+                        vod_remarks: "请检查文件格式"
                     });
                     total = 1;
-                    pagecount = 1;
                 }
             } else {
                 videos.push({
@@ -302,15 +293,11 @@ function category(tid, pg, filter, extend) {
     return JSON.stringify({ list: videos, page: pg, pagecount: pagecount, limit: PAGE_SIZE, total: total });
 }
 
-// ========== 关键修复：detail 函数（确保播放列表正确返回） ==========
+// 关键修改：multi 类型根据条目数量决定返回单集还是多集
 function detail(vodId) {
     try {
-        log(`detail 接收 vodId: ${vodId}`, "DEBUG");
         let parts = vodId.split('###');
-        if (parts.length < 2) {
-            log("vodId 格式错误", "ERROR");
-            return JSON.stringify({ list: [] });
-        }
+        if (parts.length < 2) return JSON.stringify({ list: [] });
         let id = parts[0];
         let type = parts[1];
         
@@ -352,52 +339,45 @@ function detail(vodId) {
             log(`加载多集文件: ${fileUrl}`, "INFO");
             let content = fetchSync(fileUrl);
             if (!content) {
-                log(`无法获取文件内容: ${fileUrl}`, "ERROR");
-                // 返回一个错误提示卡片
-                let errVod = {
-                    vod_id: "error",
-                    vod_name: "文件加载失败",
-                    vod_pic: "https://picsum.photos/200/300?random=998",
-                    vod_play_from: "错误",
-                    vod_play_url: "错误信息$"
-                };
-                return JSON.stringify({ list: [errVod] });
+                return JSON.stringify({ list: [] });
             }
             let baseDir = fileUrl.substring(0, fileUrl.lastIndexOf('/') + 1);
-            let playUrl = "";
-            // 尝试 JSON 格式
+            let items = [];
             if (content.trim().startsWith('{') || content.trim().startsWith('[')) {
-                playUrl = buildPlaylistFromJSON(content, baseDir);
+                items = parseJSONToItems(content, baseDir).items;
             }
-            // 如果 JSON 未解析出内容，降级为文本解析
-            if (!playUrl) {
-                playUrl = buildPlaylistFromText(content, baseDir);
+            if (items.length === 0) {
+                items = parseTextToItems(content, baseDir).items;
             }
-            if (!playUrl) {
-                log(`未能解析任何播放地址，文件内容示例: ${content.substring(0, 500)}`, "ERROR");
-                // 返回一个提示卡片，显示原始内容的前100个字符
-                let errVod = {
-                    vod_id: "error",
-                    vod_name: "解析播放列表失败",
-                    vod_pic: "https://picsum.photos/200/300?random=997",
-                    vod_play_from: "错误",
-                    vod_play_url: `错误信息$关于文件格式: 需要每行 "标题|地址" 或 "标题,地址"`
-                };
-                return JSON.stringify({ list: [errVod] });
+            if (items.length === 0) {
+                log(`解析失败，文件内容示例: ${content.substring(0, 500)}`, "ERROR");
+                return JSON.stringify({ list: [] });
             }
-            let firstTitle = playUrl.split('#')[0].split('$')[0] || "媒体合集";
+            
+            let playUrl = "";
+            let vod_name = "";
+            if (items.length === 1) {
+                // 只有一个媒体：返回单集格式，兼容旧播放器
+                playUrl = "播放$" + items[0].url;
+                vod_name = items[0].title;
+                log(`单集模式: ${vod_name}`, "INFO");
+            } else {
+                // 多个媒体：返回多集串
+                let plays = items.map(item => `${item.title}$${item.url}`).join("#");
+                playUrl = plays;
+                vod_name = items[0].title + " 等" + items.length + "集";
+                log(`多集模式，共 ${items.length} 集`, "INFO");
+            }
             let vod = {
                 vod_id: fileUrl,
-                vod_name: firstTitle,
-                vod_pic: getCover(firstTitle, fileUrl, null),
+                vod_name: vod_name,
+                vod_pic: getCover(vod_name, fileUrl, null),
                 vod_play_from: "播放列表",
                 vod_play_url: playUrl
             };
-            log(`成功生成播放串，共 ${playUrl.split('#').length} 集`, "INFO");
             return JSON.stringify({ list: [vod] });
         }
         else {
-            // 未知类型，回退单集
             let title = id.split('/').pop().split('.')[0] || "媒体";
             title = decodeURIComponent(title);
             let vod = {
