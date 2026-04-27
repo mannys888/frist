@@ -26,7 +26,17 @@
       "searchable": 1,
       "quickSearch": 1,
       "filterable": 0
-    }, 
+    },
+    {
+    "key": " ⑥live2vod_fixed",
+    "name": "⑧⑧⑧⭕️live2void✅py",
+    "type": 3,
+    "api": "https://raw.githubusercontent.com/mannys888/frist/refs/heads/main/live2vod.py",
+    "searchable": 0,
+    "quickSearch": 0,
+    "filterable": 1,
+    "ext": "https://raw.githubusercontent.com/mannys888/frist/refs/heads/main/feimaolive(1).json"
+    },
      {
     "key": " ⑥live2vod_fixed",
     "name": " ⑥ ⑥ ⑥ ⭕️爱奇艺✅py",
