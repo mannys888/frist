@@ -22,7 +22,7 @@
       "key": "豆瓣胖虎",
       "name": "🍥┃胖虎┃🍥",
       "type": 3,
-      "api": "./app/胖虎APP.py",
+      "api": "https://raw.githubusercontent.com/mannys888/frist/refs/heads/main/示例.py",
       "searchable": 1,
       "quickSearch": 1,
       "filterable": 0
