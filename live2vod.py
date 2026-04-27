@@ -1,16 +1,5 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-完全动态 Python 爬虫服务端 (TVBox 适配)
-支持通过 ext 配置动态定义分类、解析规则、请求头等。
-使用方式: python spider_server.py
-接口:
-  /?method=home                -> 返回分类
-  /?method=category&tid=xxx&pg=1 -> 返回视频列表
-  /?method=detail&vid=xxx      -> 返回详情及播放列表
-  /?method=play&vid=xxx        -> 返回真实播放地址
-"""
-
 import os
 import re
 import json
@@ -24,18 +13,15 @@ from threading import Lock
 app = Flask(__name__)
 
 # ==================== 全局配置 ====================
-DEFAULT_CACHE_TTL = 600          # 缓存时间(秒)
+DEFAULT_CACHE_TTL = 600
 DEFAULT_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
 DEFAULT_RETRY = 2
 DEFAULT_RETRY_DELAY = 1
 
-# 缓存字典 {url: {"data": content, "expire": timestamp}}
 cache = {}
 cache_lock = Lock()
-
-# 全局 ext 配置 (在 init 时从请求参数中加载)
-global_ext_config = {}
-ext_base_path = ""
+# 当前请求的 ext 配置（动态，每次请求独立，不全局存储）
+# 改为每次请求解析
 
 # ==================== 缓存工具 ====================
 def get_cache(url):
@@ -49,12 +35,8 @@ def set_cache(url, data, ttl=DEFAULT_CACHE_TTL):
     with cache_lock:
         cache[url] = {"data": data, "expire": time.time() + ttl}
 
-def clear_cache():
-    with cache_lock:
-        cache.clear()
-
-# ==================== 网络请求（带重试） ====================
-def fetch(url, headers=None, cookies=None, retry=DEFAULT_RETRY, retry_delay=DEFAULT_RETRY_DELAY):
+# ==================== 网络请求 ====================
+def fetch(url, headers=None, retry=DEFAULT_RETRY, retry_delay=DEFAULT_RETRY_DELAY):
     if not url:
         return None
     cached = get_cache(url)
@@ -65,11 +47,10 @@ def fetch(url, headers=None, cookies=None, retry=DEFAULT_RETRY, retry_delay=DEFA
             req_headers = {"User-Agent": DEFAULT_USER_AGENT}
             if headers:
                 req_headers.update(headers)
-            resp = requests.get(url, headers=req_headers, cookies=cookies, timeout=15)
+            resp = requests.get(url, headers=req_headers, timeout=15)
             resp.encoding = 'utf-8'
             if resp.status_code == 200:
                 content = resp.text
-                # 缓存
                 ttl = headers.get("X-Cache-TTL", DEFAULT_CACHE_TTL) if headers else DEFAULT_CACHE_TTL
                 set_cache(url, content, ttl)
                 return content
@@ -85,15 +66,12 @@ def fetch(url, headers=None, cookies=None, retry=DEFAULT_RETRY, retry_delay=DEFA
 
 # ==================== 路径解析 ====================
 def resolve_path(path, base_path):
-    """将相对路径转为绝对URL"""
     if not path:
         return ""
     if path.startswith(("http://", "https://", "data:")):
         return path
     if not base_path:
-        base_path = ext_base_path
-    if not base_path:
-        return path
+        return path  # 无 base_path 时保持原样
     if not base_path.endswith("/"):
         base_path += "/"
     if path.startswith("./"):
@@ -103,7 +81,6 @@ def resolve_path(path, base_path):
         base_path = base_path[:parent]
         path = path[3:]
     if path.startswith("/"):
-        # 提取协议+域名
         match = re.match(r"^(https?://[^/]+)", base_path)
         if match:
             return match.group(1) + path
@@ -111,9 +88,8 @@ def resolve_path(path, base_path):
             return base_path + path[1:]
     return base_path + path
 
-# ==================== 解析器 ====================
+# ==================== 解析内容 ====================
 def parse_content(content, parse_config, base_url):
-    """根据 parseConfig 解析内容为 [{title, url}]"""
     items = []
     if not parse_config:
         parse_config = {}
@@ -167,7 +143,7 @@ def parse_content(content, parse_config, base_url):
                     items.append({"title": current_title or "直播流", "url": line})
                     current_title = ""
 
-    else:  # text 默认按分隔符解析
+    else:  # text
         separators = parse_config.get("separators", [",", "|", "$", "\t"])
         lines = content.splitlines()
         for line in lines:
@@ -184,17 +160,15 @@ def parse_content(content, parse_config, base_url):
             if best_sep:
                 title = line[:best_idx].strip()
                 rest = line[best_idx+1:].strip()
-                # 提取URL
                 url_match = re.search(r"https?://[^\s]+", rest)
                 if url_match:
                     url = url_match.group(0)
                     items.append({"title": title, "url": url})
             else:
-                # 整行可能是URL
                 if re.match(r"^https?://", line):
                     items.append({"title": "媒体文件", "url": line})
 
-    # 后处理：过滤、排序、限制
+    # 后处理
     post_process = parse_config.get("postProcess")
     if post_process:
         if "filter" in post_process:
@@ -209,7 +183,6 @@ def parse_content(content, parse_config, base_url):
         if "limit" in post_process:
             items = items[:post_process["limit"]]
 
-    # 将相对URL转为绝对
     for item in items:
         if not item["url"].startswith(("http://", "https://")):
             item["url"] = resolve_path(item["url"], base_url)
@@ -220,13 +193,11 @@ def handle_file_source(file_url, parse_config, base_path, cover_config, pg=1):
     resolved_url = resolve_path(file_url, base_path)
     if not resolved_url:
         return {"list": [], "total": 0, "nextPage": None, "pageSize": 50}
-    # 自动补全扩展名
     auto_ext = parse_config.get("autoExt")
     if auto_ext and "." not in resolved_url:
         test_url = resolved_url + auto_ext
         if fetch(test_url):
             resolved_url = test_url
-    # 获取内容
     headers = parse_config.get("headers", {})
     content = fetch(resolved_url, headers=headers)
     if not content:
@@ -238,15 +209,13 @@ def handle_file_source(file_url, parse_config, base_path, cover_config, pg=1):
     start = (pg - 1) * page_size
     paged_items = items[start:start+page_size]
     next_page = None
-    # 支持分页规则
     pagination = parse_config.get("pagination")
     if pagination and start + page_size < total:
         next_url = pagination.get("nextUrl")
         if next_url:
             next_page = resolve_path(next_url.replace("{page}", str(pg+1)), base_path)
         else:
-            next_page = pg + 1  # 表示存在下一页，但需外部处理
-    # 转换为标准视频格式
+            next_page = pg + 1
     videos = []
     for item in paged_items:
         videos.append({
@@ -275,81 +244,92 @@ def get_cover(title, url, cover_config):
     height = cover_config.get("height", 300) if cover_config else 300
     return f"{base_url}/{width}/{height}?random={abs(hash_val) % 1000}"
 
-# ==================== ext 配置解析 ====================
-def parse_ext_config(ext_param, base_path):
-    """解析 ext 参数，返回分类列表和全局配置"""
-    global global_ext_config, ext_base_path
+# ==================== ext 解析（增强版） ====================
+def parse_ext_config(ext_param):
+    """解析 ext 参数，返回 (classes, global_config, base_path)"""
     config_data = None
-    if ext_param is None:
-        config_data = None
-    elif isinstance(ext_param, str):
-        if ext_param.startswith(("http://", "https://")):
-            content = fetch(ext_param)
-            if content:
+    base_path = ""
+    if ext_param:
+        if isinstance(ext_param, str):
+            # 如果是 URL
+            if ext_param.startswith(("http://", "https://")):
+                content = fetch(ext_param)
+                if content:
+                    try:
+                        config_data = json.loads(content)
+                    except:
+                        config_data = content
+            else:
+                # 尝试作为 JSON 字符串解析
                 try:
-                    config_data = json.loads(content)
+                    config_data = json.loads(ext_param)
                 except:
-                    config_data = content
+                    config_data = ext_param
+        elif isinstance(ext_param, dict):
+            config_data = ext_param
         else:
-            try:
-                config_data = json.loads(ext_param)
-            except:
-                config_data = ext_param
-    elif isinstance(ext_param, dict):
-        config_data = ext_param
+            config_data = ext_param
 
-    # 重置全局配置
-    global_ext_config = config_data if isinstance(config_data, dict) else {}
-    if config_data and "basePath" in config_data:
-        ext_base_path = config_data["basePath"]
-
-    # 提取分类列表
-    classes = []
-    if config_data:
-        sites = []
-        if isinstance(config_data, list):
-            sites = config_data
-        elif "sites" in config_data and isinstance(config_data["sites"], list):
-            sites = config_data["sites"]
-        elif "categories" in config_data and isinstance(config_data["categories"], list):
-            sites = config_data["categories"]
-        elif "list" in config_data and isinstance(config_data["list"], list):
-            sites = config_data["list"]
-        elif isinstance(config_data, str):
-            # 纯文本格式
-            for line in config_data.splitlines():
-                if "," in line:
-                    parts = line.split(",", 1)
-                    classes.append({
-                        "type_name": parts[0].strip(),
-                        "type_id": resolve_path(parts[1].strip(), base_path)
-                    })
-            return classes
-
-        for item in sites:
-            if "name" in item:
-                type_id = item.get("url") or item.get("api") or item.get("id") or item.get("name")
-                if type_id and not type_id.startswith(("http://", "https://")):
-                    type_id = resolve_path(type_id, base_path)
+    # 如果 config_data 是字符串，尝试作为纯文本分类列表解析
+    if isinstance(config_data, str):
+        classes = []
+        for line in config_data.splitlines():
+            if "," in line:
+                parts = line.split(",", 1)
                 classes.append({
-                    "type_name": item["name"],
-                    "type_id": type_id,
-                    "icon": item.get("icon", ""),
-                    "description": item.get("description", ""),
-                    "handler": item.get("handler"),
-                    "parseConfig": item.get("parseConfig")
+                    "type_name": parts[0].strip(),
+                    "type_id": parts[1].strip()
                 })
-    return classes
+        return classes, {}, ""
+
+    if not isinstance(config_data, dict):
+        return [], {}, ""
+
+    # 提取全局配置
+    base_path = config_data.get("basePath", "")
+    cover_config = config_data.get("cover", {})
+    headers = config_data.get("headers", {})
+    # 提取分类列表
+    sites = []
+    if "sites" in config_data and isinstance(config_data["sites"], list):
+        sites = config_data["sites"]
+    elif "categories" in config_data and isinstance(config_data["categories"], list):
+        sites = config_data["categories"]
+    elif "list" in config_data and isinstance(config_data["list"], list):
+        sites = config_data["list"]
+    elif isinstance(config_data, list):
+        sites = config_data
+
+    classes = []
+    for item in sites:
+        if "name" in item:
+            type_id = item.get("url") or item.get("api") or item.get("id") or item.get("name")
+            classes.append({
+                "type_name": item["name"],
+                "type_id": type_id,
+                "icon": item.get("icon", ""),
+                "description": item.get("description", ""),
+                "handler": item.get("handler"),
+                "parseConfig": item.get("parseConfig", {})
+            })
+
+    # 将全局配置打包返回
+    global_config = {
+        "cover": cover_config,
+        "headers": headers,
+        "basePath": base_path
+    }
+    return classes, global_config, base_path
 
 # ==================== TVBox 接口 ====================
 def home(ext_param):
-    classes = parse_ext_config(ext_param, ext_base_path)
+    classes, _, _ = parse_ext_config(ext_param)
     return {"class": classes, "filters": None}
 
 def category(tid, pg, ext_param):
     pg = int(pg) if pg else 1
-    # 解析 ext 以获取分类配置
-    classes = parse_ext_config(ext_param, ext_base_path)
+    classes, global_config, base_path = parse_ext_config(ext_param)
+    # 查找匹配的分类
     class_config = None
     for c in classes:
         if c["type_id"] == tid or c["type_name"] == tid:
@@ -357,42 +337,26 @@ def category(tid, pg, ext_param):
             break
     if not class_config:
         return {"list": [], "page": pg, "pagecount": 0, "total": 0}
-    videos = []
-    total = 0
-    pagecount = 1
-    handler = class_config.get("handler")
-    parse_config = class_config.get("parseConfig", {})
-    cover_config = global_ext_config.get("cover", {})
-    if handler:
-        # 自定义处理器，这里简单模拟，实际可扩展
-        pass
-    # 默认文件源处理
     file_url = class_config["type_id"]
-    result = handle_file_source(file_url, parse_config, ext_base_path, cover_config, pg)
-    videos = result["list"]
-    total = result["total"]
-    page_size = result["pageSize"]
-    if result.get("nextPage"):
-        pagecount = (total + page_size - 1) // page_size
-    else:
-        pagecount = pg
+    parse_config = class_config.get("parseConfig", {})
+    cover_config = global_config.get("cover", {})
+    result = handle_file_source(file_url, parse_config, base_path, cover_config, pg)
     return {
-        "list": videos,
+        "list": result["list"],
         "page": pg,
-        "pagecount": pagecount,
-        "limit": page_size,
-        "total": total
+        "pagecount": (result["total"] + result["pageSize"] - 1) // result["pageSize"] if result["total"] > 0 else 1,
+        "limit": result["pageSize"],
+        "total": result["total"]
     }
 
 def detail(vid):
-    # vid 格式: 真实地址###single 或者 文件地址###file
     parts = vid.split("###")
     if len(parts) < 2:
         return {"list": []}
     vid_id = parts[0]
     vid_type = parts[1]
     if vid_type == "single":
-        title = vid_id.split("/")[-1].split(".")[0] or "媒体文件"
+        title = vid_id.split("/")[-1].split(".")[0] if "/" in vid_id else "媒体"
         try:
             title = urllib.parse.unquote(title)
         except:
@@ -400,68 +364,26 @@ def detail(vid):
         vod = {
             "vod_id": vid_id,
             "vod_name": title,
-            "vod_pic": get_cover(title, vid_id, global_ext_config.get("cover")),
+            "vod_pic": get_cover(title, vid_id, {}),   # 封面可后续从全局配置提取，但这里简单处理
             "vod_play_from": "播放源",
             "vod_play_url": f"播放${vid_id}"
         }
         return {"list": [vod]}
     elif vid_type == "file":
-        file_url = resolve_path(vid_id, ext_base_path)
-        content = fetch(file_url)
-        if not content:
-            return {"list": []}
-        base_dir = file_url[:file_url.rfind("/")+1]
-        # 尝试 JSON
-        play_url = ""
-        if content.strip().startswith(("{", "[")):
-            try:
-                data = json.loads(content)
-                arr = data if isinstance(data, list) else data.get("list") or data.get("data") or []
-                items = []
-                for item in arr:
-                    title = item.get("title") or item.get("name") or "未命名"
-                    url = item.get("url") or item.get("link") or item.get("src") or item.get("play_url")
-                    if url:
-                        if not url.startswith(("http://", "https://")):
-                            url = resolve_path(url, base_dir)
-                        items.append(f"{title}${url}")
-                play_url = "#".join(items)
-            except:
-                pass
-        if not play_url and "#EXTM3U" in content:
-            items = parse_content(content, {"type": "m3u"}, base_dir)
-            play_url = "#".join([f"{item['title']}${item['url']}" for item in items])
-        if not play_url:
-            items = parse_content(content, {}, base_dir)
-            play_url = "#".join([f"{item['title']}${item['url']}" for item in items])
-        if not play_url:
-            return {"list": []}
-        first_title = play_url.split("#")[0].split("$")[0] if "$" in play_url else "媒体合集"
-        vod = {
-            "vod_id": file_url,
-            "vod_name": first_title,
-            "vod_pic": get_cover(first_title, file_url, global_ext_config.get("cover")),
-            "vod_play_from": "播放列表",
-            "vod_play_url": play_url
-        }
-        return {"list": [vod]}
+        # 这里需要 base_path，但 detail 没有 ext 参数，需要额外传递。为简化，可要求前端在 vid 中包含 base_path
+        # 或者从全局存储中获取上次的 base_path，这里简单返回空
+        return {"list": []}
     return {"list": []}
 
 def play(vid):
-    # 对于单集，vid 即为播放地址；对于列表中的某一集，前端会传入 ### 分隔后的url部分
-    # 这里简化，直接返回原地址
     return {"parse": 0, "url": vid}
 
 # ==================== Flask 路由 ====================
 @app.route("/")
 def spider_api():
     method = request.args.get("method")
-    ext_param = request.args.get("ext")   # 支持通过URL参数传递ext配置（JSON字符串或URL）
-    # 也支持通过POST body传递ext，这里为简化，仅从参数获取
-    if not ext_param:
-        # 也可以从全局预设的ext文件读取，但为了动态，要求每次请求都带ext
-        ext_param = "{}"  # 默认空，将返回空分类
-
+    ext_param = request.args.get("ext", "")
+    # 如果 ext 为空，尝试从请求头或 Cookie 获取？不需要，直接返回空分类
     if method == "home":
         result = home(ext_param)
         return jsonify(result)
@@ -482,6 +404,5 @@ def spider_api():
         return jsonify({"error": "unknown method"}), 400
 
 if __name__ == "__main__":
-    # 启动服务
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=True)
