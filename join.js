@@ -1,7 +1,5 @@
-// ==================== 零硬编码通用动态爬虫 v19 (最终修复版 + 连续剧支持) ====================
-// 修复：ext 为空时不会崩溃，能正确解析 sites/categories/list，生成带 vod_id 的视频列表
-// 支持：M3U解析、动态分页、请求头配置、后处理钩子、重试机制
-// 新增：连续剧模式 (vod_id 格式为 "series###剧集源地址")，自动解析多集并生成播放列表
+// ==================== 零硬编码通用动态爬虫 v20 (完整连续剧支持) ====================
+// 新增：分类配置 mode: "series" 自动生成剧集列表，detail 中构建 "标题$URL" 并用 # 连接
 
 let dynamicClasses = [];
 let extBasePath = "";
@@ -212,6 +210,9 @@ function handleFileSource(fileUrl, parseConfig, basePath, coverConfig, pg = 1) {
         }
     }
     
+    // 关键修改：根据 mode 决定后缀
+    let modeSuffix = (parseConfig.mode === 'series') ? 'series' : 'single';
+    
     let videos = pagedItems.map(item => {
         let url = item.url;
         if (!url.match(/^https?:\/\//i)) {
@@ -219,7 +220,7 @@ function handleFileSource(fileUrl, parseConfig, basePath, coverConfig, pg = 1) {
             url = resolvePath(url, baseDir);
         }
         return {
-            vod_id: url + "###single",
+            vod_id: url + "###" + modeSuffix,
             vod_name: item.title || "未命名",
             vod_pic: getCover(item.title, url, coverConfig),
             vod_remarks: getFileType(url)
@@ -261,7 +262,9 @@ function parseExtConfig(extParam, basePath) {
                 if (parts.length >= 2) {
                     classes.push({
                         type_name: parts[0].trim(),
-                        type_id: resolvePath(parts[1].trim(), basePath)
+                        type_id: resolvePath(parts[1].trim(), basePath),
+                        // 可默认为连续剧？由配置决定
+                        parseConfig: { mode: 'single' } // 默认单集
                     });
                 }
             }
@@ -278,7 +281,7 @@ function parseExtConfig(extParam, basePath) {
                     icon: item.icon || "",
                     description: item.description || "",
                     handler: item.handler || null,
-                    parseConfig: item.parseConfig || null
+                    parseConfig: item.parseConfig || null   // 包含 mode, 解析规则等
                 });
             }
         }
@@ -308,7 +311,7 @@ function invokeHandler(handlerName, context, customHandlers) {
 let globalExtConfig = null;
 
 function init(extend) {
-    log("零硬编码爬虫 v19 (连续剧增强版) 初始化", "INFO");
+    log("零硬编码爬虫 v20 (完整连续剧支持) 初始化", "INFO");
     if (typeof extend === 'string' && extend.match(/^https?:\/\//i)) {
         let lastSlash = extend.lastIndexOf('/');
         if (lastSlash > 0) extBasePath = extend.substring(0, lastSlash + 1);
@@ -385,32 +388,29 @@ function category(tid, pg, filter, extend) {
     });
 }
 
-// 智能解析连续剧剧集列表（支持 JSON / M3U / 文本分隔符）
-function parseSeriesEpisodes(content, baseUrl, seriesConfig) {
-    let items = [];
-    // 优先使用配置的解析规则
-    if (seriesConfig && seriesConfig.parseConfig) {
-        return parseByType(content, seriesConfig.parseConfig, baseUrl);
+// 解析剧集列表（支持传入专用 parseConfig）
+function parseEpisodes(content, baseUrl, parseConfig) {
+    if (parseConfig && Object.keys(parseConfig).length > 0) {
+        return parseByType(content, parseConfig, baseUrl);
     }
-    // 自动检测：JSON
+    // 自动检测模式
     let trimmed = content.trim();
     if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
         try {
             let json = JSON.parse(trimmed);
             let episodes = json.episodes || json.list || json.data || json.items || (Array.isArray(json) ? json : []);
+            let items = [];
             for (let ep of episodes) {
                 let title = ep.title || ep.name || ep.episode || "第" + (ep.index || '?') + "集";
                 let url = ep.url || ep.link || ep.src || ep.play_url;
                 if (title && url) items.push({ title, url });
             }
-            if (items.length > 0) return items;
-        } catch(e) { /* 非JSON，继续其他方式 */ }
+            if (items.length) return items;
+        } catch(e) {}
     }
-    // 自动检测：M3U
     if (content.includes("#EXTM3U")) {
         return parseByType(content, { type: "m3u" }, baseUrl);
     }
-    // 默认使用通用文本解析（支持标题$URL、标题,URL等）
     return parseByType(content, { separators: [',', '|', '$', '\t'] }, baseUrl);
 }
 
@@ -421,7 +421,7 @@ function detail(vodId) {
     let id = parts[0];
     let type = parts[1];
     
-    // 单个视频直链
+    // 单集视频
     if (type === "single") {
         let title = id.split('/').pop().split('.')[0] || "媒体";
         title = decodeURIComponent(title);
@@ -434,7 +434,7 @@ function detail(vodId) {
         };
         return JSON.stringify({ list: [vod] });
     }
-    // 文件/播放列表（单文件集合，通常用于多集但非连续剧标识）
+    // 文件列表（旧版兼容）
     else if (type === "file") {
         let fileUrl = id;
         if (!fileUrl.match(/^https?:\/\//i)) fileUrl = resolvePath(fileUrl, extBasePath);
@@ -478,19 +478,23 @@ function detail(vodId) {
         };
         return JSON.stringify({ list: [vod] });
     }
-    // ========== 新增：连续剧模式（自动解析多集） ==========
+    // ========== 连续剧模式（生成 # 连接的播放列表） ==========
     else if (type === "series") {
         let seriesUrl = id;
         if (!seriesUrl.match(/^https?:\/\//i)) seriesUrl = resolvePath(seriesUrl, extBasePath);
         log(`连续剧模式，解析剧集源: ${seriesUrl}`, "INFO");
         
-        // 获取剧集源内容
-        let seriesConfig = globalExtConfig.series || {};
+        // 获取该分类的全局配置（可能在 ext 中定义了 series 字段）
+        let seriesGlobal = globalExtConfig.series || {};
+        // 尝试从 parseConfig 中获取（可能通过某种方式传入，这里简化：从缓存中根据 URL 匹配 parseConfig 较复杂，实际可从 context 传）
+        // 为了灵活性，允许在 ext 中配置 seriesParse 规则
+        let parseConfig = seriesGlobal.parseConfig || null;
+        
         let requestOptions = { 
-            headers: seriesConfig.headers || {}, 
-            method: seriesConfig.method || 'GET',
-            maxRetry: seriesConfig.maxRetry,
-            ttl: seriesConfig.ttl
+            headers: seriesGlobal.headers || {}, 
+            method: seriesGlobal.method || 'GET',
+            maxRetry: seriesGlobal.maxRetry,
+            ttl: seriesGlobal.ttl
         };
         let content = fetchSync(seriesUrl, true, 0, requestOptions);
         if (!content) {
@@ -498,13 +502,12 @@ function detail(vodId) {
             return JSON.stringify({ list: [] });
         }
         
-        // 解析剧集列表
         let baseDir = seriesUrl.substring(0, seriesUrl.lastIndexOf('/') + 1);
-        let episodes = parseSeriesEpisodes(content, baseDir, seriesConfig);
+        let episodes = parseEpisodes(content, baseDir, parseConfig);
         
-        // 应用后处理（过滤、排序、限制等）
-        if (seriesConfig.postProcess) {
-            episodes = applyPostProcess(episodes, seriesConfig.postProcess, globalExtConfig.cover);
+        // 后处理
+        if (seriesGlobal.postProcess) {
+            episodes = applyPostProcess(episodes, seriesGlobal.postProcess, globalExtConfig.cover);
         }
         
         if (!episodes || episodes.length === 0) {
@@ -512,33 +515,33 @@ function detail(vodId) {
             return JSON.stringify({ list: [] });
         }
         
-        // 构建播放列表字符串：格式为 "第1集$url#第2集$url#..."
-        let videoList = episodes.map(ep => {
+        // 构建播放列表：格式 "第1集$url1#第2集$url2"
+        let videoList = [];
+        for (let ep of episodes) {
             let epUrl = ep.url;
             if (!epUrl.match(/^https?:\/\//i)) epUrl = resolvePath(epUrl, baseDir);
             let epTitle = ep.title || "第" + (ep.index || "?") + "集";
-            return `${epTitle}$${epUrl}`;
-        });
+            videoList.push(`${epTitle}$${epUrl}`);
+        }
         let playUrl = videoList.join("#");
         
-        // 生成剧集标题（可配置或自动提取）
-        let seriesTitle = seriesConfig.title;
+        // 确定显示名称
+        let seriesTitle = seriesGlobal.title;
         if (!seriesTitle) {
-            // 从 URL 中提取文件名或最后一段作为标题
             let urlParts = seriesUrl.split('/');
             let lastPart = urlParts.pop() || "连续剧";
             seriesTitle = decodeURIComponent(lastPart).replace(/\.(json|txt|m3u8?)$/i, '');
         }
         
         let vod = {
-            vod_id: seriesUrl + "###series",   // 保持唯一标识
+            vod_id: seriesUrl + "###series",
             vod_name: seriesTitle,
             vod_pic: getCover(seriesTitle, seriesUrl, globalExtConfig.cover),
-            vod_play_from: seriesConfig.playFrom || seriesTitle,   // 播放源名称（显示在播放器界面）
-            vod_play_url: playUrl               // # 分隔的剧集列表
+            vod_play_from: seriesGlobal.playFrom || seriesTitle,   // 播放源名称
+            vod_play_url: playUrl                                   // # 连接的剧集列表
         };
         
-        log(`成功生成连续剧 ${seriesTitle}，共 ${episodes.length} 集`, "INFO");
+        log(`成功生成连续剧 "${seriesTitle}"，共 ${episodes.length} 集，播放列表长度: ${playUrl.length}`, "INFO");
         return JSON.stringify({ list: [vod] });
     }
     return JSON.stringify({ list: [] });
