@@ -1,18 +1,20 @@
-/**
- * universal_spider_v28.js (基于 v27 成功版，增加内置请求头)
- * 特性：完全保留 v27 的 ext 读取逻辑（已验证可读），额外增加默认请求头
- * 支持：直播源 (text/m3u/json) / 连续剧模式 / 分组算法 (# 和 $$$)
+/**🟣
+ * universal_spider_v29.js (基于 v27 成功版，为数据源请求增加默认头)
+ * 特点：
+ *   - ext 读取逻辑与 v27 完全相同（保证能读）
+ *   - 请求直播源/TXT/JSON/M3U 时自动添加 User-Agent、Referer 等
+ *   - 保留所有 join 逻辑 (# 和 $$$)
  */
 
-// ========== 新增：内置默认请求头（可被 ext 中的 headers 覆盖） ==========
-const DEFAULT_HEADERS = {
+// ========== 新增：默认请求头（仅用于数据源请求） ==========
+const DATA_DEFAULT_HEADERS = {
   "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-  //"Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+  "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
   "Accept-Language": "zh-CN,zh;q=0.8,zh-TW;q=0.7,zh-HK;q=0.5,en-US;q=0.3,en;q=0.2",
   "Connection": "keep-alive"
 };
 
-// 动态 Referer（根据 URL 域名智能添加）
+// 动态 Referer（根据 URL 域名）
 function getDynamicHeaders(url) {
   let headers = {};
   if (url.includes('cntv.cn') || url.includes('cctv.com')) {
@@ -27,7 +29,7 @@ function getDynamicHeaders(url) {
   return headers;
 }
 
-// ========== 以下为 v27 原版（完全保留，仅修改 httpRequest 合并默认头） ==========
+// ========== 以下为 v27 原版（未改动的部分） ==========
 String.prototype.rstrip = function (chars) {
   let regex = new RegExp(chars + "$");
   return this.replace(regex, "");
@@ -35,8 +37,8 @@ String.prototype.rstrip = function (chars) {
 
 const request_timeout = 5000;
 const RKEY = 'universal_spider';
-const VERSION = 'universal v2.8 (内置请求头)';
-const UA = DEFAULT_HEADERS["User-Agent"];
+const VERSION = 'universal v2.9 (增强数据源请求头)';
+const UA = 'Mozilla/5.0';
 let def_pic = 'https://avatars.githubusercontent.com/u/97389433?s=120&v=4';
 const tips = `\n${VERSION}`;
 
@@ -64,12 +66,10 @@ function getHome(url) {
   return url;
 }
 
-// ========== 修改网络请求：合并默认头 + 动态 Referer ==========
+// ========== 原始 httpRequest（用于 ext 请求，不带额外头，保证成功） ==========
 function httpRequest(url, options = {}) {
   let method = options.method || 'GET';
-  let dynamicHeaders = getDynamicHeaders(url);
-  // 合并优先级：默认头 < 动态头 < 用户传入的 headers
-  let headers = { ...DEFAULT_HEADERS, ...dynamicHeaders, ...(options.headers || {}) };
+  let headers = { 'User-Agent': UA, ...(options.headers || {}) };
   if (options.referer) headers['Referer'] = options.referer;
   if (options.contentType) headers['Content-Type'] = options.contentType;
   let reqOptions = { method, headers, timeout: options.timeout || request_timeout };
@@ -88,7 +88,30 @@ function httpRequest(url, options = {}) {
   }
 }
 
-// ========== 以下函数与 v27 完全一致（未作任何改动） ==========
+// ========== 新增：用于数据源的请求（自带默认请求头） ==========
+function httpRequestForData(url, options = {}) {
+  let method = options.method || 'GET';
+  let dynamicHeaders = getDynamicHeaders(url);
+  let headers = { ...DATA_DEFAULT_HEADERS, ...dynamicHeaders, ...(options.headers || {}) };
+  if (options.referer) headers['Referer'] = options.referer;
+  if (options.contentType) headers['Content-Type'] = options.contentType;
+  let reqOptions = { method, headers, timeout: options.timeout || request_timeout };
+  if (options.body) {
+    reqOptions.body = typeof options.body === 'string' ? options.body : JSON.stringify(options.body);
+    if (!headers['Content-Type']) headers['Content-Type'] = 'application/json';
+  }
+  try {
+    const res = req(url, reqOptions);
+    res.json = () => res && res.content ? JSON.parse(res.content) : null;
+    res.text = () => res && res.content ? res.content : '';
+    return res;
+  } catch (e) {
+    print(`数据源请求失败 ${url}: ${e.message}`);
+    return { json: () => null, text: () => '', content: '' };
+  }
+}
+
+// ========== 以下函数与 v27 完全一致，仅修改 fetchSource 使用新请求函数 ==========
 function parseSource(content, sourceConfig, baseUrl) {
   let items = [];
   let type = sourceConfig.type || 'text';
@@ -144,6 +167,7 @@ function parseSource(content, sourceConfig, baseUrl) {
   }
 }
 
+// 修改：fetchSource 使用 httpRequestForData，而不是原来的 httpRequest
 function fetchSource(url, sourceConfig) {
   if (cache_data[url]) return cache_data[url];
   let options = {
@@ -153,7 +177,7 @@ function fetchSource(url, sourceConfig) {
     contentType: sourceConfig.contentType,
     timeout: sourceConfig.timeout
   };
-  let resp = httpRequest(url, options);
+  let resp = httpRequestForData(url, options);
   let content = resp.text();
   if (!sourceConfig.type && content.includes('#EXTM3U')) {
     content = convertM3uToNormal(content);
@@ -241,7 +265,6 @@ function parseSeriesEpisodes(content, baseUrl, seriesConfig) {
   return parseSource(content, { separators: [',', '|', '$', '\t'] }, baseUrl);
 }
 
-// ========== 点播API链式处理（可选） ==========
 function handleVodSource(vodConfig, extraParams) {
   if (!vodConfig || !vodConfig.listApi) return null;
   let infoData = null;
@@ -256,7 +279,7 @@ function handleVodSource(vodConfig, extraParams) {
       body: vodConfig.infoBody,
       contentType: vodConfig.infoContentType
     };
-    let resp = httpRequest(infoUrl, infoOpts);
+    let resp = httpRequestForData(infoUrl, infoOpts);
     infoData = resp.json();
   }
   let listUrl = vodConfig.listApi;
@@ -270,7 +293,7 @@ function handleVodSource(vodConfig, extraParams) {
     body: vodConfig.listBody,
     contentType: vodConfig.listContentType
   };
-  let resp = httpRequest(listUrl, listOpts);
+  let resp = httpRequestForData(listUrl, listOpts);
   let listJson = resp.json();
   if (!listJson) return null;
   let parseConf = vodConfig.listParse || { type: 'json', dataPath: 'data.list', titleField: 'title', urlField: 'guid' };
@@ -282,7 +305,7 @@ function handleVodSource(vodConfig, extraParams) {
   return { playUrl, playFrom, infoData };
 }
 
-// ========== ext 配置解析 (完全保留 v27 的成功逻辑) ==========
+// ========== ext 配置解析（完全保留 v27 成功逻辑，使用原始 httpRequest） ==========
 function init(ext) {
   console.log("当前版本号:" + VERSION);
   let configData = null;
