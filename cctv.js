@@ -1,65 +1,105 @@
-/**
- * 央视网爬虫（不依赖 ext，完全自包含）
- * 功能：获取央视栏目列表，每个栏目下的多集视频用 # 连接播放列表
- * 支持自定义请求头，适配 tv.cctv.com 接口
- */
+// ==================== 央视大全爬虫 (修复播放无数据版) ====================
+// 功能：栏目列表、多条件筛选、剧集列表、智能取流
+// 修复：播放时 guid → pid 转换，确保获取正确 m3u8
+// 作者：基于Python版移植，适配CMS标准
 
-// ========== 自定义全局请求头 ==========
-const CUSTOM_HEADERS = {
-  "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-  "Accept": "application/json, text/plain, */*",
-  "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
-  "Referer": "https://tv.cctv.com/",
-  "Origin": "https://tv.cctv.com"
+let globalHeaders = {
+  "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/94.0.4606.54 Safari/537.36",
+  "Origin": "https://tv.cctv.com",
+  "Referer": "https://tv.cctv.com/"
 };
 
-// ========== 同步请求封装 ==========
+// 缓存简单的GET请求结果
+let cache = {};
+
 function fetchSync(url, options = {}) {
-  const method = options.method || 'GET';
-  const headers = { ...CUSTOM_HEADERS, ...(options.headers || {}) };
-  let reqOptions = { method, headers };
-  if (options.body) {
-    reqOptions.body = typeof options.body === 'string' ? options.body : JSON.stringify(options.body);
-    if (!headers['Content-Type']) headers['Content-Type'] = 'application/json';
-  }
+  if (cache[url]) return cache[url];
   try {
-    const resp = req(url, reqOptions);
-    let content = resp.content || '';
-    if (options.json) {
-      return JSON.parse(content);
+    let reqOpts = { method: options.method || 'GET', headers: { ...globalHeaders, ...(options.headers || {}) } };
+    if (options.data && reqOpts.method === 'POST') {
+      reqOpts.body = JSON.stringify(options.data);
+      reqOpts.headers['Content-Type'] = 'application/json';
     }
+    let resp = req(url, reqOpts);
+    let content = typeof resp === 'string' ? resp : resp.content;
+    if (options.json) {
+      let json = JSON.parse(content);
+      if (options.cache !== false) cache[url] = json;
+      return json;
+    }
+    if (options.cache !== false) cache[url] = content;
     return content;
   } catch (e) {
-    console.error(`请求失败: ${url}`, e);
+    console.log(`请求失败: ${url} - ${e.message}`);
     return options.json ? null : '';
   }
 }
 
-// ========== 工具函数 ==========
-function getCover(title, id) {
-  // 简单返回一个默认封面，也可以从栏目logo获取
-  return `https://picsum.photos/200/300?random=${Math.abs((title+id).hashCode() || 0) % 1000}`;
-}
-
-String.prototype.hashCode = function() {
-  let hash = 0;
-  for (let i = 0; i < this.length; i++) {
-    hash = ((hash << 5) - hash) + this.charCodeAt(i);
-    hash |= 0;
+// ---------- 筛选器配置（完全来自原Python的config['filter']）----------
+const filtersConfig = [
+  {
+    "key": "cid", "name": "频道", "value": [
+      { "n": "全部", "v": "" },
+      { "n": "CCTV-1综合", "v": "EPGC1386744804340101" },
+      { "n": "CCTV-2财经", "v": "EPGC1386744804340102" },
+      { "n": "CCTV-3综艺", "v": "EPGC1386744804340103" },
+      { "n": "CCTV-4中文国际", "v": "EPGC1386744804340104" },
+      { "n": "CCTV-5体育", "v": "EPGC1386744804340107" },
+      { "n": "CCTV-6电影", "v": "EPGC1386744804340108" },
+      { "n": "CCTV-7国防军事", "v": "EPGC1386744804340109" },
+      { "n": "CCTV-8电视剧", "v": "EPGC1386744804340110" },
+      { "n": "CCTV-9纪录", "v": "EPGC1386744804340112" },
+      { "n": "CCTV-10科教", "v": "EPGC1386744804340113" },
+      { "n": "CCTV-11戏曲", "v": "EPGC1386744804340114" },
+      { "n": "CCTV-12社会与法", "v": "EPGC1386744804340115" },
+      { "n": "CCTV-13新闻", "v": "EPGC1386744804340116" },
+      { "n": "CCTV-14少儿", "v": "EPGC1386744804340117" },
+      { "n": "CCTV-15音乐", "v": "EPGC1386744804340118" },
+      { "n": "CCTV-16奥林匹克", "v": "EPGC1634630207058998" },
+      { "n": "CCTV-17农业农村", "v": "EPGC1563932742616872" },
+      { "n": "CCTV-5+体育赛事", "v": "EPGC1468294755566101" }
+    ]
+  },
+  {
+    "key": "fc", "name": "分类", "value": [
+      { "n": "全部", "v": "" },
+      { "n": "新闻", "v": "新闻" }, { "n": "体育", "v": "体育" }, { "n": "综艺", "v": "综艺" },
+      { "n": "健康", "v": "健康" }, { "n": "生活", "v": "生活" }, { "n": "科教", "v": "科教" },
+      { "n": "经济", "v": "经济" }, { "n": "农业", "v": "农业" }, { "n": "法治", "v": "法治" },
+      { "n": "军事", "v": "军事" }, { "n": "少儿", "v": "少儿" }, { "n": "动画", "v": "动画" },
+      { "n": "纪实", "v": "纪实" }, { "n": "戏曲", "v": "戏曲" }, { "n": "音乐", "v": "音乐" },
+      { "n": "影视", "v": "影视" }
+    ]
+  },
+  {
+    "key": "fl", "name": "字母", "value": [
+      { "n": "全部", "v": "" },
+      "A,B,C,D,E,F,G,H,I,J,K,L,M,N,O,P,Q,R,S,T,U,V,W,X,Y,Z".split(',').map(l => ({ n: l, v: l }))
+    ].flat()
+  },
+  {
+    "key": "year", "name": "年份", "value": [
+      { "n": "全部", "v": "" },
+      ...Array.from({ length: 23 }, (_, i) => ({ n: (2022 - i).toString(), v: (2022 - i).toString() }))
+    ]
+  },
+  {
+    "key": "month", "name": "月份", "value": [
+      { "n": "全部", "v": "" },
+      ...Array.from({ length: 12 }, (_, i) => ({ n: (i + 1).toString().padStart(2, '0'), v: (i + 1).toString().padStart(2, '0') }))
+    ]
   }
-  return hash;
-};
+];
 
-// ========== 爬虫核心方法 ==========
+// ==================== CMS 标准接口 ====================
 function init(extend) {
-  console.log("央视爬虫已启动（自包含版本）");
+  console.log("央视大全爬虫已启动（修复播放无数据版）");
 }
 
 function home() {
-  // 固定一个分类：“央视大全”
   return JSON.stringify({
-    class: [{ type_name: "央视大全", type_id: "cctv_all" }],
-    filters: null
+    class: [{ type_name: "央视大全", type_id: "CCTV" }],
+    filters: { "CCTV": filtersConfig }
   });
 }
 
@@ -67,126 +107,166 @@ function homeVod() {
   return JSON.stringify({ list: [] });
 }
 
-async function category(tid, pg, filter, extend) {
-  pg = pg || 1;
-  // 只处理 tid === "cctv_all"
-  if (tid !== "cctv_all") return JSON.stringify({ list: [], page: pg, pagecount: 0, total: 0 });
+function category(tid, pg, filter, extend) {
+  pg = parseInt(pg) || 1;
+  let params = { ...(filter || {}), ...(extend || {}) };
+  let year = params.year || '';
+  let month = params.month || '';
+  let prefix = year + month;
   
-  // 请求栏目列表 API
-  const url = `https://api.cntv.cn/lanmu/columnSearch?p=${pg}&n=30&serviceId=tvcctv&t=json`;
-  const data = fetchSync(url, { json: true });
-  if (!data || !data.response || !data.response.docs) {
+  let queryParams = {
+    fl: params.fl || '',
+    fc: params.fc || '',
+    cid: params.cid || '',
+    p: pg,
+    n: 20,
+    serviceId: 'tvcctv',
+    t: 'json'
+  };
+  let url = 'https://api.cntv.cn/lanmu/columnSearch?' + Object.entries(queryParams).map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join('&');
+  
+  let json = fetchSync(url, { json: true });
+  if (!json || !json.response || !json.response.docs) {
     return JSON.stringify({ list: [], page: pg, pagecount: 0, total: 0 });
   }
   
-  const docs = data.response.docs;
-  const videos = [];
-  for (let item of docs) {
-    const columnId = item.column_id;
-    const columnName = item.column_name;
-    const logo = item.column_logo || '';
-    // 将栏目信息存入 vod_id（JSON 字符串）
-    const vodId = JSON.stringify({ id: columnId, name: columnName, pic: logo });
+  let videos = [];
+  for (let vod of json.response.docs) {
+    let lastVideo = vod.lastVIDE?.videoSharedCode || '';
+    if (lastVideo === '') lastVideo = '_';
+    let guid = `${prefix}###${vod.column_name}###${lastVideo}###${vod.column_logo || ''}`;
     videos.push({
-      vod_id: vodId,
-      vod_name: columnName,
-      vod_pic: logo || getCover(columnName, columnId),
+      vod_id: guid,
+      vod_name: vod.column_name,
+      vod_pic: vod.column_logo || '',
       vod_remarks: ''
     });
   }
   
-  const total = data.response.numFound || videos.length;
-  const pagecount = Math.ceil(total / 30);
+  let total = json.response.numFound || videos.length;
+  let pagecount = Math.ceil(total / 20);
   return JSON.stringify({
     list: videos,
     page: pg,
     pagecount: pagecount,
-    limit: 30,
+    limit: 20,
     total: total
   });
 }
 
 function detail(vodId) {
-  let info;
-  try {
-    info = JSON.parse(vodId);
-  } catch(e) {
-    return JSON.stringify({ list: [] });
+  let parts = vodId.split('###');
+  if (parts.length < 4) return JSON.stringify({ list: [] });
+  let prefix = parts[0];
+  let title = parts[1];
+  let lastVideo = parts[2];
+  let logo = parts[3];
+  
+  if (lastVideo === '_') return JSON.stringify({ list: [] });
+  
+  let infoUrl = `https://api.cntv.cn/video/videoinfoByGuid?guid=${lastVideo}&serviceId=tvcctv`;
+  let infoJson = fetchSync(infoUrl, { json: true });
+  if (!infoJson || !infoJson.ctid) return JSON.stringify({ list: [] });
+  let topicId = infoJson.ctid;
+  let channel = infoJson.channel || '';
+  
+  let listUrl = `https://api.cntv.cn/NewVideo/getVideoListByColumn?id=${topicId}&d=${prefix}&p=1&n=100&sort=desc&mode=0&serviceId=tvcctv&t=json`;
+  let listJson = fetchSync(listUrl, { json: true });
+  if (!listJson || !listJson.data || !listJson.data.list) return JSON.stringify({ list: [] });
+  
+  let videoList = [];
+  for (let video of listJson.data.list) {
+    // [FIX] 存储 guid 或 pid？播放时会做转换，存储 guid 即可
+    videoList.push(`${video.title}$${video.guid}`);
   }
-  const columnId = info.id;
-  const columnName = info.name;
-  const logo = info.pic || '';
+  if (videoList.length === 0) return JSON.stringify({ list: [] });
   
-  // 获取该栏目下的视频列表（最多 100 条，按时间倒序）
-  const url = `https://api.cntv.cn/NewVideo/getVideoListByColumn?id=${columnId}&p=1&n=100&sort=desc&mode=0&serviceId=tvcctv&t=json`;
-  const data = fetchSync(url, { json: true });
-  if (!data || !data.data || !data.data.list) {
-    return JSON.stringify({ list: [] });
-  }
-  
-  const videoList = data.data.list;
-  if (videoList.length === 0) {
-    return JSON.stringify({ list: [] });
-  }
-  
-  // 构建播放列表：标题$guid，用 # 连接
-  const playItems = videoList.map(v => `${v.title}$${v.guid}`);
-  const playUrl = playItems.join('#');
-  
-  const vod = {
+  let displayDate = prefix || new Date().getFullYear().toString();
+  let vod = {
     vod_id: vodId,
-    vod_name: columnName,
-    vod_pic: logo || getCover(columnName, columnId),
-    type_name: "央视栏目",
-    vod_play_from: "央视影音",
-    vod_play_url: playUrl,
-    vod_remarks: `共 ${videoList.length} 期`,
-    vod_content: `《${columnName}》栏目合集，包含最近 ${videoList.length} 期内容。`
+    vod_name: `${displayDate} ${title}`,
+    vod_pic: logo,
+    type_name: channel,
+    vod_year: displayDate,
+    vod_area: "",
+    vod_remarks: displayDate,
+    vod_actor: "",
+    vod_director: topicId,
+    vod_content: "当前页面默认只展示最新100期的内容,可在分类页面选择年份和月份进行往期节目查看。年份和月份仅影响当前页面内容,不参与分类过滤。视频默认播放可以获取到的最高帧率。",
+    vod_play_from: "CCTV",
+    vod_play_url: videoList.join("#")
   };
   return JSON.stringify({ list: [vod] });
 }
 
-function play(flag, id, vipFlags) {
-  // id 是 guid（视频唯一标识）
-  // 请求视频信息接口获取最高码率 m3u8
-  const infoUrl = `https://vdn.apps.cntv.cn/api/getHttpVideoInfo.do?pid=${id}`;
-  const info = fetchSync(infoUrl, { json: true });
-  if (!info || !info.hls_url) {
-    return JSON.stringify({ parse: 0, url: id }); // 降级返回原始 id
-  }
+// 智能获取最高码率 m3u8（移植自原Python）
+function getBestM3u8(pid) {
+  if (!pid) return null;
+  let infoUrl = `https://vdn.apps.cntv.cn/api/getHttpVideoInfo.do?pid=${pid}`;
+  let info = fetchSync(infoUrl, { json: true });
+  if (!info || !info.hls_url) return null;
   let hlsUrl = info.hls_url.trim();
   
-  // 可选：尝试获取 1200 码率（原 python 逻辑）
-  try {
-    // 获取 m3u8 内容，找到最后一个流（通常最高码率）
-    const m3u8Content = fetchSync(hlsUrl);
-    if (m3u8Content) {
-      const lines = m3u8Content.split('\n').filter(l => l.trim() && !l.startsWith('#'));
-      if (lines.length > 0) {
-        let lastLine = lines[lines.length - 1].trim();
-        let baseUrl = hlsUrl.substring(0, hlsUrl.lastIndexOf('/') + 1);
-        let highUrl = lastLine.startsWith('http') ? lastLine : baseUrl + lastLine;
-        // 替换码率为 1200
-        if (highUrl.includes('/800/')) highUrl = highUrl.replace('/800/', '/1200/');
-        else if (highUrl.includes('/400/')) highUrl = highUrl.replace('/400/', '/1200/');
-        // 测试是否存在
-        const testResp = req(highUrl, { method: 'HEAD', headers: CUSTOM_HEADERS });
-        if (testResp && (testResp.status === 200 || testResp.status_code === 200)) {
-          hlsUrl = highUrl;
-        }
+  let m3u8Content = fetchSync(hlsUrl, { cache: false });
+  if (!m3u8Content) return hlsUrl;
+  let lines = m3u8Content.split('\n').filter(l => l.trim() && !l.startsWith('#'));
+  if (lines.length === 0) return hlsUrl;
+  let lastLine = lines[lines.length - 1].trim();
+  
+  let baseUrl = hlsUrl.substring(0, hlsUrl.lastIndexOf('/') + 1);
+  let targetUrl = lastLine.startsWith('http') ? lastLine : baseUrl + lastLine;
+  
+  let pathParts = targetUrl.split('/');
+  if (pathParts.length >= 4) {
+    for (let i = 0; i < pathParts.length; i++) {
+      if (/^\d+$/.test(pathParts[i]) && pathParts[i] !== '1200') {
+        pathParts[i] = '1200';
+        break;
       }
     }
-  } catch(e) {
-    console.warn("码率切换失败", e);
+    let lastPart = pathParts[pathParts.length - 1];
+    if (lastPart.includes('.m3u8')) {
+      let newLast = lastPart.replace(/\d+(?=\.m3u8)/, '1200');
+      pathParts[pathParts.length - 1] = newLast;
+    }
+    let highUrl = pathParts.join('/');
+    let testResp = req(highUrl, { method: 'HEAD', headers: globalHeaders });
+    if (testResp && (testResp.status === 200 || testResp.status_code === 200)) {
+      return highUrl;
+    }
   }
-  
-  return JSON.stringify({ parse: 0, playUrl: '', url: hlsUrl });
+  return targetUrl;
 }
 
-function search(keyword, page) {
-  // 可选实现搜索（略）
+// [FIX] 播放接口：将传入的 guid 转换为 pid，再获取 m3u8
+function play(flag, id, vipFlags) {
+  // id 通常是 detail 中构造的 guid
+  let guid = id;
+  let pid = null;
+  
+  // 先尝试直接当 pid 请求（兼容旧逻辑）
+  let testInfo = fetchSync(`https://vdn.apps.cntv.cn/api/getHttpVideoInfo.do?pid=${guid}`, { json: true, cache: false });
+  if (testInfo && testInfo.hls_url) {
+    pid = guid;  // 本身就是 pid
+  } else {
+    // 通过 guid 获取视频信息，提取 pid
+    let guidInfo = fetchSync(`https://api.cntv.cn/video/videoinfoByGuid?guid=${guid}&serviceId=tvcctv`, { json: true, cache: false });
+    if (guidInfo && guidInfo.pid) {
+      pid = guidInfo.pid;
+    } else {
+      console.log(`无法从 guid 获取 pid: ${guid}`);
+      return JSON.stringify({ parse: 0, playUrl: '', url: '' });
+    }
+  }
+  
+  let bestUrl = getBestM3u8(pid);
+  if (!bestUrl) bestUrl = '';
+  return JSON.stringify({ parse: 0, playUrl: '', url: bestUrl });
+}
+
+function search(wd, quick) {
   return JSON.stringify({ list: [] });
 }
 
-// 导出爬虫对象
+// 导出
 __JS_SPIDER__ = { init, home, homeVod, category, detail, play, search };
