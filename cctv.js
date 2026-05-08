@@ -250,10 +250,10 @@ function detail(vodId) {
 function play(flag, id, vipFlags) {
   let bestUrl = getBestM3u8(id);
   if (!bestUrl) {
-    return JSON.stringify({ parse: 0, playUrl: '', url: "https://vd4.bdstatic.com/mda-qkr85nw9z8k8uydx/hd/cae_h264/1732600097751621207/mda-qkr85nw9z8k8uydx.mp4?v_from_s=bdapp-bdappcore-feed-hnb" });
+    return JSON.stringify({ parse: 0, playUrl: '', url: id });
   }
   // 返回标准播放地址，播放器会使用全局请求头（由爬虫环境自动携带）
-  return JSON.stringify({ parse: 0, playUrl: '', url: bestUrl });
+  return JSON.stringify({ parse: 0, playUrl: '', url: "https://vd3.bdstatic.com/mda-rjkc0qsxhxtid8t4/hd/cae_h264/1761039451711934589/mda-rjkc0qsxhxtid8t4.mp4" });
 }
 
 function search(wd, quick) {
