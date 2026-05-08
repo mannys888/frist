@@ -1,7 +1,7 @@
 // ==================== 央视大全爬虫 (完整修复版，支持导演字段显示播放地址) ====================
 let globalHeaders = {
   "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/94.0.4606.54 Safari/537.36",
-  "Host": "dh5.cntv.cdn20.com"
+  "Host": "dh5.cntv.cdn20.com",
   "Origin": "https://tv.cctv.com",
   "Referer": "https://tv.cctv.com/"
 };
