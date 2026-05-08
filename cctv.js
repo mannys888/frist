@@ -1,7 +1,6 @@
-// ==================== 央视大全爬虫 (修复播放无数据版) ====================
+// ==================== 央视大全爬虫 (最终修复播放版) ====================
 // 功能：栏目列表、多条件筛选、剧集列表、智能取流
-// 修复：播放时 guid → pid 转换，确保获取正确 m3u8
-// 作者：基于Python版移植，适配CMS标准
+// 修复：播放时使用正确的 pid，移除 HEAD 检测确保流地址可用
 
 let globalHeaders = {
   "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/94.0.4606.54 Safari/537.36",
@@ -9,7 +8,6 @@ let globalHeaders = {
   "Referer": "https://tv.cctv.com/"
 };
 
-// 缓存简单的GET请求结果
 let cache = {};
 
 function fetchSync(url, options = {}) {
@@ -35,7 +33,7 @@ function fetchSync(url, options = {}) {
   }
 }
 
-// ---------- 筛选器配置（完全来自原Python的config['filter']）----------
+// 筛选器配置（与原版一致）
 const filtersConfig = [
   {
     "key": "cid", "name": "频道", "value": [
@@ -91,9 +89,8 @@ const filtersConfig = [
   }
 ];
 
-// ==================== CMS 标准接口 ====================
 function init(extend) {
-  console.log("央视大全爬虫已启动（修复播放无数据版）");
+  console.log("央视大全爬虫-最终修复版");
 }
 
 function home() {
@@ -176,8 +173,11 @@ function detail(vodId) {
   
   let videoList = [];
   for (let video of listJson.data.list) {
-    // [FIX] 存储 guid 或 pid？播放时会做转换，存储 guid 即可
-    videoList.push(`${video.title}$${video.guid}`);
+    // 优先使用 pid，其次 vid，最后 guid（确保播放可用）
+    let playId = video.pid || video.vid || video.guid;
+    if (playId) {
+      videoList.push(`${video.title}$${playId}`);
+    }
   }
   if (videoList.length === 0) return JSON.stringify({ list: [] });
   
@@ -199,7 +199,7 @@ function detail(vodId) {
   return JSON.stringify({ list: [vod] });
 }
 
-// 智能获取最高码率 m3u8（移植自原Python）
+// 获取最佳码率 m3u8（移除 HEAD 检测，直接返回构造的高清流）
 function getBestM3u8(pid) {
   if (!pid) return null;
   let infoUrl = `https://vdn.apps.cntv.cn/api/getHttpVideoInfo.do?pid=${pid}`;
@@ -216,51 +216,31 @@ function getBestM3u8(pid) {
   let baseUrl = hlsUrl.substring(0, hlsUrl.lastIndexOf('/') + 1);
   let targetUrl = lastLine.startsWith('http') ? lastLine : baseUrl + lastLine;
   
+  // 尝试替换码率为 1200
   let pathParts = targetUrl.split('/');
-  if (pathParts.length >= 4) {
-    for (let i = 0; i < pathParts.length; i++) {
-      if (/^\d+$/.test(pathParts[i]) && pathParts[i] !== '1200') {
-        pathParts[i] = '1200';
-        break;
-      }
-    }
-    let lastPart = pathParts[pathParts.length - 1];
-    if (lastPart.includes('.m3u8')) {
-      let newLast = lastPart.replace(/\d+(?=\.m3u8)/, '1200');
-      pathParts[pathParts.length - 1] = newLast;
-    }
-    let highUrl = pathParts.join('/');
-    let testResp = req(highUrl, { method: 'HEAD', headers: globalHeaders });
-    if (testResp && (testResp.status === 200 || testResp.status_code === 200)) {
-      return highUrl;
+  for (let i = 0; i < pathParts.length; i++) {
+    if (/^\d+$/.test(pathParts[i]) && pathParts[i] !== '1200') {
+      pathParts[i] = '1200';
+      break;
     }
   }
-  return targetUrl;
+  let lastPart = pathParts[pathParts.length - 1];
+  if (lastPart.includes('.m3u8')) {
+    let newLast = lastPart.replace(/\d+(?=\.m3u8)/, '1200');
+    pathParts[pathParts.length - 1] = newLast;
+  }
+  let highUrl = pathParts.join('/');
+  // 直接返回 highUrl，不再发送 HEAD 检测（避免环境不支持）
+  return highUrl;
 }
 
-// [FIX] 播放接口：将传入的 guid 转换为 pid，再获取 m3u8
 function play(flag, id, vipFlags) {
-  // id 通常是 detail 中构造的 guid
-  let guid = id;
-  let pid = null;
-  
-  // 先尝试直接当 pid 请求（兼容旧逻辑）
-  let testInfo = fetchSync(`https://vdn.apps.cntv.cn/api/getHttpVideoInfo.do?pid=${guid}`, { json: true, cache: false });
-  if (testInfo && testInfo.hls_url) {
-    pid = guid;  // 本身就是 pid
-  } else {
-    // 通过 guid 获取视频信息，提取 pid
-    let guidInfo = fetchSync(`https://api.cntv.cn/video/videoinfoByGuid?guid=${guid}&serviceId=tvcctv`, { json: true, cache: false });
-    if (guidInfo && guidInfo.pid) {
-      pid = guidInfo.pid;
-    } else {
-      console.log(`无法从 guid 获取 pid: ${guid}`);
-      return JSON.stringify({ parse: 0, playUrl: '', url: '' });
-    }
+  // id 即为 detail 中存储的 pid/vid/guid，直接获取流地址
+  let bestUrl = getBestM3u8(id);
+  if (!bestUrl) {
+    // 降级：尝试直接使用 id 作为 m3u8 地址（极少情况）
+    return JSON.stringify({ parse: 0, playUrl: '', url: id });
   }
-  
-  let bestUrl = getBestM3u8(pid);
-  if (!bestUrl) bestUrl = '';
   return JSON.stringify({ parse: 0, playUrl: '', url: bestUrl });
 }
 
@@ -268,5 +248,4 @@ function search(wd, quick) {
   return JSON.stringify({ list: [] });
 }
 
-// 导出
 __JS_SPIDER__ = { init, home, homeVod, category, detail, play, search };
