@@ -1,6 +1,6 @@
-// ==================== 央视大全爬虫 (最终修复播放版) ====================
+// ==================== 央视大全爬虫 (播放地址映射到导演字段) ====================
 // 功能：栏目列表、多条件筛选、剧集列表、智能取流
-// 修复：播放时使用正确的 pid，移除 HEAD 检测确保流地址可用
+// 调试：在导演字段显示第一集的实际播放地址（m3u8），便于验证
 
 let globalHeaders = {
   "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/94.0.4606.54 Safari/537.36",
@@ -90,7 +90,7 @@ const filtersConfig = [
 ];
 
 function init(extend) {
-  console.log("央视大全爬虫-最终修复版");
+  console.log("央视大全爬虫-播放地址映射到导演字段");
 }
 
 function home() {
@@ -151,54 +151,6 @@ function category(tid, pg, filter, extend) {
   });
 }
 
-function detail(vodId) {
-  let parts = vodId.split('###');
-  if (parts.length < 4) return JSON.stringify({ list: [] });
-  let prefix = parts[0];
-  let title = parts[1];
-  let lastVideo = parts[2];
-  let logo = parts[3];
-  
-  if (lastVideo === '_') return JSON.stringify({ list: [] });
-  
-  let infoUrl = `https://api.cntv.cn/video/videoinfoByGuid?guid=${lastVideo}&serviceId=tvcctv`;
-  let infoJson = fetchSync(infoUrl, { json: true });
-  if (!infoJson || !infoJson.ctid) return JSON.stringify({ list: [] });
-  let topicId = infoJson.ctid;
-  let channel = infoJson.channel || '';
-  
-  let listUrl = `https://api.cntv.cn/NewVideo/getVideoListByColumn?id=${topicId}&d=${prefix}&p=1&n=100&sort=desc&mode=0&serviceId=tvcctv&t=json`;
-  let listJson = fetchSync(listUrl, { json: true });
-  if (!listJson || !listJson.data || !listJson.data.list) return JSON.stringify({ list: [] });
-  
-  let videoList = [];
-  for (let video of listJson.data.list) {
-    // 优先使用 pid，其次 vid，最后 guid（确保播放可用）
-    let playId = video.pid || video.vid || video.guid;
-    if (playId) {
-      videoList.push(`${video.title}$${playId}`);
-    }
-  }
-  if (videoList.length === 0) return JSON.stringify({ list: [] });
-  
-  let displayDate = prefix || new Date().getFullYear().toString();
-  let vod = {
-    vod_id: vodId,
-    vod_name: `${displayDate} ${title}`,
-    vod_pic: logo,
-    type_name: channel,
-    vod_year: displayDate,
-    vod_area: "",
-    vod_remarks: displayDate,
-    vod_actor: "",
-    vod_director: topicId,
-    vod_content: "当前页面默认只展示最新100期的内容,可在分类页面选择年份和月份进行往期节目查看。年份和月份仅影响当前页面内容,不参与分类过滤。视频默认播放可以获取到的最高帧率。",
-    vod_play_from: "CCTV",
-    vod_play_url: videoList.join("#")
-  };
-  return JSON.stringify({ list: [vod] });
-}
-
 // 获取最佳码率 m3u8（移除 HEAD 检测，直接返回构造的高清流）
 function getBestM3u8(pid) {
   if (!pid) return null;
@@ -230,15 +182,66 @@ function getBestM3u8(pid) {
     pathParts[pathParts.length - 1] = newLast;
   }
   let highUrl = pathParts.join('/');
-  // 直接返回 highUrl，不再发送 HEAD 检测（避免环境不支持）
   return highUrl;
 }
 
+function detail(vodId) {
+  let parts = vodId.split('###');
+  if (parts.length < 4) return JSON.stringify({ list: [] });
+  let prefix = parts[0];
+  let title = parts[1];
+  let lastVideo = parts[2];
+  let logo = parts[3];
+  
+  if (lastVideo === '_') return JSON.stringify({ list: [] });
+  
+  let infoUrl = `https://api.cntv.cn/video/videoinfoByGuid?guid=${lastVideo}&serviceId=tvcctv`;
+  let infoJson = fetchSync(infoUrl, { json: true });
+  if (!infoJson || !infoJson.ctid) return JSON.stringify({ list: [] });
+  let topicId = infoJson.ctid;
+  let channel = infoJson.channel || '';
+  
+  let listUrl = `https://api.cntv.cn/NewVideo/getVideoListByColumn?id=${topicId}&d=${prefix}&p=1&n=100&sort=desc&mode=0&serviceId=tvcctv&t=json`;
+  let listJson = fetchSync(listUrl, { json: true });
+  if (!listJson || !listJson.data || !listJson.data.list) return JSON.stringify({ list: [] });
+  
+  let videoList = [];
+  for (let video of listJson.data.list) {
+    let playId = video.pid || video.vid || video.guid;
+    if (playId) {
+      videoList.push(`${video.title}$${playId}`);
+    }
+  }
+  if (videoList.length === 0) return JSON.stringify({ list: [] });
+  
+  // 提取第一集的播放地址，填入 vod_director（导演）字段用于调试
+  let debugPlayUrl = '';
+  let firstPid = videoList[0].split('$')[1];
+  if (firstPid) {
+    debugPlayUrl = getBestM3u8(firstPid) || '';
+  }
+  
+  let displayDate = prefix || new Date().getFullYear().toString();
+  let vod = {
+    vod_id: vodId,
+    vod_name: `${displayDate} ${title}`,
+    vod_pic: logo,
+    type_name: channel,
+    vod_year: displayDate,
+    vod_area: "",
+    vod_remarks: displayDate,
+    vod_actor: "",
+    vod_director: debugPlayUrl,   // 播放地址（m3u8）放在导演字段，便于验证
+    vod_content: "当前页面默认只展示最新100期的内容,可在分类页面选择年份和月份进行往期节目查看。年份和月份仅影响当前页面内容,不参与分类过滤。视频默认播放可以获取到的最高帧率。",
+    vod_play_from: "CCTV",
+    vod_play_url: videoList.join("#")
+  };
+  return JSON.stringify({ list: [vod] });
+}
+
 function play(flag, id, vipFlags) {
-  // id 即为 detail 中存储的 pid/vid/guid，直接获取流地址
   let bestUrl = getBestM3u8(id);
   if (!bestUrl) {
-    // 降级：尝试直接使用 id 作为 m3u8 地址（极少情况）
     return JSON.stringify({ parse: 0, playUrl: '', url: id });
   }
   return JSON.stringify({ parse: 0, playUrl: '', url: bestUrl });
