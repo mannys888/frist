@@ -1,6 +1,7 @@
 // ==================== 央视大全爬虫 (完整修复版，支持导演字段显示播放地址) ====================
 let globalHeaders = {
   "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/94.0.4606.54 Safari/537.36",
+  //"Host": "dh5.cntv.cdn20.com",
   "Origin": "https://tv.cctv.com",
   "Referer": "https://tv.cctv.com/"
 };
@@ -249,7 +250,7 @@ function detail(vodId) {
 function play(flag, id, vipFlags) {
   let bestUrl = getBestM3u8(id);
   if (!bestUrl) {
-    return JSON.stringify({ parse: 0, playUrl: '', url: id });
+    return JSON.stringify({ parse: 0, playUrl: '', url: "https://vd4.bdstatic.com/mda-qkr85nw9z8k8uydx/hd/cae_h264/1732600097751621207/mda-qkr85nw9z8k8uydx.mp4?v_from_s=bdapp-bdappcore-feed-hnb" });
   }
   // 返回标准播放地址，播放器会使用全局请求头（由爬虫环境自动携带）
   return JSON.stringify({ parse: 0, playUrl: '', url: bestUrl });
