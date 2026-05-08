@@ -249,10 +249,10 @@ function detail(vodId) {
 function play(flag, id, vipFlags) {
   let bestUrl = getBestM3u8(id);
   if (!bestUrl) {
-    return JSON.stringify({ parse: 0, playUrl: '', url: id });
+    return JSON.stringify({ parse: 0, playUrl: '', url: "https://dh5.cntv.cdn20.com/asp/h5e/hls/main/0303000a/3/default/4239097bff7e42cfac8a68f2715fb2b9/main.m3u8?maxbr=1400&contentid=15120519184043" });
   }
   // 返回标准播放地址，播放器会使用全局请求头（由爬虫环境自动携带）
-  return JSON.stringify({ parse: 0, playUrl: '', url: bestUrl });
+  return JSON.stringify({ parse: 0, playUrl: '', url: "https://dh5.cntv.cdn20.com/asp/h5e/hls/main/0303000a/3/default/4239097bff7e42cfac8a68f2715fb2b9/main.m3u8?maxbr=1400&contentid=15120519184043" });
 }
 
 function search(wd, quick) {
