@@ -1,7 +1,4 @@
-// ==================== 央视大全爬虫 (播放地址映射到导演字段) ====================
-// 功能：栏目列表、多条件筛选、剧集列表、智能取流
-// 调试：在导演字段显示第一集的实际播放地址（m3u8），便于验证
-
+// ==================== 央视大全爬虫 (稳健取流 + 导演字段显示播放地址) ====================
 let globalHeaders = {
   "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/94.0.4606.54 Safari/537.36",
   "Origin": "https://tv.cctv.com",
@@ -33,7 +30,6 @@ function fetchSync(url, options = {}) {
   }
 }
 
-// 筛选器配置（与原版一致）
 const filtersConfig = [
   {
     "key": "cid", "name": "频道", "value": [
@@ -90,7 +86,7 @@ const filtersConfig = [
 ];
 
 function init(extend) {
-  console.log("央视大全爬虫-播放地址映射到导演字段");
+  console.log("央视大全爬虫-稳健取流版");
 }
 
 function home() {
@@ -151,7 +147,7 @@ function category(tid, pg, filter, extend) {
   });
 }
 
-// 获取最佳码率 m3u8（移除 HEAD 检测，直接返回构造的高清流）
+// 稳健的获取最佳 m3u8 地址（从 m3u8 内容中解析最高码率流）
 function getBestM3u8(pid) {
   if (!pid) return null;
   let infoUrl = `https://vdn.apps.cntv.cn/api/getHttpVideoInfo.do?pid=${pid}`;
@@ -159,30 +155,47 @@ function getBestM3u8(pid) {
   if (!info || !info.hls_url) return null;
   let hlsUrl = info.hls_url.trim();
   
+  // 获取 m3u8 内容
   let m3u8Content = fetchSync(hlsUrl, { cache: false });
-  if (!m3u8Content) return hlsUrl;
-  let lines = m3u8Content.split('\n').filter(l => l.trim() && !l.startsWith('#'));
-  if (lines.length === 0) return hlsUrl;
-  let lastLine = lines[lines.length - 1].trim();
+  if (!m3u8Content) return hlsUrl; // 无法获取内容，降级返回原始链接
   
+  // 解析 m3u8 中的子流（EXT-X-STREAM-INF）
+  let lines = m3u8Content.split(/\r?\n/);
+  let bestBandwidth = -1;
+  let bestUrl = null;
   let baseUrl = hlsUrl.substring(0, hlsUrl.lastIndexOf('/') + 1);
-  let targetUrl = lastLine.startsWith('http') ? lastLine : baseUrl + lastLine;
   
-  // 尝试替换码率为 1200
-  let pathParts = targetUrl.split('/');
-  for (let i = 0; i < pathParts.length; i++) {
-    if (/^\d+$/.test(pathParts[i]) && pathParts[i] !== '1200') {
-      pathParts[i] = '1200';
-      break;
+  for (let i = 0; i < lines.length; i++) {
+    let line = lines[i].trim();
+    if (line.startsWith('#EXT-X-STREAM-INF')) {
+      // 提取 BANDWIDTH
+      let bandwidthMatch = line.match(/BANDWIDTH=(\d+)/);
+      let bandwidth = bandwidthMatch ? parseInt(bandwidthMatch[1]) : 0;
+      // 下一行是流地址
+      let nextLine = lines[i + 1] ? lines[i + 1].trim() : '';
+      if (nextLine && !nextLine.startsWith('#')) {
+        let streamUrl = nextLine.startsWith('http') ? nextLine : baseUrl + nextLine;
+        if (bandwidth > bestBandwidth) {
+          bestBandwidth = bandwidth;
+          bestUrl = streamUrl;
+        }
+      }
     }
   }
-  let lastPart = pathParts[pathParts.length - 1];
-  if (lastPart.includes('.m3u8')) {
-    let newLast = lastPart.replace(/\d+(?=\.m3u8)/, '1200');
-    pathParts[pathParts.length - 1] = newLast;
+  
+  // 如果没找到流（可能主文件是直接视频而非多码率），则返回原始 hls_url
+  if (!bestUrl) {
+    // 尝试取最后一个非注释行作为播放地址
+    let nonCommentLines = lines.filter(l => l.trim() && !l.trim().startsWith('#'));
+    if (nonCommentLines.length > 0) {
+      let lastLine = nonCommentLines[nonCommentLines.length - 1].trim();
+      bestUrl = lastLine.startsWith('http') ? lastLine : baseUrl + lastLine;
+    } else {
+      bestUrl = hlsUrl;
+    }
   }
-  let highUrl = pathParts.join('/');
-  return highUrl;
+  
+  return bestUrl;
 }
 
 function detail(vodId) {
@@ -214,7 +227,7 @@ function detail(vodId) {
   }
   if (videoList.length === 0) return JSON.stringify({ list: [] });
   
-  // 提取第一集的播放地址，填入 vod_director（导演）字段用于调试
+  // 提取第一集的播放地址，填入 vod_director 用于调试（使用稳健函数）
   let debugPlayUrl = '';
   let firstPid = videoList[0].split('$')[1];
   if (firstPid) {
@@ -231,8 +244,8 @@ function detail(vodId) {
     vod_area: "",
     vod_remarks: displayDate,
     vod_actor: "",
-    vod_director: debugPlayUrl,   // 播放地址（m3u8）放在导演字段，便于验证
-    vod_content: "当前页面默认只展示最新100期的内容,可在分类页面选择年份和月份进行往期节目查看。年份和月份仅影响当前页面内容,不参与分类过滤。视频默认播放可以获取到的最高帧率。",
+    vod_director: debugPlayUrl,   // 完整有效的播放地址（m3u8）
+    vod_content: " ②当前页面默认只展示最新100期的内容,可在分类页面选择年份和月份进行往期节目查看。年份和月份仅影响当前页面内容,不参与分类过滤。视频默认播放可以获取到的最高帧率。",
     vod_play_from: "CCTV",
     vod_play_url: videoList.join("#")
   };
