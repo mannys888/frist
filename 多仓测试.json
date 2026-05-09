@@ -128,6 +128,16 @@
 		"ext": "./m3u/feimaolive(1).json"
 	},
     {
+      "key": "js_百度",
+      "name": "🟣百度🟣测试🀄️",
+      "type": 3,
+      "api": "https://raw.githubusercontent.com/mannys888/frist/refs/heads/main/百度.js",
+      "searchable": 1,
+      "quickSearch": 1,
+      "filterable": 1,
+      "ext": "https://raw.githubusercontent.com/mannys888/frist/refs/heads/main/feimaolive(1).json"
+    },
+    {
       "key": "js_nangua",
       "name": "🟣cctv🟣测试🀄️",
       "type": 3,
