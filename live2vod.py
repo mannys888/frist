@@ -6,7 +6,6 @@ from base.spider import Spider
 import json
 import time
 import base64
-import requests
 import re
 import traceback
 
@@ -17,11 +16,9 @@ class Spider(Spider):
     def init(self, extend=""):
         print("============ 小学学习爬虫初始化 ============")
         print("extend参数: %s" % extend)
-        # 可以在这里初始化一些配置，如分类文件地址
         self.category_url = "https://raw.githubusercontent.com/mannys888/frist/refs/heads/main/cateManual(1).json"
-        # 如果本地有文件，也可以使用本地地址
-        # self.category_url = "http://127.0.0.1:9978/file/test-教育课-py/py/cateManual.json"
-        pass
+        # 文件内容缓存，避免重复下载
+        self.file_cache = {}
 
     def isVideoFormat(self, url):
         pass
@@ -32,12 +29,10 @@ class Spider(Spider):
     def homeContent(self, filter):
         result = {}
         classes = []
-        # 尝试从远程获取分类配置
         try:
-            rsp = requests.get(self.category_url, timeout=10)
+            rsp = self.fetch(self.category_url, headers=self.header)
             if rsp.status_code == 200:
                 cateManual = rsp.json()
-                # 期望格式: {"分类名1": "文件标识1", "分类名2": "文件标识2"}
                 for k in cateManual:
                     classes.append({
                         'type_name': k,
@@ -47,7 +42,6 @@ class Spider(Spider):
                 raise Exception("HTTP %d" % rsp.status_code)
         except Exception as e:
             print("获取分类配置失败: %s" % e)
-            # 如果获取失败，使用默认分类（硬编码，可根据需要修改）
             print("使用默认硬编码分类")
             default_categories = {
                 "迦南诗歌": "迦南诗歌.txt",
@@ -59,36 +53,32 @@ class Spider(Spider):
                     'type_name': k,
                     'type_id': default_categories[k]
                 })
-
         result['class'] = classes
-        # 如果你有过滤器配置，可以添加，否则为 None
         result['filters'] = {} if filter else None
         return result
 
     def homeVideoContent(self):
-        result = {'list': []}
-        return result
+        return {'list': []}
 
-    def get_rank(self, tid):
-        """从 GitHub 读取文本文件，解析为视频列表"""
-        url = 'https://raw.githubusercontent.com/mannys888/frist/refs/heads/main/{0}'.format(tid)
-        print("正在解析文件: %s" % url)
+    def _parse_file_to_videos(self, file_url):
+        """解析文本文件，返回视频列表（每个元素为 {title, url}）"""
+        if file_url in self.file_cache:
+            return self.file_cache[file_url]
         try:
-            response = requests.get(url, timeout=15)
-            if response.status_code != 200:
-                print("获取文件失败，状态码: %d" % response.status_code)
+            rsp = self.fetch(file_url, headers=self.header)
+            if rsp.status_code != 200:
+                print("获取文件失败: %s" % rsp.status_code)
                 return []
-            content = response.text
+            content = rsp.text
             videos = []
             lines = content.splitlines()
             for line in lines:
                 line = line.strip()
                 if not line or line.startswith('#'):
                     continue
-                # 支持多种分隔符: 逗号、竖线、制表符、空格
                 title = None
                 link = None
-                # 尝试用常见分隔符分割
+                # 支持分隔符: , | \t 空格
                 for sep in [',', '|', '\t', ' ']:
                     if sep in line:
                         parts = line.split(sep, 1)
@@ -96,18 +86,12 @@ class Spider(Spider):
                             title = parts[0].strip()
                             link = parts[1].strip()
                             break
-                # 如果没有分隔符，检查整行是否为 URL
                 if not title and re.match(r'^https?://', line):
                     title = "媒体文件"
                     link = line
                 if title and link:
-                    videos.append({
-                        "vod_id": link + "###single",   # 添加后缀，便于 detail 识别
-                        "vod_name": title,
-                        "vod_pic": link,  # 可以替换为默认封面
-                        "vod_remarks": ''
-                    })
-            print("解析到 %d 个视频" % len(videos))
+                    videos.append({"title": title, "url": link})
+            self.file_cache[file_url] = videos
             return videos
         except Exception as e:
             print("解析文件出错: %s" % e)
@@ -119,23 +103,8 @@ class Spider(Spider):
         pg = int(pg) if pg else 1
         print("categoryContent: tid=%s, pg=%d" % (tid, pg))
 
-        # 如果 tid 不是以 TOPC 开头（央视分类），则走普通文件解析
-        if not tid.startswith('TOPC'):
-            videos = self.get_rank(tid)
-            total = len(videos)
-            # 简单分页，每页 50 条
-            page_size = 50
-            start = (pg - 1) * page_size
-            page_list = videos[start:start+page_size]
-            pagecount = (total + page_size - 1) // page_size if total > 0 else 1
-            result['list'] = page_list
-            result['page'] = pg
-            result['pagecount'] = pagecount
-            result['limit'] = page_size
-            result['total'] = total
-        else:
-            # 央视分类处理（原代码逻辑，但需要完善）
-            # 拼接参数
+        # 央视分类分支（保留）
+        if tid.startswith('TOPC'):
             filterParams = ["id", "p", "d"]
             params = []
             for fp in filterParams:
@@ -173,24 +142,68 @@ class Spider(Spider):
                 result['pagecount'] = 0
                 result['limit'] = 90
                 result['total'] = 0
+            return result
 
+        # 普通文件分类：每个 txt 文件作为一个合集（单条目），提高用户体验
+        file_url = "https://raw.githubusercontent.com/mannys888/frist/refs/heads/main/{0}".format(tid)
+        videos = self._parse_file_to_videos(file_url)
+        if not videos:
+            result['list'] = []
+        else:
+            # 构造一个虚拟的 vod_id，用于 detailContent 识别（格式：file://文件URL###分类名）
+            # 同时存储分类名，便于显示
+            vod_id = "file://{0}###{1}".format(file_url, tid)
+            result['list'] = [{
+                "vod_id": vod_id,
+                "vod_name": tid.replace('.txt', '') + " 合集",   # 显示为“迦南诗歌 合集”
+                "vod_pic": "",   # 可以设置一个默认封面
+                "vod_remarks": "共{}集".format(len(videos))
+            }]
+        result['page'] = pg
+        result['pagecount'] = 1
+        result['limit'] = 20
+        result['total'] = len(videos)
         return result
 
     def detailContent(self, array):
-        # array 是一个列表，本爬虫中传入的是 vod_id（可能包含额外信息）
         vod_input = array[0]
-        parts = vod_input.split('###')
-        tid = parts[0]
-        # 如果有封面图，则使用，否则留空
-        pic_url = parts[1] if len(parts) > 1 else ""
+        # 处理文件合集类型
+        if vod_input.startswith('file://'):
+            # 格式：file://文件URL###分类名
+            parts = vod_input.split('###')
+            if len(parts) >= 2:
+                file_url = parts[0][7:]  # 去掉 "file://"
+                category_name = parts[1]
+                videos = self._parse_file_to_videos(file_url)
+                if videos:
+                    # 拼接播放列表：标题1$url1#标题2$url2
+                    play_url = "#".join(["{0}${1}".format(v['title'], v['url']) for v in videos])
+                    vod = {
+                        "vod_id": vod_input,
+                        "vod_name": category_name.replace('.txt', '') + " 合集",
+                        "vod_pic": "",
+                        "type_name": "教育",
+                        "vod_year": "",
+                        "vod_area": "",
+                        "vod_remarks": "共{}集".format(len(videos)),
+                        "vod_actor": "",
+                        "vod_director": "",
+                        "vod_content": "本合集包含{}个视频，请在播放列表中选择。".format(len(videos)),
+                        "vod_play_from": "直链",
+                        "vod_play_url": play_url
+                    }
+                    return {'list': [vod]}
+                else:
+                    return {'list': []}
 
-        # 如果 tid 是 http 开头的，说明是普通媒体文件，直接返回播放地址
-        if tid.startswith('http'):
-            title = tid.split('/')[-1].split('.')[0] if '/' in tid else "媒体文件"
+        # 直链类型（旧格式：url###single）
+        if vod_input.startswith('http') and '###single' in vod_input:
+            url_part = vod_input.split('###')[0]
+            title = url_part.split('/')[-1].split('.')[0]
             vod = {
-                "vod_id": tid,
+                "vod_id": vod_input,
                 "vod_name": title,
-                "vod_pic": pic_url,
+                "vod_pic": "",
                 "type_name": '',
                 "vod_year": "",
                 "vod_area": "",
@@ -199,49 +212,61 @@ class Spider(Spider):
                 "vod_director": "",
                 "vod_content": "",
                 "vod_play_from": "直链",
-                "vod_play_url": title + "$" + tid
+                "vod_play_url": title + "$" + url_part
             }
             return {'list': [vod]}
 
-        # 否则视为央视 pid，请求播放地址
-        url = "https://vdn.apps.cntv.cn/api/getHttpVideoInfo.do?pid={0}".format(tid)
-        try:
-            rsp = self.fetch(url, headers=self.header)
-            jo = json.loads(rsp.text)
-            title = jo.get('title', '未知标题').strip()
-            link = jo.get('hls_url', '').strip()
-            if not link:
-                raise Exception("没有获取到播放地址")
-            vod = {
-                "vod_id": tid,
-                "vod_name": title,
-                "vod_pic": pic_url,
-                "type_name": '',
-                "vod_year": "",
-                "vod_area": "",
-                "vod_remarks": "",
-                "vod_actor": "",
-                "vod_director": "",
-                "vod_content": "",
-                "vod_play_from": "央视源",
-                "vod_play_url": title + "$" + link
-            }
-            return {'list': [vod]}
-        except Exception as e:
-            print("获取详情失败: %s" % e)
-            # 出错时返回一个占位，避免前端报错
-            vod = {
-                "vod_id": tid,
-                "vod_name": "播放失败",
-                "vod_pic": pic_url,
-                "vod_play_from": "错误",
-                "vod_play_url": ""
-            }
-            return {'list': [vod]}
+        # 央视 pid 类型（pid###img）
+        if '###' in vod_input:
+            parts = vod_input.split('###')
+            pid = parts[0]
+            pic_url = parts[1] if len(parts) > 1 else ""
+            url = "https://vdn.apps.cntv.cn/api/getHttpVideoInfo.do?pid={0}".format(pid)
+            try:
+                rsp = self.fetch(url, headers=self.header)
+                jo = json.loads(rsp.text)
+                title = jo.get('title', '未知标题').strip()
+                link = jo.get('hls_url', '').strip()
+                if not link:
+                    raise Exception("没有获取到播放地址")
+                vod = {
+                    "vod_id": pid,
+                    "vod_name": title,
+                    "vod_pic": pic_url,
+                    "type_name": '',
+                    "vod_year": "",
+                    "vod_area": "",
+                    "vod_remarks": "",
+                    "vod_actor": "",
+                    "vod_director": "",
+                    "vod_content": "",
+                    "vod_play_from": "央视源",
+                    "vod_play_url": title + "$" + link
+                }
+                return {'list': [vod]}
+            except Exception as e:
+                print("获取详情失败: %s" % e)
+                vod = {
+                    "vod_id": pid,
+                    "vod_name": "播放失败",
+                    "vod_pic": pic_url,
+                    "vod_play_from": "错误",
+                    "vod_play_url": ""
+                }
+                return {'list': [vod]}
+
+        # 保底：直接当作普通链接处理
+        vod = {
+            "vod_id": vod_input,
+            "vod_name": "未知视频",
+            "vod_pic": "",
+            "vod_play_from": "直链",
+            "vod_play_url": "视频$" + vod_input
+        }
+        return {'list': [vod]}
 
     def searchContent(self, key, quick):
-        result = {'list': []}
-        return result
+        return {'list': []}
 
     def playerContent(self, flag, url, vipFlags):
         result = {}
@@ -264,5 +289,4 @@ class Spider(Spider):
     }
 
     def localProxy(self, param):
-        # 如果需要代理，在这里实现，否则可以返回空或直接转发
         return [200, "video/MP2T", "", ""]
