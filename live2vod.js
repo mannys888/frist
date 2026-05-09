@@ -1,14 +1,14 @@
-// ==================== 完全动态爬虫（零硬编码） ====================
-// 版本: 11.0.0
-// 特性: 所有数据源均来自 ext 配置，包括特殊类型（如 cctv）
+// ==================== 完全动态爬虫（零硬编码）+ 合集模式 ====================
+// 版本: 11.1.0
+// 特性: 所有数据源均来自 ext 配置，支持集合播放列表
 
 const header = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
 };
 
 // ==================== 全局变量 ====================
-let dynamicClasses = [];        // 动态分类列表
-let extBasePath = "";           // ext 文件的基础路径
+let dynamicClasses = [];
+let extBasePath = "";
 let defaultBasePath = "https://raw.githubusercontent.com/mannys888/frist/refs/heads/main/";
 let cache = {};
 let debugMode = true;
@@ -99,14 +99,13 @@ function parseContent(content, options = {}) {
     return items;
 }
 
-// ==================== ext 配置解析（核心动态部分） ====================
+// ==================== ext 配置解析 ====================
 function parseExtConfig(extParam, basePath) {
     let classes = [];
     if (!extParam) return classes;
 
     try {
         let configData = null;
-        // 1. ext 是 URL -> 下载并解析
         if (typeof extParam === 'string' && extParam.match(/^https?:\/\//i)) {
             log(`下载 ext 配置: ${extParam}`, "INFO");
             let content = fetchSync(extParam);
@@ -116,22 +115,17 @@ function parseExtConfig(extParam, basePath) {
                 } catch(e) { configData = content; }
             }
         } 
-        // 2. ext 是 JSON 字符串
         else if (typeof extParam === 'string' && (extParam.trim().startsWith('{') || extParam.trim().startsWith('['))) {
             try { configData = JSON.parse(extParam); } catch(e) { configData = extParam; }
         }
-        // 3. ext 已经是对象
         else if (typeof extParam === 'object') {
             configData = extParam;
         }
-        // 4. 其他字符串当作纯文本
         else if (typeof extParam === 'string') {
             configData = extParam;
         }
 
-        // 根据配置结构生成分类
         if (configData) {
-            // 情况：数组格式 [{name, url/typeId, ...}]
             if (Array.isArray(configData)) {
                 for (let item of configData) {
                     if (item.name) {
@@ -144,13 +138,12 @@ function parseExtConfig(extParam, basePath) {
                             type_id: typeId,
                             icon: item.icon || "",
                             description: item.description || "",
-                            handler: item.handler || null,      // 自定义处理器（如 "cctv"）
-                            parseConfig: item.parseConfig || null // 自定义解析配置
+                            handler: item.handler || null,
+                            parseConfig: item.parseConfig || null
                         });
                     }
                 }
             }
-            // 情况：对象格式 { sites: [...] }
             else if (configData.sites && Array.isArray(configData.sites)) {
                 for (let site of configData.sites) {
                     if (site.name) {
@@ -168,7 +161,6 @@ function parseExtConfig(extParam, basePath) {
                     }
                 }
             }
-            // 情况：对象格式 { categories: [...] }
             else if (configData.categories && Array.isArray(configData.categories)) {
                 for (let cat of configData.categories) {
                     if (cat.name) {
@@ -186,7 +178,6 @@ function parseExtConfig(extParam, basePath) {
                     }
                 }
             }
-            // 情况：纯文本（每行: 名称,URL）
             else if (typeof configData === 'string') {
                 let lines = configData.split(/\r?\n/);
                 for (let line of lines) {
@@ -212,18 +203,15 @@ function parseExtConfig(extParam, basePath) {
         log(`解析 ext 失败: ${e.message}`, "ERROR");
     }
 
-    // 不再提供默认分类！如果没有配置，返回空数组
     if (classes.length === 0) {
         log("警告: ext 配置未生成任何分类，请检查配置内容", "WARN");
     }
     return classes;
 }
 
-// ==================== 动态处理器：根据 handler 执行不同逻辑 ====================
+// ==================== 处理器（如 cctv） ====================
 function handleCategoryByHandler(handler, tid, pg, context) {
-    // handler 可以是字符串（内置处理器名称）或函数字符串
     if (handler === "cctv") {
-        // 从 ext 配置中获取 cctv 频道列表（不再硬编码）
         let cctvChannels = context.cctvChannels || [];
         if (cctvChannels.length === 0) {
             log("未在 ext 中配置 cctvChannels，返回空", "WARN");
@@ -243,17 +231,15 @@ function handleCategoryByHandler(handler, tid, pg, context) {
     if (typeof handler === 'function') {
         return handler(tid, pg, context);
     }
-    // 其他自定义处理器可扩展
     return null;
 }
 
-// ==================== 通用文件处理器 ====================
-function handleFileSource(fileUrl, parseConfig, basePath) {
+// ==================== 文件处理器（支持合集模式） ====================
+function handleFileSource(fileUrl, parseConfig, basePath, asCollection = false) {
     let resolvedUrl = fileUrl;
     if (!resolvedUrl.match(/^https?:\/\//i)) {
         resolvedUrl = resolvePath(fileUrl, basePath);
     }
-    // 自动补全扩展名（如果 parseConfig 指定了默认扩展名）
     if (parseConfig && parseConfig.autoExt && !resolvedUrl.includes('.')) {
         let testUrl = resolvedUrl + parseConfig.autoExt;
         let testContent = fetchSync(testUrl, true);
@@ -267,7 +253,6 @@ function handleFileSource(fileUrl, parseConfig, basePath) {
     if (!content) return [];
 
     let items = [];
-    // 优先使用 parseConfig 指定的解析方式
     if (parseConfig && parseConfig.type === "json") {
         try {
             let json = JSON.parse(content);
@@ -289,10 +274,22 @@ function handleFileSource(fileUrl, parseConfig, basePath) {
         }
     }
     else {
-        // 默认文本解析
         items = parseContent(content, { separators: parseConfig?.separators || [',', '\t', '|', '$'] });
     }
 
+    // 合集模式：返回单个条目，vod_id 后缀为 ###file
+    if (asCollection && items.length > 0) {
+        let collectionName = parseConfig?.collectionName || (fileUrl.split('/').pop().replace(/\.(txt|m3u8?|json)$/i, '') + " 合集");
+        let vod_id = resolvedUrl + "###file";
+        return [{
+            vod_id: vod_id,
+            vod_name: collectionName,
+            vod_pic: getRandomCover(collectionName),
+            vod_remarks: `共${items.length}集`
+        }];
+    }
+
+    // 非合集模式：每个资源一个条目
     let videos = [];
     let fileBase = resolvedUrl.substring(0, resolvedUrl.lastIndexOf('/') + 1);
     for (let item of items) {
@@ -311,7 +308,7 @@ function handleFileSource(fileUrl, parseConfig, basePath) {
 
 // ==================== 对外接口 ====================
 function init(extend) {
-    log(`========== 爬虫初始化 ==========`, "INFO");
+    log(`========== 爬虫初始化（合集模式支持） ==========`, "INFO");
     extBasePath = defaultBasePath;
     if (extend && typeof extend === 'string' && extend.match(/^https?:\/\//i)) {
         extBasePath = extend.substring(0, extend.lastIndexOf('/') + 1);
@@ -335,7 +332,6 @@ function category(tid, pg, filter, extend) {
         return JSON.stringify({ list: [], page: pg, pagecount: 1, limit: 90, total: 0 });
     }
 
-    // 查找当前分类的配置
     let classConfig = dynamicClasses.find(c => c.type_id === tid || c.type_name === tid);
     if (!classConfig) {
         log(`未找到分类配置: ${tid}`, "WARN");
@@ -345,10 +341,9 @@ function category(tid, pg, filter, extend) {
     let videos = [];
     let handler = classConfig.handler;
     let parseConfig = classConfig.parseConfig || {};
+    let collectionMode = parseConfig.collectionMode === true;
 
-    // 优先使用自定义处理器
     if (handler) {
-        // 构建上下文，可以包含 ext 中传递的额外配置（如 cctvChannels）
         let context = { 
             cctvChannels: parseConfig.cctvChannels || [], 
             basePath: extBasePath,
@@ -359,10 +354,9 @@ function category(tid, pg, filter, extend) {
         else log(`处理器 ${handler} 未返回数据`, "WARN");
     }
 
-    // 如果没有 handler 或 handler 未返回数据，则按普通文件处理
     if (videos.length === 0) {
         let fileUrl = classConfig.type_id;
-        videos = handleFileSource(fileUrl, parseConfig, extBasePath);
+        videos = handleFileSource(fileUrl, parseConfig, extBasePath, collectionMode);
     }
 
     return JSON.stringify({
@@ -380,8 +374,72 @@ function detail(vodId) {
     if (parts.length < 2) return JSON.stringify({ list: [] });
     let videoId = parts[0];
     let type = parts[1];
+
+    // 合集类型（文件集合）
+    if (type === "file") {
+        let fileUrl = videoId;
+        if (!fileUrl.match(/^https?:\/\//i)) fileUrl = resolvePath(fileUrl, extBasePath);
+        let content = fetchSync(fileUrl);
+        if (!content) return JSON.stringify({ list: [] });
+        let baseDir = fileUrl.substring(0, fileUrl.lastIndexOf('/') + 1);
+        let items = [];
+
+        // JSON
+        if (content.trim().startsWith('{') || content.trim().startsWith('[')) {
+            try {
+                let json = JSON.parse(content);
+                let arr = Array.isArray(json) ? json : (json.list || json.data || []);
+                for (let item of arr) {
+                    let title = item.title || item.name || "未命名";
+                    let url = item.url || item.link || item.src || item.play_url;
+                    if (url) {
+                        if (!url.match(/^https?:\/\//i)) url = resolvePath(url, baseDir);
+                        items.push(`${title}$${url}`);
+                    }
+                }
+            } catch(e) {}
+        }
+        // M3U
+        if (items.length === 0 && content.includes("#EXTM3U")) {
+            let lines = content.split(/\r?\n/);
+            let currentTitle = "";
+            for (let line of lines) {
+                line = line.trim();
+                if (line.startsWith("#EXTINF:")) {
+                    let match = line.match(/#EXTINF:.*?,(.*)/);
+                    if (match) currentTitle = match[1].trim();
+                } else if (line && !line.startsWith("#")) {
+                    if (line.match(/^https?:\/\//i)) {
+                        items.push(`${currentTitle || "直播流"}$${line}`);
+                        currentTitle = "";
+                    }
+                }
+            }
+        }
+        // 通用分隔符
+        if (items.length === 0) {
+            let separators = [',', '\t', '|', '$'];
+            let parsed = parseContent(content, { separators });
+            for (let p of parsed) {
+                items.push(`${p.title}$${p.url}`);
+            }
+        }
+
+        if (items.length === 0) return JSON.stringify({ list: [] });
+        let playUrl = items.join("#");
+        let firstTitle = items[0].split('$')[0] || "媒体合集";
+        let vod = {
+            vod_id: vodId,
+            vod_name: firstTitle,
+            vod_pic: getRandomCover(firstTitle),
+            vod_play_from: "播放列表",
+            vod_play_url: playUrl
+        };
+        return JSON.stringify({ list: [vod] });
+    }
+
+    // 原有 cctv 直播
     if (type === "cctv") {
-        // 从 ext 配置中获取的真实流地址（需要提前在 parseConfig.cctvChannels 中配置）
         let classConfig = dynamicClasses.find(c => c.handler === "cctv");
         let channels = classConfig?.parseConfig?.cctvChannels || [];
         let channel = channels.find(ch => ch.id === videoId);
