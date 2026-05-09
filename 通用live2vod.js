@@ -1,6 +1,5 @@
-// ==================== 零硬编码通用动态爬虫 v20 (集合播放列表版) ====================
-// 新增：支持 collectionMode 将文件目录生成为一个合集条目，详情页展示播放列表
-// 修复：ext 为空时不会崩溃，能正确解析 sites/categories/list，生成带 vod_id 的视频列表
+// ==================== 零硬编码通用动态爬虫 v20.1 (稳定合集版) ====================
+// 修复：确保 collectionMode 正确生成合集条目，并输出详细日志
 // 支持：M3U解析、动态分页、请求头配置、后处理钩子、重试机制
 
 let dynamicClasses = [];
@@ -111,7 +110,7 @@ function parseByType(content, parseConfig, baseUrl) {
         let separators = parseConfig.separators || [',', '|', '$', '\t'];
         let lines = content.split(/\r?\n/);
         for (let line of lines) {
-            line = line.trim();
+            line = line.strip?.() || line.trim();
             if (!line || line.startsWith('#') || line.includes('#genre#')) continue;
             let title = "", url = "";
             let bestSep = null, bestIdx = -1;
@@ -213,18 +212,23 @@ function handleFileSource(fileUrl, parseConfig, basePath, coverConfig, pg = 1, a
     
     // 合集模式：只返回一个条目，vod_id 后缀为 ###file
     if (asCollection) {
+        if (total === 0) {
+            log(`合集模式：文件 ${resolvedUrl} 未解析到任何有效条目，跳过`, "WARN");
+            return { list: [], total: 0, nextPage: null };
+        }
         let collectionName = parseConfig.collectionName || (fileUrl.split('/').pop().replace(/\.(txt|m3u8?|json)$/i, '') + " 合集");
         let vod_id = resolvedUrl + "###file";
         let vod = {
             vod_id: vod_id,
             vod_name: collectionName,
             vod_pic: getCover(collectionName, resolvedUrl, coverConfig),
-            vod_remarks: "共" + total + "集"
+            vod_remarks: `📚 共${total}集`   // 更明显的标识
         };
+        log(`✅ 生成合集条目: ${collectionName} (${total}集)`, "INFO");
         return {
             list: [vod],
             total: total,
-            nextPage: null   // 合集模式下不分页
+            nextPage: null
         };
     }
     
@@ -337,7 +341,7 @@ function invokeHandler(handlerName, context, customHandlers) {
 let globalExtConfig = null;
 
 function init(extend) {
-    log("零硬编码爬虫 v20 (集合播放列表版) 初始化", "INFO");
+    log("零硬编码爬虫 v20.1 (稳定合集版) 初始化", "INFO");
     if (typeof extend === 'string' && extend.match(/^https?:\/\//i)) {
         let lastSlash = extend.lastIndexOf('/');
         if (lastSlash > 0) extBasePath = extend.substring(0, lastSlash + 1);
@@ -391,8 +395,9 @@ function category(tid, pg, filter, extend) {
     let customHandlers = globalExtConfig.customHandlers || {};
     let coverConfig = globalExtConfig.cover || {};
     
-    // 检查是否启用合集模式（默认为 false，保持向后兼容）
+    // 检查是否启用合集模式
     let collectionMode = parseConfig.collectionMode === true;
+    log(`分类 ${classConfig.type_name} 合集模式: ${collectionMode}`, "DEBUG");
     
     if (handler) {
         let ctx = { tid, pg, filter, parseConfig, coverConfig, basePath: extBasePath, customHandlers, globalExtConfig };
@@ -425,7 +430,6 @@ function detail(vodId) {
     let id = parts[0];
     let type = parts[1];
     
-    // 单文件播放（传统模式）
     if (type === "single") {
         let title = id.split('/').pop().split('.')[0] || "媒体";
         title = decodeURIComponent(title);
@@ -438,7 +442,6 @@ function detail(vodId) {
         };
         return JSON.stringify({ list: [vod] });
     }
-    // 文件合集模式（新增）
     else if (type === "file") {
         let fileUrl = id;
         if (!fileUrl.match(/^https?:\/\//i)) fileUrl = resolvePath(fileUrl, extBasePath);
@@ -446,12 +449,13 @@ function detail(vodId) {
         if (!content) return JSON.stringify({ list: [] });
         let baseDir = fileUrl.substring(0, fileUrl.lastIndexOf('/') + 1);
         let playUrl = "";
-        // 尝试 JSON 解析
+        let items = [];
+        
+        // JSON
         if (content.trim().startsWith('{') || content.trim().startsWith('[')) {
             try {
                 let json = JSON.parse(content);
                 let arr = Array.isArray(json) ? json : (json.list || json.data || []);
-                let items = [];
                 for (let item of arr) {
                     let title = item.title || item.name || "未命名";
                     let url = item.url || item.link || item.src || item.play_url;
@@ -461,21 +465,26 @@ function detail(vodId) {
                     }
                 }
                 playUrl = items.join("#");
-            } catch(e) {}
+            } catch(e) { log("JSON解析失败", "WARN"); }
         }
-        // M3U 解析
+        // M3U
         if (!playUrl && content.includes("#EXTM3U")) {
-            let items = parseByType(content, { type: "m3u" }, baseDir);
-            playUrl = items.map(item => `${item.title}$${item.url}`).join("#");
+            let parsed = parseByType(content, { type: "m3u" }, baseDir);
+            items = parsed.map(item => `${item.title}$${item.url}`);
+            playUrl = items.join("#");
         }
-        // 通用文本解析（按分隔符）
+        // 通用分隔符
         if (!playUrl) {
             let separators = globalExtConfig.separators || [',', '|', '$', '\t'];
-            playUrl = parseByType(content, { separators: separators }, baseDir)
-                        .map(item => `${item.title}$${item.url}`).join("#");
+            let parsed = parseByType(content, { separators: separators }, baseDir);
+            items = parsed.map(item => `${item.title}$${item.url}`);
+            playUrl = items.join("#");
         }
-        if (!playUrl) return JSON.stringify({ list: [] });
-        let firstTitle = playUrl.split('#')[0].split('$')[0] || "媒体合集";
+        if (!playUrl || items.length === 0) {
+            log(`合集文件 ${fileUrl} 未能解析出任何播放地址`, "ERROR");
+            return JSON.stringify({ list: [] });
+        }
+        let firstTitle = items[0].split('$')[0] || "媒体合集";
         let vod = {
             vod_id: fileUrl,
             vod_name: firstTitle,
@@ -483,6 +492,7 @@ function detail(vodId) {
             vod_play_from: "播放列表",
             vod_play_url: playUrl
         };
+        log(`✅ 生成合集播放列表，共 ${items.length} 条`, "INFO");
         return JSON.stringify({ list: [vod] });
     }
     return JSON.stringify({ list: [] });
