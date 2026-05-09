@@ -240,7 +240,7 @@ function detail(vodId) {
     vod_remarks: displayDate,
     vod_actor: "",
     vod_director: debugPlayUrl,
-    vod_content: " ③当前页面默认只展示最新100期的内容,可在分类页面选择年份和月份进行往期节目查看。年份和月份仅影响当前页面内容,不参与分类过滤。视频默认播放可以获取到的最高帧率。",
+    vod_content: debugPlayUrl,
     vod_play_from: "CCTV",
     vod_play_url: videoList.join("#")
   };
