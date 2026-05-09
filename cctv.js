@@ -1,7 +1,6 @@
-// ==================== 央视大全爬虫 (完整修复版，支持导演字段显示播放地址) ====================
+// ==================== 央视大全爬虫 (简化版，直接使用原始 hls_url) ====================
 let globalHeaders = {
   "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/94.0.4606.54 Safari/537.36",
-  //"Host": "dh5.cntv.cdn20.com",
   "Origin": "https://tv.cctv.com",
   "Referer": "https://tv.cctv.com/"
 };
@@ -31,7 +30,7 @@ function fetchSync(url, options = {}) {
   }
 }
 
-// ---------- 筛选器配置 ----------
+// 筛选器配置（完整保留）
 const filtersConfig = [
   {
     "key": "cid", "name": "频道", "value": [
@@ -88,7 +87,7 @@ const filtersConfig = [
 ];
 
 function init(extend) {
-  console.log("央视大全爬虫-完整修复版");
+  console.log("央视大全爬虫-简化版（直接使用原始hls_url）");
 }
 
 function home() {
@@ -129,7 +128,7 @@ function category(tid, pg, filter, extend) {
   for (let vod of json.response.docs) {
     let lastVideo = vod.lastVIDE?.videoSharedCode || '';
     if (lastVideo === '') lastVideo = '_';
-    let guid = `${prefix}###${vod.column_name}###${lastVideo}###${vod.column_logo || ''}`;
+    let guid = `${prefix}###${vod.column_name}###${lastVideo}###vod.column_logo || ''}`;
     videos.push({
       vod_id: guid,
       vod_name: vod.column_name,
@@ -149,48 +148,13 @@ function category(tid, pg, filter, extend) {
   });
 }
 
-// 获取最佳码率 m3u8（解析子流，选择最高带宽）
-function getBestM3u8(pid) {
+// 直接返回原始 hls_url（不再解析子流）
+function getRawHlsUrl(pid) {
   if (!pid) return null;
   let infoUrl = `https://vdn.apps.cntv.cn/api/getHttpVideoInfo.do?pid=${pid}`;
   let info = fetchSync(infoUrl, { json: true });
   if (!info || !info.hls_url) return null;
-  let hlsUrl = info.hls_url.trim();
-  
-  let m3u8Content = fetchSync(hlsUrl, { cache: false });
-  if (!m3u8Content) return hlsUrl;
-  
-  let lines = m3u8Content.split(/\r?\n/);
-  let bestBandwidth = -1;
-  let bestUrl = null;
-  let baseUrl = hlsUrl.substring(0, hlsUrl.lastIndexOf('/') + 1);
-  
-  for (let i = 0; i < lines.length; i++) {
-    let line = lines[i].trim();
-    if (line.startsWith('#EXT-X-STREAM-INF')) {
-      let bwMatch = line.match(/BANDWIDTH=(\d+)/);
-      let bandwidth = bwMatch ? parseInt(bwMatch[1]) : 0;
-      let nextLine = lines[i + 1] ? lines[i + 1].trim() : '';
-      if (nextLine && !nextLine.startsWith('#')) {
-        let streamUrl = nextLine.startsWith('http') ? nextLine : baseUrl + nextLine;
-        if (bandwidth > bestBandwidth) {
-          bestBandwidth = bandwidth;
-          bestUrl = streamUrl;
-        }
-      }
-    }
-  }
-  
-  if (!bestUrl) {
-    let nonComment = lines.filter(l => l.trim() && !l.trim().startsWith('#'));
-    if (nonComment.length > 0) {
-      let last = nonComment[nonComment.length - 1].trim();
-      bestUrl = last.startsWith('http') ? last : baseUrl + last;
-    } else {
-      bestUrl = hlsUrl;
-    }
-  }
-  return bestUrl;
+  return info.hls_url.trim();
 }
 
 function detail(vodId) {
@@ -222,11 +186,11 @@ function detail(vodId) {
   }
   if (videoList.length === 0) return JSON.stringify({ list: [] });
   
-  // 调试：将第一集的播放地址放入导演字段
-  let debugPlayUrl = '';
+  // 获取第一集的原始 hls_url 用于调试（放入备注字段，避免截断）
+  let debugUrl = '';
   let firstPid = videoList[0].split('$')[1];
   if (firstPid) {
-    debugPlayUrl = getBestM3u8(firstPid) || '';
+    debugUrl = getRawHlsUrl(firstPid) || '';
   }
   
   let displayDate = prefix || new Date().getFullYear().toString();
@@ -237,10 +201,10 @@ function detail(vodId) {
     type_name: channel,
     vod_year: displayDate,
     vod_area: "",
-    vod_remarks: displayDate,
+    vod_remarks: debugUrl,   // 原始播放地址放入备注，显示更完整
     vod_actor: "",
-    vod_director: debugPlayUrl,
-    vod_content: debugPlayUrl,
+    vod_director: topicId,   // 恢复为原来的 topicId
+    vod_content: "当前页面默认只展示最新100期的内容,可在分类页面选择年份和月份进行往期节目查看。年份和月份仅影响当前页面内容,不参与分类过滤。视频默认播放使用原始hls_url（包含maxbr参数）。",
     vod_play_from: "CCTV",
     vod_play_url: videoList.join("#")
   };
@@ -248,12 +212,11 @@ function detail(vodId) {
 }
 
 function play(flag, id, vipFlags) {
-  let bestUrl = getBestM3u8(id);
-  if (!bestUrl) {
+  let rawUrl = getRawHlsUrl(id);
+  if (!rawUrl) {
     return JSON.stringify({ parse: 0, playUrl: '', url: id });
   }
-  // 返回标准播放地址，播放器会使用全局请求头（由爬虫环境自动携带）
-  return JSON.stringify({ parse: 0, playUrl: '', url: "https://vd3.bdstatic.com/mda-rjkc0qsxhxtid8t4/hd/cae_h264/1761039451711934589/mda-rjkc0qsxhxtid8t4.mp4" });
+  return JSON.stringify({ parse: 0, playUrl: '', url: rawUrl });
 }
 
 function search(wd, quick) {
