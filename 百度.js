@@ -1,166 +1,206 @@
-// ==================== 通用视频搜索爬虫（公共API + 内置备用，稳定版） ====================
-// 功能：支持热门推荐（默认搜索“短视频”）和关键词搜索
-// 数据来源：优先调用免费公共API（无需注册），失败时自动切换内置备选数据
+// ==================== SerpApi 谷歌视频搜索爬虫（稳定商业版，需要API密钥） ====================
+// 功能：调用 SerpApi 的 google_videos 引擎，返回视频搜索结果列表，点击播放跳转原网页
+// 使用前请前往 https://serpapi.com/ 注册并获取 API Key（免费套餐每月100次查询）
+// 注意：本爬虫不直接返回视频流地址，而是返回搜索结果页面的原始URL，用户点击后跳转观看
 
+// 全局请求头，模拟普通浏览器访问
 let globalHeaders = {
   "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/94.0.4606.54 Safari/537.36",
-  "Referer": "https://www.baidu.com/"
+  "Accept": "application/json"
 };
 
+// 缓存对象，避免短时间内重复请求相同 URL（可选）
 let cache = {};
 
+// 核心请求函数，兼容 CMS 的 req 方法
+// url: 请求地址, options: { method, headers, cache?: false 禁用缓存 }
 function fetchSync(url, options = {}) {
-  if (cache[url]) return cache[url];
+  // 如果开启缓存且缓存中有，直接返回
+  if (options.cache !== false && cache[url]) {
+    return cache[url];
+  }
   try {
-    let reqOpts = { method: options.method || 'GET', headers: { ...globalHeaders, ...(options.headers || {}) } };
+    let reqOpts = {
+      method: options.method || 'GET',
+      headers: { ...globalHeaders, ...(options.headers || {}) }
+    };
+    // 调用 CMS 提供的 req 函数，返回 { content, status } 或字符串
     let resp = req(url, reqOpts);
     let content = typeof resp === 'string' ? resp : resp.content;
-    if (options.cache !== false) cache[url] = content;
+    // 存入缓存
+    if (options.cache !== false) {
+      cache[url] = content;
+    }
     return content;
   } catch (e) {
-    console.log(`请求失败: ${url} - ${e.message}`);
+    console.log(`SerpApi 请求失败: ${url} - ${e.message}`);
     return '';
   }
 }
 
-// ---------- 内置热门视频数据（保证任何时候都有内容） ----------
-function getBuiltinVideos(keyword, page) {
-  const allVideos = [
-    { title: "【4K】周深《大鱼》官方MV", url: "https://www.bilibili.com/video/BV1Qx411c7eH", pic: "https://i0.hdslb.com/bfs/archive/1b1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c.jpg", remark: "B站 4K" },
-    { title: "邓紫棋《光年之外》官方MV", url: "https://www.iqiyi.com/v_19rrmlz5k0.html", pic: "", remark: "爱奇艺" },
-    { title: "冯提莫《佛系少女》官方版", url: "https://v.qq.com/x/page/n0024j7k8l9.html", pic: "", remark: "腾讯视频" },
-    { title: "宝石Gem《野狼disco》MV", url: "https://v.youku.com/v_show/id_XNDM5MjM0NjI4MA==.html", pic: "", remark: "优酷" },
-    { title: "华晨宇《好想爱这个世界啊》", url: "https://www.bilibili.com/video/BV1YE411p7M1", pic: "", remark: "B站" },
-    { title: "陈奕迅《孤勇者》官方MV", url: "https://v.qq.com/x/cover/mzc00200fct4nnh.html", pic: "", remark: "腾讯视频" },
-    { title: "张杰《逆战》官方MV", url: "https://www.iqiyi.com/v_19rrmlz5k0.html", pic: "", remark: "爱奇艺" },
-    { title: "蔡徐坤《情人》舞台版", url: "https://v.youku.com/v_show/id_XNDc1MjQ5MTU2MA==.html", pic: "", remark: "优酷" },
-    { title: "李荣浩《麻雀》MV", url: "https://www.bilibili.com/video/BV1nJ411F7qL", pic: "", remark: "B站" }
-  ];
-  // 关键词简单过滤（若有关键词且未匹配则显示全部）
-  let filtered = keyword ? allVideos.filter(v => v.title.includes(keyword) || keyword === "短视频") : allVideos;
-  if (filtered.length === 0) filtered = allVideos;
-  let start = (page-1) * 10;
-  let paged = filtered.slice(start, start+10);
-  return paged.map((v, idx) => ({
-    vod_id: `builtin###${encodeURIComponent(v.title)}###${v.url}`,
-    vod_name: v.title,
-    vod_pic: v.pic,
-    vod_remarks: v.remark + (filtered === allVideos ? " (内置备选)" : ""),
-    vod_director: v.url
-  }));
-}
-
-// ---------- 调用公共搜索API（无需注册，全网视频聚合） ----------
-function searchViaPublicAPI(keyword, page) {
-  // 使用公共接口：https://api.videobaidu.com/（公开测试接口，无需key）
-  // 实际接口可能变化，这里封装一个稳定但可能失效的示例。
-  // 为了保证测试通过，我们将优先尝试一个已知可用的公共API，若失败则返回null。
-  try {
-    let apiUrl = `https://api.dailymotion.com/videos?search=${encodeURIComponent(keyword)}&limit=10&page=${page}&fields=title,url,thumbnail_medium_url`;
-    let jsonStr = fetchSync(apiUrl, { cache: false });
-    if (!jsonStr) return null;
-    let data = JSON.parse(jsonStr);
-    if (data && data.list) {
-      return data.list.map(v => ({
-        vod_id: `dailymotion###${encodeURIComponent(v.title)}###${v.url}`,
-        vod_name: v.title,
-        vod_pic: v.thumbnail_medium_url || '',
-        vod_remarks: 'Dailymotion',
-        vod_director: v.url
-      }));
-    }
-  } catch(e) {}
+// ==================== 核心搜索函数（调用 SerpApi） ====================
+// keyword: 搜索关键词, page: 页码（从1开始）, filter: 额外筛选参数（本爬虫未使用，但保留参数）
+function searchViaSerpApi(keyword, page, filter) {
+  // 请将下方字符串替换为你在 SerpApi 官网获取的真实 API Key
+  const API_KEY = "你的SerpApi密钥";   // <--- 重要：必须替换为实际密钥
   
-  // 备用公共接口2：Bing视频搜索简易API（仅示例，实际可能需解析）
-  try {
-    let bingUrl = `https://www.bing.com/videos/search?q=${encodeURIComponent(keyword)}&first=${(page-1)*10+1}&format=rss`;
-    let rss = fetchSync(bingUrl, { cache: false });
-    if (rss && rss.includes('<item>')) {
-      let videos = [];
-      let items = rss.split('<item>');
-      for (let i=1; i<items.length && videos.length<10; i++) {
-        let it = items[i];
-        let title = (it.match(/<title>(.*?)<\/title>/) || [,''])[1];
-        let link = (it.match(/<link>(.*?)<\/link>/) || [,''])[1];
-        if (title && link) {
-          videos.push({
-            vod_id: `bing###${encodeURIComponent(title)}###${link}`,
-            vod_name: title,
-            vod_pic: '',
-            vod_remarks: 'Bing视频',
-            vod_director: link
-          });
-        }
-      }
-      if (videos.length) return videos;
-    }
-  } catch(e) {}
-  
-  return null;
-}
-
-function doSearch(keyword, page) {
   page = parseInt(page) || 1;
-  let videos = searchViaPublicAPI(keyword, page);
-  if (!videos || videos.length === 0) {
-    console.log(`公共API无数据，启用内置视频（关键词：${keyword}）`);
-    videos = getBuiltinVideos(keyword, page);
+  // SerpApi 的分页参数 start 从 0 开始，每页 10 条
+  let start = (page - 1) * 10;
+  
+  // 构建请求 URL
+  // 参数说明：
+  // - engine: 使用 google_videos 视频搜索引擎
+  // - q: 搜索关键词
+  // - api_key: 你的密钥
+  // - start: 起始位置
+  // - hl: 界面语言（简体中文）
+  // - gl: 国家/地区（中国，可根据需要修改为 us, jp 等）
+  let params = new URLSearchParams({
+    engine: 'google_videos',
+    q: keyword,
+    api_key: API_KEY,
+    start: start,
+    hl: 'zh-CN',
+    gl: 'cn'
+  });
+  let url = `https://serpapi.com/search?${params.toString()}`;
+  
+  // 发起请求，禁用缓存（避免多次测试时返回旧数据）
+  let jsonStr = fetchSync(url, { cache: false });
+  if (!jsonStr) {
+    return { list: [], page: page, pagecount: 0, total: 0 };
   }
-  let total = videos.length;
-  let pagecount = Math.ceil(total / 10) || 1;
-  return { list: videos, page: page, pagecount: pagecount, limit: 10, total: total };
+  
+  let data;
+  try {
+    data = JSON.parse(jsonStr);
+  } catch (e) {
+    console.log("解析 SerpApi 响应失败:", e);
+    return { list: [], page: page, pagecount: 0, total: 0 };
+  }
+  
+  // 检查 API 错误
+  if (data.error) {
+    console.log("SerpApi 错误:", data.error);
+    return { list: [], page: page, pagecount: 0, total: 0 };
+  }
+  
+  // 提取视频结果列表
+  let videoResults = data.video_results || [];
+  let videos = [];
+  for (let item of videoResults) {
+    // 必需字段：标题和链接
+    if (item.title && item.link) {
+      // vod_id 格式：serpapi###标题###URL（用于 detail 解析）
+      let vodId = `serpapi###${encodeURIComponent(item.title)}###${item.link}`;
+      videos.push({
+        vod_id: vodId,
+        vod_name: item.title,                           // 视频标题
+        vod_pic: item.thumbnail ? item.thumbnail.static : '',  // 缩略图地址
+        vod_remarks: item.source || 'Google Videos',    // 来源网站（如 YouTube）
+        vod_actor: '',                                 // 无演员信息
+        vod_director: item.link,                       // 导演字段存放原始链接，方便调试
+        vod_content: item.description || ''            // 视频描述（如有）
+      });
+    }
+  }
+  
+  // 估算总结果数（SerpApi 返回 search_information.total_results）
+  let total = data.search_information?.total_results || videos.length;
+  let pagecount = Math.ceil(total / 10);
+  if (pagecount === 0) pagecount = 1;
+  
+  return {
+    list: videos,
+    page: page,
+    pagecount: pagecount,
+    limit: 10,
+    total: total
+  };
 }
 
-// ==================== CMS 标准接口 ====================
+// ==================== CMS 标准接口实现 ====================
+// 初始化函数，CMS 加载爬虫时调用
 function init(extend) {
-  console.log("通用视频搜索爬虫已启动（公共API+内置备选）");
+  console.log("SerpApi 谷歌视频搜索爬虫已启动（请确保已配置 API Key）");
 }
 
+// 首页返回分类信息（只有一个分类“全网视频”）
 function home() {
   return JSON.stringify({
-    class: [{ type_name: "热门推荐", type_id: "hot" }],
-    filters: {}
+    class: [
+      { type_name: "全网视频", type_id: "video" }   // type_id 用于 category 函数
+    ],
+    filters: {}   // 本爬虫不支持筛选器，留空
   });
 }
 
+// 首页视频推荐（一般留空，不用）
 function homeVod() {
   return JSON.stringify({ list: [] });
 }
 
+// 分类页面函数：CMS 点击“全网视频”分类时调用，等同于执行一次搜索（默认关键词“热门视频”）
 function category(tid, pg, filter, extend) {
-  let keyword = "短视频";
-  if (tid === "hot") keyword = "短视频";
-  else if (tid && tid !== "general") keyword = tid;
-  let result = doSearch(keyword, pg);
+  // tid 为 home 中定义的 type_id，此处为 "video"，可以自定义搜索词
+  let keyword = "热门视频";   // 你可以改为任何默认搜索词，如 "搞笑视频"、"音乐MV" 等
+  // 如果 tid 有特殊含义，也可以根据 tid 来改变关键词（可选）
+  if (tid === "video") keyword = "热门视频";
+  else if (tid) keyword = tid;   // 其他 tid 直接作为关键词
+  
+  let result = searchViaSerpApi(keyword, pg, filter);
   return JSON.stringify(result);
 }
 
+// 搜索函数：CMS 搜索框输入关键词时调用
 function search(wd, pg, filter) {
-  let result = doSearch(wd, pg);
+  let result = searchViaSerpApi(wd, pg, filter);
   return JSON.stringify(result);
 }
 
+// 详情页函数：根据 vod_id 构造视频详情（用于展示单集信息）
 function detail(vodId) {
   let parts = vodId.split('###');
-  if (parts.length < 3) return JSON.stringify({ list: [] });
+  if (parts.length < 3) {
+    return JSON.stringify({ list: [] });
+  }
   let title = decodeURIComponent(parts[1]);
   let url = parts[2];
+  
+  // 构造单个视频的详情数据
   let vod = {
     vod_id: vodId,
     vod_name: title,
-    vod_pic: '',
-    type_name: '通用视频',
-    vod_remarks: '点击播放跳转原网页',
+    vod_pic: '',                      // 可再从 API 获取，但简单处理留空
+    type_name: '谷歌视频',
+    vod_year: '',
+    vod_area: '',
+    vod_remarks: '点击播放将跳转到原始视频页面',
+    vod_actor: '',
     vod_director: url,
-    vod_content: `视频地址: ${url}`,
-    vod_play_from: '通用',
+    vod_content: `视频来源：${url}`,
+    vod_play_from: 'GoogleVideo',
+    // 播放列表格式：标题$URL，多个用 # 分隔，此处只有一个
     vod_play_url: `${title}$${url}`
   };
   return JSON.stringify({ list: [vod] });
 }
 
+// 播放函数：CMS 点击播放按钮时调用，直接返回原始网页 URL（跳转模式）
 function play(flag, id, vipFlags) {
+  // id 参数就是 vod_play_url 中 $ 后面的 URL，或者 detail 中 vod_director
+  // 直接原样返回，让 CMS 打开该 URL（通常是跳转到 YouTube、B站等原页面）
   return JSON.stringify({ parse: 0, playUrl: '', url: id });
 }
 
-__JS_SPIDER__ = { init, home, homeVod, category, detail, play, search };
+// 导出爬虫对象（必须使用 __JS_SPIDER__ 全局变量）
+__JS_SPIDER__ = {
+  init: init,
+  home: home,
+  homeVod: homeVod,
+  category: category,
+  detail: detail,
+  play: play,
+  search: search
+};
