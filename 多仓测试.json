@@ -28,6 +28,16 @@
       "filterable": 0
     },
     {
+      "key": "cctv-py",
+      "name": "2️⃣┃cctv┃®️",
+      "type": 3,
+      "api": "https://raw.githubusercontent.com/mannys888/frist/refs/heads/main/优.py",
+      "searchable": 1,
+      "quickSearch": 1,
+      "filterable": 0,
+      "ext": "https://raw.githubusercontent.com/mannys888/frist/refs/heads/main/feimaolive(1).json"
+    },
+    {
     "key": " ⑥live2vod_fixed",
     "name": "⑧⑧⑧⭕️live2void✅py",
     "type": 3,
@@ -127,7 +137,7 @@
 		"filterable": 1,
 		"ext": "./m3u/feimaolive(1).json"
 	},
-    {
+	 {
       "key": "js_百度",
       "name": "🟣百度🟣测试🀄️",
       "type": 3,
