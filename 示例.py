@@ -1,205 +1,178 @@
-# -*- coding: utf-8 -*-
-"""
-TVBox 爬虫 Python 后端 API 示例
-支持 home、category、detail、play 四个标准接口
-使用 Flask 框架，运行后访问 http://127.0.0.1:5000/api/spider?method=home 测试
-"""
+// ==================== 百度视频搜索爬虫（直解析版，无需API Key） ====================
+// 功能：搜索百度视频，返回视频列表（点击播放直接打开原网页）
+// 注意：容易被封IP，仅供测试
 
-from flask import Flask, request, jsonify
-import requests
-import json
-import re
+let globalHeaders = {
+  "User-Agent": "Mozilla/5.0 (Linux; Android 10; SM-G973F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.114 Mobile Safari/537.36 Edg/91.0.864.59",
+  "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+  "Accept-Language": "zh-CN,zh;q=0.8,en-US;q=0.5,en;q=0.3",
+  "Referer": "https://m.baidu.com/"
+};
 
-app = Flask(__name__)
+let cache = {};
 
-# ========== 配置区域 ==========
-# 你可以在这里修改你的 Cookie（如果需要访问 B站等需要登录的站点）
-BILI_COOKIE = "SESSDATA=你的SESSDATA; bili_jct=你的bili_jct; DedeUserID=你的UID"
-# 或者直接从浏览器复制完整的 Cookie 字符串
-
-# 请求头
-HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-    "Referer": "https://www.bilibili.com"
+function fetchSync(url, options = {}) {
+  if (cache[url]) return cache[url];
+  try {
+    let reqOpts = { method: options.method || 'GET', headers: { ...globalHeaders, ...(options.headers || {}) } };
+    if (options.data && reqOpts.method === 'POST') {
+      reqOpts.body = JSON.stringify(options.data);
+      reqOpts.headers['Content-Type'] = 'application/json';
+    }
+    let resp = req(url, reqOpts);
+    let content = typeof resp === 'string' ? resp : resp.content;
+    if (options.cache !== false) cache[url] = content;
+    return content;
+  } catch (e) {
+    console.log(`请求失败: ${url} - ${e.message}`);
+    return '';
+  }
 }
 
-# ========== 爬虫核心函数（借鉴您的 B站爬虫） ==========
-def fetch(url, cookies=None):
-    """发送 GET 请求，返回响应文本"""
-    headers = HEADERS.copy()
-    if cookies:
-        headers["Cookie"] = cookies
-    resp = requests.get(url, headers=headers, timeout=10)
-    resp.encoding = 'utf-8'
-    return resp.text
-
-def get_home():
-    """返回分类列表（与你的 homeContent 逻辑一致）"""
-    cateManual = {
-        "7年级地理": "7年级地理",
-        "7年级生物": "7年级生物",
-        "7年级物理": "7年级物理",
-        "7年级化学": "7年级化学",
-        "8年级语文": "8年级语文",
-        "8年级数学": "8年级数学",
-        "8年级英语": "8年级英语",
-        "8年级历史": "8年级历史",
-        "8年级地理": "8年级地理",
-        "8年级生物": "8年级生物",   
-        "8年级物理": "8年级物理",
-        "8年级化学": "8年级化学",
-        "9年级语文": "9年级语文",
-        "9年级数学": "9年级数学",
-        "9年级英语": "9年级英语",
-        "9年级历史": "9年级历史",
-        "9年级地理": "9年级地理",
-        "9年级生物": "9年级生物",
-        "9年级物理": "9年级物理",
-        "9年级化学": "9年级化学"
+// 解析百度移动版视频搜索结果
+function parseBaiduVideoHtml(html, wd, page) {
+  let videos = [];
+  // 百度移动端视频结果通常在 <div class="result c-abstract-1"> 或类似结构中
+  // 这里使用宽松的正则匹配，提取视频卡片
+  // 匹配模式：<a href="(视频链接)".*?<img src="(封面)".*?<span class="c-title">(标题)</span>
+  // 用正则提取标题、链接、封面
+  
+  // 方案1：提取所有带有视频缩略图的a标签
+  let blockRegex = /<a[^>]*?href="(https?:\/\/[^"]+)"[^>]*?>[\s\S]*?<img[^>]*?src="(https?:\/\/[^"]+)"[^>]*?>[\s\S]*?<span[^>]*?class="[^"]*title[^"]*"[^>]*?>([\s\S]*?)<\/span>/gi;
+  let match;
+  while ((match = blockRegex.exec(html)) !== null && videos.length < 20) {
+    let url = match[1];
+    let pic = match[2];
+    let title = match[3].replace(/<[^>]+>/g, '').trim();
+    // 过滤广告或非视频链接
+    if (url && title && !url.includes('pos.baidu.com')) {
+      videos.push({
+        vod_id: `bdvideo###${encodeURIComponent(title)}###${url}`,
+        vod_name: title,
+        vod_pic: pic,
+        vod_remarks: '百度视频',
+        vod_actor: '',
+        vod_director: url
+      });
     }
-    classes = [{"type_name": k, "type_id": v} for k, v in cateManual.items()]
-    return {"class": classes, "filters": None}
-
-def get_category(tid, pg):
-    """根据分类名称返回视频列表（与你的 categoryContent 逻辑类似）"""
-    pg = int(pg)
-    # 这里只实现了按关键词搜索，其他分类（热门、排行榜、动态）可自行扩展
-    if tid == "热门":
-        url = f"https://api.bilibili.com/x/web-interface/popular?ps=20&pn={pg}"
-        text = fetch(url, cookies=BILI_COOKIE)
-        data = json.loads(text)
-        videos = []
-        if data.get('code') == 0:
-            for vod in data['data']['list']:
-                videos.append({
-                    "vod_id": str(vod['aid']),
-                    "vod_name": vod['title'].replace("<em class=\"keyword\">", "").replace("</em>", ""),
-                    "vod_pic": vod['pic'],
-                    "vod_remarks": str(vod['duration'])
-                })
-        return {"list": videos, "page": pg, "pagecount": 9999, "limit": 20, "total": 999999}
-    
-    elif tid == "排行榜":
-        url = "https://api.bilibili.com/x/web-interface/ranking/v2?rid=0&type=all"
-        text = fetch(url, cookies=BILI_COOKIE)
-        data = json.loads(text)
-        videos = []
-        if data.get('code') == 0:
-            for vod in data['data']['list']:
-                videos.append({
-                    "vod_id": str(vod['aid']),
-                    "vod_name": vod['title'].replace("<em class=\"keyword\">", "").replace("</em>", ""),
-                    "vod_pic": vod['pic'],
-                    "vod_remarks": str(vod['duration'])
-                })
-        return {"list": videos, "page": 1, "pagecount": 1, "limit": 90, "total": len(videos)}
-    
-    elif tid == "动态":
-        url = f"https://api.bilibili.com/x/polymer/web-dynamic/v1/feed/all?timezone_offset=-480&type=all&page={pg}"
-        text = fetch(url, cookies=BILI_COOKIE)
-        data = json.loads(text)
-        videos = []
-        if data.get('code') == 0:
-            for item in data['data']['items']:
-                if item['type'] == 'DYNAMIC_TYPE_AV':
-                    arch = item['modules']['module_dynamic']['major']['archive']
-                    videos.append({
-                        "vod_id": str(arch['aid']),
-                        "vod_name": arch['title'].replace("<em class=\"keyword\">", "").replace("</em>", ""),
-                        "vod_pic": arch['cover'],
-                        "vod_remarks": str(arch['duration_text'])
-                    })
-        return {"list": videos, "page": pg, "pagecount": 9999, "limit": 20, "total": 999999}
-    
-    else:
-        # 默认按关键词搜索（tid 作为关键词）
-        url = f"https://api.bilibili.com/x/web-interface/search/type?search_type=video&keyword={tid}&page={pg}"
-        text = fetch(url, cookies=BILI_COOKIE)
-        data = json.loads(text)
-        videos = []
-        if data.get('code') == 0:
-            for vod in data['data']['result']:
-                videos.append({
-                    "vod_id": str(vod['aid']),
-                    "vod_name": f"{tid}: {vod['title'].replace('<em class=\"keyword\">', '').replace('</em>', '')}",
-                    "vod_pic": "https:" + vod['pic'],
-                    "vod_remarks": str(vod['duration'])
-                })
-        return {"list": videos, "page": pg, "pagecount": 9999, "limit": 20, "total": 999999}
-
-def get_detail(vid):
-    """根据视频ID（aid）返回详情，包含播放列表"""
-    aid = vid
-    url = f"https://api.bilibili.com/x/web-interface/view?aid={aid}"
-    text = fetch(url, cookies=BILI_COOKIE)
-    data = json.loads(text)
-    if data.get('code') != 0:
-        return {"list": []}
-    info = data['data']
-    # 构建播放列表（多P）
-    pages = info.get('pages', [])
-    play_url = ""
-    for p in pages:
-        cid = p['cid']
-        part = p['part']
-        play_url += f"{part}${aid}_{cid}#"
-    vod = {
-        "vod_id": aid,
-        "vod_name": info['title'].replace("<em class=\"keyword\">", "").replace("</em>", ""),
-        "vod_pic": info['pic'],
-        "type_name": info.get('tname', ''),
-        "vod_year": "",
-        "vod_area": "B站",
-        "vod_remarks": "",
-        "vod_actor": info['owner']['name'],
-        "vod_director": info['owner']['name'],
-        "vod_content": info.get('desc', ''),
-        "vod_play_from": "B站",
-        "vod_play_url": play_url.rstrip('#')
+  }
+  
+  // 如果正则没匹配到，尝试用另一种模式：查找 result-op 类
+  if (videos.length === 0) {
+    let altRegex = /<div[^>]*?class="[^"]*?result[^"]*?"[^>]*?>[\s\S]*?<a[^>]*?href="(https?:\/\/[^"]+)"[\s\S]*?<img[^>]*?src="(https?:\/\/[^"]+)"[\s\S]*?<span[^>]*?>([\s\S]*?)<\/span>/gi;
+    while ((match = altRegex.exec(html)) !== null && videos.length < 20) {
+      let url = match[1];
+      let pic = match[2];
+      let title = match[3].replace(/<[^>]+>/g, '').trim();
+      if (url && title && !url.includes('pos.baidu.com')) {
+        videos.push({
+          vod_id: `bdvideo###${encodeURIComponent(title)}###${url}`,
+          vod_name: title,
+          vod_pic: pic,
+          vod_remarks: '百度视频',
+          vod_actor: '',
+          vod_director: url
+        });
+      }
     }
-    return {"list": [vod]}
+  }
+  
+  // 如果仍然没有结果，回退：提取所有a标签，但只保留包含视频域名的（如 v.qq.com, youku.com 等）
+  if (videos.length === 0) {
+    let allLinks = [...html.matchAll(/<a[^>]*?href="(https?:\/\/[^"]+)"[^>]*?>([\s\S]*?)<\/a>/gi)];
+    let videoDomains = ['v.qq.com', 'youku.com', 'iqiyi.com', 'm.bilibili.com', 'v.163.com', 'sohu.com', 'm.iqiyi.com', 'kuaishou.com', 'douyin.com'];
+    for (let link of allLinks) {
+      let url = link[1];
+      let rawTitle = link[2].replace(/<[^>]+>/g, '').trim();
+      if (videoDomains.some(domain => url.includes(domain)) && rawTitle.length > 5) {
+        // 尝试获取封面（可能没有）
+        let picMatch = url.match(/[\s\S]*?(?:cover|thumb|img)=\/\/[^&]+/);
+        let pic = picMatch ? 'https:' + picMatch[0].split('=')[1] : '';
+        videos.push({
+          vod_id: `bdvideo###${encodeURIComponent(rawTitle)}###${url}`,
+          vod_name: rawTitle,
+          vod_pic: pic,
+          vod_remarks: '百度视频',
+          vod_actor: '',
+          vod_director: url
+        });
+        if (videos.length >= 20) break;
+      }
+    }
+  }
+  
+  return videos;
+}
 
-def get_play(vid):
-    """根据 vid（格式 aid_cid）返回真实播放地址"""
-    parts = vid.split('_')
-    if len(parts) != 2:
-        return {"parse": 0, "url": ""}
-    aid, cid = parts[0], parts[1]
-    url = f"https://api.bilibili.com/x/player/playurl?avid={aid}&cid={cid}&qn=112"
-    text = fetch(url, cookies=BILI_COOKIE)
-    data = json.loads(text)
-    if data.get('code') != 0:
-        return {"parse": 0, "url": ""}
-    durls = data['data'].get('durl', [])
-    if not durls:
-        return {"parse": 0, "url": ""}
-    # 选择最高码率的视频地址（按文件大小排序）
-    best = max(durls, key=lambda x: x.get('size', 0))
-    play_url = best['url']
-    return {"parse": 0, "url": play_url}
+function init(extend) {
+  console.log("百度视频搜索爬虫（直解析版）已启动");
+}
 
-# ========== Flask 路由 ==========
-@app.route('/api/spider')
-def spider_api():
-    method = request.args.get('method')
-    if method == 'home':
-        return jsonify(get_home())
-    elif method == 'category':
-        tid = request.args.get('tid', '')
-        pg = request.args.get('pg', 1)
-        result = get_category(tid, pg)
-        return jsonify(result)
-    elif method == 'detail':
-        vid = request.args.get('vid', '')
-        result = get_detail(vid)
-        return jsonify(result)
-    elif method == 'play':
-        vid = request.args.get('vid', '')
-        result = get_play(vid)
-        return jsonify(result)
-    else:
-        return jsonify({"error": "unknown method"}), 400
+function home() {
+  return JSON.stringify({
+    class: [{ type_name: "百度视频搜索", type_id: "baidu_video" }],
+    filters: {}  // 无筛选器
+  });
+}
 
-if __name__ == '__main__':
-    # 启动服务，监听所有网卡，端口 5000
-    app.run(host='0.0.0.0', port=5000, debug=True)
+function homeVod() {
+  return JSON.stringify({ list: [] });
+}
+
+function search(wd, pg, filter) {
+  pg = parseInt(pg) || 1;
+  // 百度移动版每页10条，pn参数从0开始
+  let pn = (pg - 1) * 10;
+  let url = `https://m.baidu.com/s?word=${encodeURIComponent(wd)}&pn=${pn}&rsv_bp=1&tn=SE_baidu&ie=utf-8&f=8&bs=1&rsv_spt=1&rsv_sug2=0&inputT=1285&rsv_sug4=5738`;
+  let html = fetchSync(url, { cache: false });
+  if (!html) {
+    return JSON.stringify({ list: [], page: pg, pagecount: 0, total: 0 });
+  }
+  
+  let videos = parseBaiduVideoHtml(html, wd, pg);
+  
+  // 估计总页数：百度不返回总条数，我们简单限制最多10页
+  let pagecount = videos.length < 10 ? pg : pg + 1;
+  if (pg >= 10) pagecount = pg;
+  
+  return JSON.stringify({
+    list: videos,
+    page: pg,
+    pagecount: pagecount,
+    limit: 10,
+    total: videos.length
+  });
+}
+
+function detail(vodId) {
+  let parts = vodId.split('###');
+  if (parts.length < 3) return JSON.stringify({ list: [] });
+  let title = parts[1];
+  let url = parts[2];
+  let vod = {
+    vod_id: vodId,
+    vod_name: decodeURIComponent(title),
+    vod_pic: '',
+    type_name: '百度搜索结果',
+    vod_year: '',
+    vod_area: '',
+    vod_remarks: '点击播放将跳转到原网页',
+    vod_actor: '',
+    vod_director: url,
+    vod_content: `来源页面: ${url}`,
+    vod_play_from: 'BaiduVideo',
+    vod_play_url: `${decodeURIComponent(title)}$${url}`
+  };
+  return JSON.stringify({ list: [vod] });
+}
+
+function play(flag, id, vipFlags) {
+  // id 就是原视频网页URL
+  return JSON.stringify({ parse: 0, playUrl: '', url: id });
+}
+
+function category(tid, pg, filter, extend) {
+  return JSON.stringify({ list: [], page: 1, pagecount: 0, total: 0 });
+}
+
+__JS_SPIDER__ = { init, home, homeVod, category, detail, play, search };
