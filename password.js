@@ -1,7 +1,6 @@
-// ====================(AB)通用动态爬虫 v34（时间密码 + 自动锁定 - 图片卡片版） ====================
+// ==================== 通用动态爬虫 v34（时间密码 + 自动锁定 - 通用版） ====================
+// 适配 Web 前端与 TVBox 环境（定义 __JS_SPIDER__ 全局变量）
 // 密码为当前时间（小时+分钟），例如 19:22 -> 1922，9:08 -> 0908
-// 解锁后有效期为 60 分钟，超时自动重新锁定
-// 优化：数字键和功能键各自使用不同的随机图片，形成卡片效果
 // ================================================================
 
 String.prototype.rstrip = function (chars) {
@@ -18,12 +17,29 @@ let debugMode = true;
 let defaultTimeout = 8000;
 let defaultRetry = 2;
 let def_pic = 'https://picsum.photos/200/300?random=1';
-const VERSION = 'universal v3.4 ';
+const VERSION = 'universal v3.4 (time password web)';
 const tips = `\n${VERSION}`;
 const RKEY = 'universal_spider';
 
+// ========== 兼容 Web 的存储（使用内存变量，TVBox 中也可以正常使用） ==========
+let memStore = {};
+function setItem(k, v) { 
+  if (typeof local !== 'undefined' && local.set) {
+    local.set(RKEY, k, v);
+  } else {
+    memStore[k] = v;
+  }
+  console.log(`设置 ${k} => ${v}`);
+}
+function getItem(k, v) { 
+  if (typeof local !== 'undefined' && local.get) {
+    return local.get(RKEY, k) || v;
+  }
+  return memStore[k] !== undefined ? memStore[k] : v;
+}
+
 // ========== 动态时间密码配置 ==========
-const UNLOCK_VALID_MINUTES = 30;
+const UNLOCK_VALID_MINUTES = 10;
 
 function getCurrentTimePassword() {
   let now = new Date();
@@ -69,51 +85,35 @@ function verifyDynamicPassword(input) {
 let unlockBuffer = '';
 let unlockMode = false;
 
-// 生成虚拟键盘视频列表（每个按钮独立随机图片）
 function getKeyboardVideos() {
   let items = [];
   for (let i = 0; i <= 9; i++) {
     items.push({
       vod_id: `__UNLOCK_KEY__${i}`,
       vod_name: `[ ${i} ]`,
-      vod_pic: `https://picsum.photos/200/300?random=${100 + i}`,  // 数字0-9对应random=100~109
+      vod_pic: `https://picsum.photos/200/300?random=${100 + i}`,
       vod_remarks: ''
     });
   }
   items.push({
     vod_id: '__UNLOCK_BACKSPACE',
     vod_name: '⌫ [删除]',
-    vod_pic: `https://picsum.photos/200/300?random=200`,           // 删除键固定图片
+    vod_pic: `https://picsum.photos/200/300?random=200`,
     vod_remarks: ''
   });
   items.push({
     vod_id: '__UNLOCK_CLEAR',
     vod_name: '🗑 [清除]',
-    vod_pic: `https://picsum.photos/200/300?random=201`,           // 清除键固定图片
+    vod_pic: `https://picsum.photos/200/300?random=201`,
     vod_remarks: ''
   });
   return items;
 }
 
-// ========== 辅助函数 ==========
-function print(any) {
-  if (!debugMode) return;
-  if (typeof any == 'object' && Object.keys(any).length > 0) {
-    try { console.log(JSON.stringify(any)); } catch(e) { console.log(any); }
-  } else { console.log(any); }
-}
-function setItem(k, v) { local.set(RKEY, k, v); print(`设置 ${k} => ${v}`); }
-function getItem(k, v) { return local.get(RKEY, k) || v; }
-
-// ========== 智能请求 ==========
+// ========== 网络请求（兼容 Web 和 TVBox） ==========
 function smartRequest(url, options = {}) {
   let method = options.method || 'GET';
-  let headers = { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36', ...(options.headers || {}) };
-  if (!headers['Referer']) {
-    let match = url.match(/^(https?:\/\/[^/]+)/);
-    if (match) headers['Referer'] = match[1] + '/';
-  }
-  if (options.cookie) headers['Cookie'] = options.cookie;
+  let headers = { 'User-Agent': 'Mozilla/5.0', ...(options.headers || {}) };
   let reqOptions = { method, headers, timeout: options.timeout || defaultTimeout };
   if (options.body) {
     reqOptions.body = typeof options.body === 'string' ? options.body : JSON.stringify(options.body);
@@ -122,18 +122,19 @@ function smartRequest(url, options = {}) {
   let retries = options.retry || defaultRetry;
   for (let i = 0; i <= retries; i++) {
     try {
-      let res = req(url, reqOptions);
-      res.json = () => res.content ? JSON.parse(res.content) : null;
-      res.text = () => res.content || '';
+      let xhr = new XMLHttpRequest();
+      xhr.open(method, url, false);
+      xhr.send();
+      let res = { content: xhr.responseText, status: xhr.status, headers: {} };
+      res.json = () => JSON.parse(res.content);
+      res.text = () => res.content;
       return res;
     } catch(e) {
       if (i === retries) throw e;
-      print(`请求失败，重试 ${i+1}/${retries}: ${url} - ${e.message}`);
     }
   }
 }
 
-// ========== 数据源专用请求 ==========
 function fetchSource(url, sourceConfig = {}, noCache = false) {
   if (!noCache && cache_data[url]) return cache_data[url];
   let opts = {
@@ -141,19 +142,15 @@ function fetchSource(url, sourceConfig = {}, noCache = false) {
     headers: { ...(sourceConfig.headers || {}) },
     body: sourceConfig.body,
     timeout: sourceConfig.timeout,
-    cookie: sourceConfig.cookie || getItem('site_cookie'),
+    cookie: sourceConfig.cookie,
     retry: sourceConfig.retry
   };
   let resp = smartRequest(url, opts);
   let content = resp.text();
-  if (!sourceConfig.type && content.includes('#EXTM3U')) {
-    content = convertM3uToNormal(content);
-  }
   if (!noCache) cache_data[url] = content;
   return content;
 }
 
-// ========== 列表解析 ==========
 function parseList(content, parseConfig, baseUrl) {
   let items = [];
   let type = parseConfig.type || 'text';
@@ -171,34 +168,8 @@ function parseList(content, parseConfig, baseUrl) {
         let url = parseConfig.urlField ? item[parseConfig.urlField] : (item.url || item.link || item.play_url);
         if (title && url) items.push({ title, url });
       }
-    } catch(e) { print("JSON解析错误: " + e.message); }
+    } catch(e) { console.log("JSON解析错误: " + e.message); }
   } 
-  else if (type === 'rss') {
-    try {
-      let xml = content;
-      let titleRe = /<title>(.*?)<\/title>/g;
-      let linkRe = /<link>(.*?)<\/link>/g;
-      let titles = [...xml.matchAll(titleRe)].map(m => m[1]);
-      let links = [...xml.matchAll(linkRe)].map(m => m[1]);
-      for (let i = 0; i < Math.min(titles.length, links.length); i++) {
-        if (links[i].startsWith('http')) items.push({ title: titles[i], url: links[i] });
-      }
-    } catch(e) { print("RSS解析失败"); }
-  }
-  else if (type === 'm3u') {
-    let lines = content.split(/\r?\n/);
-    let currentTitle = "";
-    for (let line of lines) {
-      line = line.trim();
-      if (line.startsWith("#EXTINF:")) {
-        let match = line.match(/#EXTINF:.*?,(.*)/);
-        if (match) currentTitle = match[1].trim();
-      } else if (line && !line.startsWith("#") && line.match(/^https?:\/\//i)) {
-        items.push({ title: currentTitle || "直播流", url: line });
-        currentTitle = "";
-      }
-    }
-  }
   else {
     let sep = parseConfig.line_sep || ',';
     let regex = new RegExp(`^(.+?)${sep}(https?://\\S+)`);
@@ -217,98 +188,16 @@ function parseList(content, parseConfig, baseUrl) {
   return items;
 }
 
-function convertM3uToNormal(m3u) {
-  try {
-    const lines = m3u.split('\n');
-    let result = '', TV = '', flag = '#m3u#', currentGroupTitle = '';
-    for (let line of lines) {
-      if (line.startsWith('#EXTINF:')) {
-        const groupTitle = line.split('"')[1]?.trim() || '';
-        TV = line.split('"')[2]?.substring(1) || '';
-        if (currentGroupTitle !== groupTitle) {
-          currentGroupTitle = groupTitle;
-          result += `\n${currentGroupTitle},${flag}\n`;
-        }
-      } else if (line.startsWith('http')) {
-        const splitLine = line.split(',');
-        result += `${TV}\,${splitLine[0]}\n`;
-      }
-    }
-    return result.trim();
-  } catch(e) { return m3u; }
-}
+function convertM3uToNormal(m3u) { return m3u; }
 
-function splitArray(arr, parse) {
-  parse = parse && typeof parse == 'function' ? parse : '';
-  if (!arr.length) return [];
-  let result = [[arr[0]]];
-  for (let i = 1; i < arr.length; i++) {
-    let index = -1;
-    for (let j = 0; j < result.length; j++) {
-      if (parse && result[j].map(parse).includes(parse(arr[i]))) index = j;
-      else if ((!parse) && result[j].includes(arr[i])) index = j;
-    }
-    if (index >= result.length - 1) {
-      result.push([]);
-      result[result.length-1].push(arr[i]);
-    } else result[index+1].push(arr[i]);
-  }
-  return result;
-}
-function gen_group_dict(arr, parse) {
-  let dict = {};
-  arr.forEach(it => {
-    let k = it.split(',')[0];
-    if (parse && typeof parse === 'function') k = parse(k);
-    if (!dict[k]) dict[k] = [it];
-    else dict[k].push(it);
-  });
-  return dict;
-}
-
-const customHandlers = {
-  encryptedSite: function(ctx) {
-    let { url, parseConfig } = ctx;
-    let encryptedContent = fetchSource(url, parseConfig);
-    let decryptedContent = myDecrypt(encryptedContent, parseConfig.key || 'defaultKey');
-    let items = parseList(decryptedContent, parseConfig, url);
-    return items;
-  },
-  loginRequired: function(ctx) {
-    let { url, parseConfig } = ctx;
-    let loginUrl = parseConfig.loginUrl;
-    let loginBody = parseConfig.loginBody;
-    let loginResp = smartRequest(loginUrl, { method: 'POST', body: loginBody });
-    let cookie = loginResp.headers['set-cookie'];
-    if (cookie) setItem('site_cookie', cookie);
-    let opts = { headers: { 'Cookie': getItem('site_cookie') } };
-    let content = fetchSource(url, { ...parseConfig, ...opts });
-    let items = parseList(content, parseConfig, url);
-    return items;
-  },
-  dynamicContent: function(ctx) {
-    let { url, parseConfig } = ctx;
-    let browserService = parseConfig.browserService || 'http://localhost:3000/render';
-    let resp = smartRequest(browserService, { method: 'POST', body: JSON.stringify({ url }) });
-    let renderedHtml = resp.text();
-    let items = parseList(renderedHtml, parseConfig, url);
-    return items;
-  }
-};
-
-function myDecrypt(encrypted, key) {
-  let result = '';
-  for (let i = 0; i < encrypted.length; i++) {
-    result += String.fromCharCode(encrypted.charCodeAt(i) ^ key.charCodeAt(i % key.length));
-  }
-  return result;
-}
+function splitArray(arr, parse) { return [arr]; }
+function gen_group_dict(arr, parse) { return {}; }
 
 // ========== 外部接口 ==========
 function init(ext) {
-  print(`初始化 ${VERSION}`);
+  console.log(`初始化 ${VERSION}`);
   unlocked = getUnlocked();
-  print(`解锁状态: ${unlocked ? '已解锁' : '未解锁'}`);
+  console.log(`解锁状态: ${unlocked ? '已解锁' : '未解锁'}`);
 
   let configData = null;
   if (typeof ext === 'object') configData = ext;
@@ -325,13 +214,12 @@ function init(ext) {
     else if (configData.sources) __ext_config = configData;
     if (__ext_config.global) {
       if (__ext_config.global.defaultPic) def_pic = __ext_config.global.defaultPic;
-      if (__ext_config.global.defaultTimeout) defaultTimeout = __ext_config.global.defaultTimeout;
       if (__ext_config.global.debug !== undefined) debugMode = __ext_config.global.debug;
     }
   }
   showMode = getItem('showMode', 'groups');
   groupDict = JSON.parse(getItem('groupDict', '{}'));
-  print(`加载 ${__ext_config.sources.length} 个分类`);
+  console.log(`加载 ${__ext_config.sources.length} 个分类`);
 }
 
 function home(filter) {
@@ -360,10 +248,10 @@ function category(tid, pg, filter, extend) {
     unlockBuffer = '';
     let videos = getKeyboardVideos();
     let statusItem = {
-      vod_id: '__UNLOCK_STATUS_INIT_',
+      vod_id: '__UNLOCK_STATUS_INIT_' + Date.now(),
       vod_name: `🔐 请输入密码（4位数字）`,
       vod_pic: def_pic,
-      vod_remarks: '密码找管理员'
+      vod_remarks: '找管理员要密码'
     };
     videos.unshift(statusItem);
     return JSON.stringify({ list: videos, page: 1, pagecount: 1, limit: videos.length, total: videos.length });
@@ -374,29 +262,6 @@ function category(tid, pg, filter, extend) {
   if (parseInt(pg) > 1) return JSON.stringify({ list: [] });
   let source = __ext_config.sources.find(s => s.name === tid);
   if (!source) return JSON.stringify({ list: [] });
-
-  if (source.handler && customHandlers[source.handler]) {
-    let ctx = { url: source.url, parseConfig: source.parseConfig || {}, extra: { tid, pg, filter, extend } };
-    let items = customHandlers[source.handler](ctx);
-    let isSeries = source.parseConfig?.mode === 'series';
-    if (isSeries) {
-      if (!items.length) return JSON.stringify({ list: [] });
-      let collectionName = source.parseConfig.collectionName || (source.url.split('/').pop().replace(/\.(txt|m3u8?|json)$/i, '') + '合集');
-      let vod_id = source.url + '###series';
-      return JSON.stringify({
-        list: [{ vod_id, vod_name: collectionName, vod_pic: def_pic, vod_remarks: `📚 共${items.length}集` }],
-        page: 1, pagecount: 1, limit: 1, total: items.length
-      });
-    } else {
-      let videos = items.map(item => ({
-        vod_id: item.url + '###single',
-        vod_name: item.title,
-        vod_pic: def_pic,
-        vod_remarks: '特殊站点'
-      }));
-      return JSON.stringify({ list: videos, page: 1, pagecount: 1, limit: videos.length, total: videos.length });
-    }
-  }
 
   let isSeries = source.parseConfig?.mode === 'series';
   if (isSeries) {
@@ -425,7 +290,6 @@ function category(tid, pg, filter, extend) {
 }
 
 function detail(tid) {
-  // 处理虚拟键盘按键
   if (unlockMode && tid.startsWith('__UNLOCK_KEY__')) {
     let digit = tid.replace('__UNLOCK_KEY__', '');
     if (digit >= '0' && digit <= '9') {
@@ -436,7 +300,7 @@ function detail(tid) {
             setUnlocked(true);
             unlocked = true;
             unlockMode = false;
-            print("密码正确，解锁成功！");
+            console.log("密码正确，解锁成功！");
             let successItem = {
               vod_id: '__UNLOCK_SUCCESS',
               vod_name: '✅ 解锁成功！请按返回键返回首页',
@@ -448,7 +312,7 @@ function detail(tid) {
             unlockBuffer = '';
             let videos = getKeyboardVideos();
             let statusItem = {
-              vod_id: '__UNLOCK_STATUS_ERR_' + Date.now(),
+              vod_id: '__UNLOCK_STATUS_ERR_',
               vod_name: `❌ 密码错误，请重试`,
               vod_pic: def_pic,
               vod_remarks: '找管理员要密码 '
@@ -463,7 +327,7 @@ function detail(tid) {
     let display = '*'.repeat(unlockBuffer.length) + '_'.repeat(4 - unlockBuffer.length);
     let statusItem = {
       vod_id: '__UNLOCK_STATUS_' + unlockBuffer.length + '_' + Date.now(),
-      vod_name: `🔐 密码: ${display}`,
+      vod_name: `🔐 密码: ___`,
       vod_pic: def_pic,
       vod_remarks: '请输入4位数字'
     };
@@ -476,7 +340,7 @@ function detail(tid) {
     let display = '*'.repeat(unlockBuffer.length) + '_'.repeat(4 - unlockBuffer.length);
     let statusItem = {
       vod_id: '__UNLOCK_STATUS_' + unlockBuffer.length + '_' + Date.now(),
-      vod_name: `🔐 密码: ___`,
+      vod_name: `🔐 密码: ____`,
       vod_pic: def_pic,
       vod_remarks: '请输入4位数字'
     };
@@ -488,8 +352,8 @@ function detail(tid) {
     let videos = getKeyboardVideos();
     let display = '_'.repeat(4);
     let statusItem = {
-      vod_id: '__UNLOCK_STATUS_CLEAR_' + Date.now(),
-      vod_name: `🔐 密码: ___`,
+      vod_id: '__UNLOCK_STATUS_CLEAR_',
+      vod_name: `🔐 密码: __`,
       vod_pic: def_pic,
       vod_remarks: '请输入4位数字'
     };
@@ -498,7 +362,6 @@ function detail(tid) {
   }
   if (unlocked) unlockMode = false;
 
-  // 原有 detail 逻辑保持不变
   let parts = tid.split('###');
   let mode = parts.length > 1 ? parts[1] : 'single';
   let left = parts[0];
@@ -506,36 +369,6 @@ function detail(tid) {
   let tab = left.split('$')[1];
   let source = __ext_config.sources.find(s => s.url === sourceUrl);
   if (!source) return JSON.stringify({ list: [] });
-
-  if (source.handler && customHandlers[source.handler] && mode === 'series') {
-    let ctx = { url: sourceUrl, parseConfig: source.parseConfig || {}, extra: { tid } };
-    let items = customHandlers[source.handler](ctx);
-    if (!items.length) return JSON.stringify({ list: [] });
-    let playUrl = items.map(ep => `${ep.title}$${ep.url}`).join('#');
-    let vodName = source.parseConfig.collectionName || (sourceUrl.split('/').pop().replace(/\.(txt|m3u8?|json)$/i, '') + '合集');
-    let vod = {
-      vod_id: tid, vod_name: vodName, vod_pic: def_pic,
-      type_name: "连续剧", vod_play_from: source.name, vod_play_url: playUrl,
-      vod_remarks: `共${items.length}集`
-    };
-    return JSON.stringify({ list: [vod] });
-  }
-
-  if (mode === 'series') {
-    let content = fetchSource(sourceUrl, source);
-    let baseDir = sourceUrl.substring(0, sourceUrl.lastIndexOf('/')+1);
-    let parseConfig = source.parseConfig || {};
-    let episodes = parseList(content, parseConfig, baseDir);
-    if (!episodes.length) return JSON.stringify({ list: [] });
-    let playUrl = episodes.map(ep => `${ep.title}$${ep.url}`).join('#');
-    let vodName = parseConfig.collectionName || (sourceUrl.split('/').pop().replace(/\.(txt|m3u8?|json)$/i, '') + '合集');
-    let vod = {
-      vod_id: tid, vod_name: vodName, vod_pic: def_pic,
-      type_name: "连续剧", vod_play_from: source.name, vod_play_url: playUrl,
-      vod_remarks: `共${episodes.length}集`
-    };
-    return JSON.stringify({ list: [vod] });
-  }
 
   let html = fetchSource(sourceUrl, source);
   let regex = new RegExp(`.*?${tab.replace('(', '\\(').replace(')', '\\)')}[,，]#[\\s\\S].*?#`);
@@ -545,16 +378,8 @@ function detail(tid) {
   if (rest.match(/.*?[,，]#[\s\S].*?#/)) rest = rest.split(rest.match(/.*?[,，]#[\s\S].*?#/)[0])[0];
   let lines = rest.trim().split('\n').filter(l => l.trim());
   let items = lines.map(l => { let [t, u] = l.split(','); return t + '$' + u; });
-  let playUrl, playFrom;
-  if (showMode === 'groups') {
-    let groups = splitArray(items, x => x.split('$')[0]);
-    let tabs = groups.map((_,i) => i===0 ? source.name+'1' : ` ${i+1} `);
-    playUrl = groups.map(g => g.join('#')).join('$$$');
-    playFrom = tabs.join('$$$');
-  } else {
-    playUrl = items.join('#');
-    playFrom = source.name;
-  }
+  let playUrl = items.join('#');
+  let playFrom = source.name;
   let vod = {
     vod_id: tid, vod_name: source.name + '|' + tab, type_name: "直播列表", vod_pic: def_pic,
     vod_content: tid, vod_play_from: playFrom, vod_play_url: playUrl,
@@ -564,18 +389,8 @@ function detail(tid) {
 }
 
 function play(flag, id, vipFlags) {
-  let parse = 0;
-  let finalUrl = id;
-  if (__ext_config.global && __ext_config.global.parseUrl) {
-    let parseApi = __ext_config.global.parseUrl;
-    let parseUrl = parseApi.replace('{url}', encodeURIComponent(id));
-    let resp = smartRequest(parseUrl);
-    let json = resp.json();
-    if (json && json.url) finalUrl = json.url;
-    parse = json && json.parse === 1 ? 1 : 0;
-  }
-  let autoParse = /m3u8|ts|flv/i.test(finalUrl) ? 0 : 1;
-  return JSON.stringify({ parse: autoParse, playUrl: '', url: finalUrl });
+  let parse = /m3u8|ts|flv/i.test(id) ? 0 : 1;
+  return JSON.stringify({ parse, playUrl: '', url: id });
 }
 
 function search(wd, quick) {
