@@ -22,7 +22,7 @@ const tips = `\n${VERSION}`;
 const RKEY = 'universal_spider';
 
 // ========== 动态时间密码配置 ==========
-const UNLOCK_VALID_MINUTES = 10;           // 解锁有效时长（分钟）
+const UNLOCK_VALID_MINUTES = 60;           // 解锁有效时长（分钟）
 
 // 获取当前时间的四位数字密码（HHMM，例如 09:08 -> 0908）
 function getCurrentTimePassword() {
@@ -450,7 +450,7 @@ function detail(tid) {
             let videos = getKeyboardVideos();
             let statusItem = {
               vod_id: '__UNLOCK_STATUS_ERR_' + Date.now(),
-              vod_name: `❌ 密码错误，密码应为 ${getCurrentTimePassword()}`,
+              vod_name: `❌ 密码错误，密码应为 四位数`,
               vod_pic: def_pic,
               vod_remarks: '请重新输入'
             };
@@ -489,7 +489,7 @@ function detail(tid) {
     let videos = getKeyboardVideos();
     let display = '_'.repeat(4);
     let statusItem = {
-      vod_id: '__UNLOCK_STATUS_CLEAR_' + Date.now(),
+      vod_id: '__UNLOCK_STATUS_CLEAR_' ,
       vod_name: `🔐 请输入密码: ___`,
       vod_pic: def_pic,
       vod_remarks: '例如 数字'
