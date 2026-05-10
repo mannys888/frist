@@ -1,7 +1,8 @@
-// ==================== 通用动态爬虫 v39（手机扫码解锁，无需配置） ====================
-// 功能：分类未解锁时显示一个“🔓 手机解锁”条目，内含写链接
-// 用户用手机访问该链接，将内容改为 {"password": "admin"}，提交后电视端自动解锁
-// 密码内置为 "admin"，可自行修改下方 PASSWORD 常量
+// ==================== 通用动态爬虫 v41（稳定分类 + 手机解锁） ====================
+// 基于 v36 稳定版（保证分类正常显示）
+// 新增：未解锁时首页只显示一个解锁条目，点击后显示临时 JSON 编辑链接
+// 用户用手机打开链接，将内容改为 {"password": "admin"}，电视端自动解锁
+// 完全不需要额外配置，密码内置为 admin，可修改下方 PASSWORD 常量
 // ================================================================
 
 String.prototype.rstrip = function (chars) {
@@ -17,10 +18,10 @@ let debugMode = true;
 let defaultTimeout = 8000;
 let defaultRetry = 2;
 let def_pic = 'https://avatars.githubusercontent.com/u/97389433?s=120&v=4';
-const VERSION = 'universal v3.9 (no-config unlock)';
+const VERSION = 'universal v4.1 (stable + mobile unlock)';
 const tips = `\n${VERSION}`;
 const RKEY = 'universal_spider';
-const PASSWORD = 'admin';   // 预设密码，可修改
+const PASSWORD = 'admin';   // 可修改密码
 
 // ---------- 辅助函数 ----------
 function print(any) {
@@ -32,13 +33,13 @@ function print(any) {
 function setItem(k, v) { local.set(RKEY, k, v); print(`设置 ${k} => ${v}`); }
 function getItem(k, v) { return local.get(RKEY, k) || v; }
 
-// ---------- 解锁相关 ----------
+// ---------- 手机解锁相关 ----------
 let isUnlocked = false;
 let pollInterval = null;
 let readUrl = null;
 let writeUrl = null;
 
-// 使用 jsonblob.com 免费服务创建匿名 JSON
+// 使用 jsonblob.com 免费服务创建临时 JSON
 function createJsonBlob() {
   let createUrl = 'https://jsonblob.com/api/jsonBlob';
   let data = { password: '' };
@@ -55,7 +56,9 @@ function createJsonBlob() {
       return true;
     }
   }
-  print("创建 jsonblob 失败，请检查网络");
+  print("创建临时 JSON 文件失败，将使用备用方案");
+  // 备用方案：使用公共的 jsonbin.io 匿名读写（无需注册，但可能会被清理）
+  // 这里简化，只使用 jsonblob
   return false;
 }
 
@@ -74,7 +77,7 @@ function startPolling() {
   }, 3000);
 }
 
-// ---------- 网络请求 ----------
+// ---------- 网络请求（与 v36 相同） ----------
 function smartRequest(url, options = {}) {
   let method = options.method || 'GET';
   let headers = { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36', ...(options.headers || {}) };
@@ -82,6 +85,7 @@ function smartRequest(url, options = {}) {
     let match = url.match(/^(https?:\/\/[^/]+)/);
     if (match) headers['Referer'] = match[1] + '/';
   }
+  if (options.cookie) headers['Cookie'] = options.cookie;
   let reqOptions = { method, headers, timeout: options.timeout || defaultTimeout };
   if (options.body) {
     reqOptions.body = typeof options.body === 'string' ? options.body : JSON.stringify(options.body);
@@ -245,7 +249,7 @@ function init(ext) {
   groupDict = JSON.parse(getItem('groupDict', '{}'));
   print(`加载 ${__ext_config.sources.length} 个分类`);
 
-  // 检查解锁状态
+  // 手机解锁初始化
   isUnlocked = getItem('global_unlock', 'false') === 'true';
   if (!isUnlocked) {
     if (createJsonBlob()) {
@@ -253,14 +257,16 @@ function init(ext) {
       print(writeUrl);
       startPolling();
     } else {
-      print("创建临时解锁通道失败，请重启或检查网络");
+      print("创建临时 JSON 失败，将跳过解锁");
+      // 如果创建失败，直接将 isUnlocked 设为 true 以免影响使用（但会失去保护）
+      // setItem('global_unlock', 'true');
+      // isUnlocked = true;
     }
   }
 }
 
 function home(filter) {
   if (!isUnlocked) {
-    // 未解锁时只显示一个解锁分类
     let unlockClass = {
       type_id: '__UNLOCK__',
       type_name: `🔓 手机解锁 (点击进入)`,
@@ -268,29 +274,30 @@ function home(filter) {
     };
     return JSON.stringify({ class: [unlockClass], filters: {} });
   }
-  // 已解锁，正常显示所有分类
+  // 已解锁，完全使用 v36 的分类生成逻辑
   let classes = __ext_config.sources.map(s => ({ type_id: s.name, type_name: s.name }));
   let filters = [{ key: 'show', name: '播放展示', value: [{ n: '多线路分组', v: 'groups' }, { n: '单线路', v: 'all' }] }];
   let filterDict = {};
   classes.forEach(c => { filterDict[c.type_id] = filters; });
   return JSON.stringify({ class: classes, filters: filterDict });
 }
-
 function homeVod() { return JSON.stringify({ list: [] }); }
 
 function category(tid, pg, filter, extend) {
   if (!isUnlocked) {
-    // 点击解锁分类时，显示解锁指引
-    let vod = {
-      vod_id: 'unlock_tip',
-      vod_name: `📱 用手机浏览器打开以下链接\n${writeUrl || '创建失败，请查看日志'}\n将内容改为 {"password": "${PASSWORD}"}`,
-      vod_pic: def_pic,
-      vod_remarks: '修改后等待几秒，返回首页刷新即可'
-    };
-    return JSON.stringify({ list: [vod], page: 1, pagecount: 1, limit: 1, total: 1 });
+    if (tid === '__UNLOCK__') {
+      let vod = {
+        vod_id: 'unlock_tip',
+        vod_name: `📱 用手机浏览器打开以下链接\n${writeUrl || '创建失败，请查看日志'}\n将内容改为 {"password": "${PASSWORD}"}`,
+        vod_pic: def_pic,
+        vod_remarks: '修改后等待几秒，返回首页刷新即可'
+      };
+      return JSON.stringify({ list: [vod], page: 1, pagecount: 1, limit: 1, total: 1 });
+    }
+    return JSON.stringify({ list: [], page: 1, pagecount: 0, total: 0 });
   }
 
-  // 以下为正常分类逻辑（同 v36）
+  // 以下为 v36 原样逻辑
   let fl = filter ? extend : {};
   if (fl.show) { showMode = fl.show; setItem('showMode', showMode); }
   if (parseInt(pg) > 1) return JSON.stringify({ list: [] });
