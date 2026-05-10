@@ -1,9 +1,7 @@
-// ==================== 通用动态爬虫 v36（密码验证 + 输入框） ====================
-// 功能：
-//   - 支持普通线路、合集模式、多格式解析、全局搜索
-//   - 播放时自动检测密码状态（默认密码 "admin"）
-//   - 未验证时弹窗提示输入密码，验证成功后自动播放
-//   - 验证状态永久保存（清除缓存后失效）
+// ==================== 通用动态爬虫 v37（密码验证 - 无弹窗版） ====================
+// 密码：admin
+// 导出 verifyPassword 方法，需在前端/控制台手动调用
+// 未验证时播放返回错误提示
 // ================================================================
 
 // ---------- 基础配置 ----------
@@ -20,7 +18,7 @@ let debugMode = true;
 let defaultTimeout = 8000;
 let defaultRetry = 2;
 let def_pic = 'https://avatars.githubusercontent.com/u/97389433?s=120&v=4';
-const VERSION = 'universal v3.6 (password auth)';
+const VERSION = 'universal v3.7 (no prompt)';
 const tips = `\n${VERSION}`;
 const RKEY = 'universal_spider';
 const PASSWORD_KEY = 'cctv_auth';
@@ -44,18 +42,8 @@ function setAuthorized(val) {
   setItem(PASSWORD_KEY, val ? 'true' : 'false');
 }
 
-// 弹出密码输入框（异步，但这里用同步阻塞方式，实际是同步prompt）
-function promptPassword() {
-  // 在某些环境下可能没有 prompt，需要备用
-  if (typeof prompt !== 'undefined') {
-    return prompt("请输入密码以解锁播放：", "");
-  }
-  return null;
-}
-
-// 验证密码（供外部调用）
+// 外部验证接口
 function verifyPassword(pwd) {
-  if (!pwd) pwd = promptPassword();
   if (pwd === DEFAULT_PASSWORD) {
     setAuthorized(true);
     print("密码正确，已解锁");
@@ -65,7 +53,7 @@ function verifyPassword(pwd) {
   return false;
 }
 
-// ---------- 网络请求（与 v34 相同） ----------
+// ---------- 网络请求（与之前相同） ----------
 function smartRequest(url, options = {}) {
   let method = options.method || 'GET';
   let headers = { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36', ...(options.headers || {}) };
@@ -210,7 +198,7 @@ function splitArray(arr, parse) {
   return result;
 }
 
-// ---------- 外部接口（init, home, category, detail）等 ----------
+// ---------- 外部接口 ----------
 function init(ext) {
   print(`初始化 ${VERSION}`);
   let configData = null;
@@ -333,27 +321,17 @@ function detail(tid) {
   return JSON.stringify({ list: [vod] });
 }
 
-// ---------- 播放器（密码验证 + 弹窗） ----------
+// ---------- 播放器（密码验证，无弹窗） ----------
 function play(flag, id, vipFlags) {
-  // 检查密码状态
   if (!isAuthorized()) {
-    // 弹出密码输入框（同步等待用户输入）
-    let pwd = promptPassword();
-    if (pwd === DEFAULT_PASSWORD) {
-      setAuthorized(true);
-      print("密码正确，继续播放");
-    } else {
-      if (pwd !== null) print("密码错误，拒绝播放");
-      // 返回错误提示（部分播放器支持显示错误信息）
-      return JSON.stringify({
-        parse: 0,
-        playUrl: '',
-        url: '',
-        error: '需要密码验证，请刷新页面后重新输入正确密码'
-      });
-    }
+    print("播放被拒绝：未验证密码");
+    return JSON.stringify({
+      parse: 0,
+      playUrl: '',
+      url: '',
+      error: '需要密码验证，请在控制台或前端调用 verifyPassword("admin") 解锁'
+    });
   }
-
   // 正常播放逻辑
   let parse = 0;
   let finalUrl = id;
@@ -369,7 +347,7 @@ function play(flag, id, vipFlags) {
   return JSON.stringify({ parse: autoParse, playUrl: '', url: finalUrl });
 }
 
-// ---------- 搜索功能 ----------
+// ---------- 搜索 ----------
 function search(wd, quick) {
   let results = [];
   for (let src of __ext_config.sources) {
@@ -389,8 +367,8 @@ function search(wd, quick) {
   return JSON.stringify({ list: results });
 }
 
-// ---------- 对外导出（包含 verifyPassword 供前端主动调用） ----------
+// ---------- 导出 ----------
 export default {
   init, home, homeVod, category, detail, play, search,
-  verifyPassword   // 可手动调用验证
+  verifyPassword   // 外部调用入口
 };
