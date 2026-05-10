@@ -1,8 +1,7 @@
-// ==================== 通用动态爬虫 v34（时间密码 + 自动锁定 - 优化版） ====================
+// ==================== 通用动态爬虫 v34（时间密码 + 自动锁定 - 图片卡片版） ====================
 // 密码为当前时间（小时+分钟），例如 19:22 -> 1922，9:08 -> 0908
 // 解锁后有效期为 60 分钟，超时自动重新锁定
-// 优化：解锁成功后显示提示，按返回键即可回到首页
-// 按钮样式优化为卡片样式
+// 优化：数字键和功能键各自使用不同的随机图片，形成卡片效果
 // ================================================================
 
 String.prototype.rstrip = function (chars) {
@@ -18,7 +17,7 @@ let groupDict = {};
 let debugMode = true;
 let defaultTimeout = 8000;
 let defaultRetry = 2;
-let def_pic = 'https://avatars.githubusercontent.com/u/97389433?s=120&v=4';
+let def_pic = 'https://picsum.photos/200/300?random=1';
 const VERSION = 'universal v3.4 (time password optimized)';
 const tips = `\n${VERSION}`;
 const RKEY = 'universal_spider';
@@ -70,27 +69,27 @@ function verifyDynamicPassword(input) {
 let unlockBuffer = '';
 let unlockMode = false;
 
-// 生成虚拟键盘视频列表（卡片样式按钮）
+// 生成虚拟键盘视频列表（每个按钮独立随机图片）
 function getKeyboardVideos() {
   let items = [];
   for (let i = 0; i <= 9; i++) {
     items.push({
       vod_id: `__UNLOCK_KEY__${i}`,
       vod_name: `[ ${i} ]`,
-      vod_pic: def_pic,
+      vod_pic: `https://picsum.photos/200/300?random=${100 + i}`,  // 数字0-9对应random=100~109
       vod_remarks: ''
     });
   }
   items.push({
     vod_id: '__UNLOCK_BACKSPACE',
     vod_name: '⌫ [删除]',
-    vod_pic: def_pic,
+    vod_pic: `https://picsum.photos/200/300?random=200`,           // 删除键固定图片
     vod_remarks: ''
   });
   items.push({
     vod_id: '__UNLOCK_CLEAR',
     vod_name: '🗑 [清除]',
-    vod_pic: def_pic,
+    vod_pic: `https://picsum.photos/200/300?random=201`,           // 清除键固定图片
     vod_remarks: ''
   });
   return items;
@@ -362,7 +361,7 @@ function category(tid, pg, filter, extend) {
     let videos = getKeyboardVideos();
     let statusItem = {
       vod_id: '__UNLOCK_STATUS_INIT_' + Date.now(),
-      vod_name: `🔐 请输入当前时间密码（4位数字）`,
+      vod_name: `🔐 请输入密码（4位数字）`,
       vod_pic: def_pic,
       vod_remarks: '例如 上午9:08 输入 0908'
     };
@@ -438,7 +437,6 @@ function detail(tid) {
             unlocked = true;
             unlockMode = false;
             print("密码正确，解锁成功！");
-            // 返回一个提示条目，用户按返回键即可回到首页
             let successItem = {
               vod_id: '__UNLOCK_SUCCESS',
               vod_name: '✅ 解锁成功！请按返回键返回首页',
@@ -453,7 +451,7 @@ function detail(tid) {
               vod_id: '__UNLOCK_STATUS_ERR_' + Date.now(),
               vod_name: `❌ 密码错误，请重试`,
               vod_pic: def_pic,
-              vod_remarks: '当前时间密码是 ' + getCurrentTimePassword()
+              vod_remarks: '找管理员要密码 '
             };
             videos.unshift(statusItem);
             return JSON.stringify({ list: videos });
