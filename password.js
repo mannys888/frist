@@ -1,13 +1,9 @@
-// ==================== 通用动态爬虫 v37（手机扫码解锁版） ====================
-// 需要配合 Cloudflare Worker 使用：https://your-worker.workers.dev
-// 使用说明：
-//   1. 部署 Worker（上方代码）
-//   2. 将下面的 WORKER_URL 改为您的 Worker 域名
-//   3. 爬虫启动后，遇到需要密码的分类，会显示一个网址
-//   4. 用户用手机访问该网址并在 URL 后添加 ?password=xxx 即可解锁
+// ==================== 通用动态爬虫 v39（手机扫码解锁，无需配置） ====================
+// 功能：分类未解锁时显示一个“🔓 手机解锁”条目，内含写链接
+// 用户用手机访问该链接，将内容改为 {"password": "admin"}，提交后电视端自动解锁
+// 密码内置为 "admin"，可自行修改下方 PASSWORD 常量
 // ================================================================
 
-// ---------- 基础配置 ----------
 String.prototype.rstrip = function (chars) {
   let regex = new RegExp(chars + "$");
   return this.replace(regex, "");
@@ -21,10 +17,10 @@ let debugMode = true;
 let defaultTimeout = 8000;
 let defaultRetry = 2;
 let def_pic = 'https://avatars.githubusercontent.com/u/97389433?s=120&v=4';
-const VERSION = 'universal v3.7 (mobile unlock)';
+const VERSION = 'universal v3.9 (no-config unlock)';
 const tips = `\n${VERSION}`;
 const RKEY = 'universal_spider';
-const WORKER_URL = 'https://your-worker.workers.dev'; // 修改为您的 Worker 地址
+const PASSWORD = 'admin';   // 预设密码，可修改
 
 // ---------- 辅助函数 ----------
 function print(any) {
@@ -36,33 +32,52 @@ function print(any) {
 function setItem(k, v) { local.set(RKEY, k, v); print(`设置 ${k} => ${v}`); }
 function getItem(k, v) { return local.get(RKEY, k) || v; }
 
-// 生成随机 token
-function generateToken() {
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-    let r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
-    return v.toString(16);
+// ---------- 解锁相关 ----------
+let isUnlocked = false;
+let pollInterval = null;
+let readUrl = null;
+let writeUrl = null;
+
+// 使用 jsonblob.com 免费服务创建匿名 JSON
+function createJsonBlob() {
+  let createUrl = 'https://jsonblob.com/api/jsonBlob';
+  let data = { password: '' };
+  let resp = smartRequest(createUrl, {
+    method: 'POST',
+    body: JSON.stringify(data),
+    headers: { 'Content-Type': 'application/json' }
   });
+  if (resp.status === 201 || resp.status === 200) {
+    let location = resp.headers['location'];
+    if (location) {
+      readUrl = location;               // 读取链接
+      writeUrl = location + '/edit';    // 编辑链接（手机访问）
+      return true;
+    }
+  }
+  print("创建 jsonblob 失败，请检查网络");
+  return false;
 }
 
-// 轮询查询密码
-let pollInterval = null;
-function startPolling(token, onSuccess) {
+function startPolling() {
   if (pollInterval) clearInterval(pollInterval);
   pollInterval = setInterval(() => {
-    let url = `${WORKER_URL}?token=${token}`;
-    let resp = smartRequest(url);
-    let pwd = resp.text();
-    if (pwd && pwd.length > 0) {
+    if (!readUrl) return;
+    let resp = smartRequest(readUrl);
+    let json = resp.json();
+    if (json && json.password === PASSWORD) {
       clearInterval(pollInterval);
-      onSuccess(pwd);
+      setItem('global_unlock', 'true');
+      isUnlocked = true;
+      print("手机解锁成功！请返回首页刷新。");
     }
-  }, 2000);
+  }, 3000);
 }
 
 // ---------- 网络请求 ----------
 function smartRequest(url, options = {}) {
   let method = options.method || 'GET';
-  let headers = { 'User-Agent': 'Mozilla/5.0', ...(options.headers || {}) };
+  let headers = { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36', ...(options.headers || {}) };
   if (!headers['Referer']) {
     let match = url.match(/^(https?:\/\/[^/]+)/);
     if (match) headers['Referer'] = match[1] + '/';
@@ -72,14 +87,19 @@ function smartRequest(url, options = {}) {
     reqOptions.body = typeof options.body === 'string' ? options.body : JSON.stringify(options.body);
     if (!headers['Content-Type']) headers['Content-Type'] = 'application/json';
   }
-  try {
-    let res = req(url, reqOptions);
-    res.json = () => res.content ? JSON.parse(res.content) : null;
-    res.text = () => res.content || '';
-    return res;
-  } catch(e) {
-    print(`请求失败: ${url} - ${e.message}`);
-    return { text: () => '' };
+  let retries = options.retry || defaultRetry;
+  for (let i = 0; i <= retries; i++) {
+    try {
+      let res = req(url, reqOptions);
+      res.json = () => res.content ? JSON.parse(res.content) : null;
+      res.text = () => res.content || '';
+      res.status = res.statusCode || 200;
+      res.headers = res.headers || {};
+      return res;
+    } catch(e) {
+      if (i === retries) throw e;
+      print(`请求失败，重试 ${i+1}/${retries}: ${url} - ${e.message}`);
+    }
   }
 }
 
@@ -90,42 +110,116 @@ function fetchSource(url, sourceConfig = {}, noCache = false) {
     headers: { ...(sourceConfig.headers || {}) },
     body: sourceConfig.body,
     timeout: sourceConfig.timeout,
-    cookie: sourceConfig.cookie,
+    cookie: sourceConfig.cookie || getItem('site_cookie'),
     retry: sourceConfig.retry
   };
   let resp = smartRequest(url, opts);
   let content = resp.text();
+  if (!sourceConfig.type && content.includes('#EXTM3U')) {
+    content = convertM3uToNormal(content);
+  }
   if (!noCache) cache_data[url] = content;
   return content;
 }
 
-// 解析函数（简化版，仅支持普通 txt）
+function convertM3uToNormal(m3u) {
+  try {
+    const lines = m3u.split('\n');
+    let result = '', TV = '', flag = '#m3u#', currentGroupTitle = '';
+    for (let line of lines) {
+      if (line.startsWith('#EXTINF:')) {
+        const groupTitle = line.split('"')[1]?.trim() || '';
+        TV = line.split('"')[2]?.substring(1) || '';
+        if (currentGroupTitle !== groupTitle) {
+          currentGroupTitle = groupTitle;
+          result += `\n${currentGroupTitle},${flag}\n`;
+        }
+      } else if (line.startsWith('http')) {
+        const splitLine = line.split(',');
+        result += `${TV}\,${splitLine[0]}\n`;
+      }
+    }
+    return result.trim();
+  } catch(e) { return m3u; }
+}
+
 function parseList(content, parseConfig, baseUrl) {
   let items = [];
-  let sep = parseConfig?.line_sep || ',';
-  let lines = content.split(/\r?\n/);
-  for (let line of lines) {
-    line = line.trim();
-    if (!line || line.startsWith('#')) continue;
-    let idx = line.indexOf(sep);
-    if (idx > 0) {
-      let title = line.substring(0, idx).trim();
-      let url = line.substring(idx + 1).trim();
-      if (url && (url.startsWith('http') || url.startsWith('/'))) {
-        if (!url.startsWith('http')) url = baseUrl + url;
-        items.push({ title, url });
+  let type = parseConfig.type || 'text';
+  if (type === 'json') {
+    try {
+      let json = JSON.parse(content);
+      let dataArr = json;
+      if (parseConfig.jsonPath) {
+        let parts = parseConfig.jsonPath.split('.');
+        for (let p of parts) dataArr = dataArr[p];
       }
-    } else if (line.startsWith('http')) {
-      items.push({ title: "媒体文件", url: line });
+      if (!Array.isArray(dataArr)) dataArr = dataArr || [];
+      for (let item of dataArr) {
+        let title = parseConfig.titleField ? item[parseConfig.titleField] : (item.title || item.name);
+        let url = parseConfig.urlField ? item[parseConfig.urlField] : (item.url || item.link || item.play_url);
+        if (title && url) items.push({ title, url });
+      }
+    } catch(e) { print("JSON解析错误"); }
+  } 
+  else if (type === 'rss') {
+    let titles = [...content.matchAll(/<title>(.*?)<\/title>/g)].map(m => m[1]);
+    let links = [...content.matchAll(/<link>(.*?)<\/link>/g)].map(m => m[1]);
+    for (let i = 0; i < Math.min(titles.length, links.length); i++) {
+      if (links[i].startsWith('http')) items.push({ title: titles[i], url: links[i] });
+    }
+  }
+  else if (type === 'm3u') {
+    let lines = content.split(/\r?\n/);
+    let currentTitle = "";
+    for (let line of lines) {
+      line = line.trim();
+      if (line.startsWith("#EXTINF:")) {
+        let match = line.match(/#EXTINF:.*?,(.*)/);
+        if (match) currentTitle = match[1].trim();
+      } else if (line && !line.startsWith("#") && line.match(/^https?:\/\//i)) {
+        items.push({ title: currentTitle || "直播流", url: line });
+        currentTitle = "";
+      }
+    }
+  }
+  else {
+    let sep = parseConfig.line_sep || ',';
+    let regex = new RegExp(`^(.+?)${sep}(https?://\\S+)`);
+    let lines = content.split(/\r?\n/);
+    for (let line of lines) {
+      line = line.trim();
+      if (!line || line.startsWith('#')) continue;
+      let match = line.match(regex);
+      if (match) {
+        items.push({ title: match[1].trim(), url: match[2].trim() });
+      } else if (line.match(/^https?:\/\//i)) {
+        items.push({ title: "媒体文件", url: line });
+      }
     }
   }
   return items;
 }
 
-// ---------- 全局变量 ----------
-let globalUnlockToken = null;
-let isUnlocked = false;
+function splitArray(arr, parse) {
+  parse = parse && typeof parse == 'function' ? parse : '';
+  if (!arr.length) return [];
+  let result = [[arr[0]]];
+  for (let i = 1; i < arr.length; i++) {
+    let index = -1;
+    for (let j = 0; j < result.length; j++) {
+      if (parse && result[j].map(parse).includes(parse(arr[i]))) index = j;
+      else if ((!parse) && result[j].includes(arr[i])) index = j;
+    }
+    if (index >= result.length - 1) {
+      result.push([]);
+      result[result.length-1].push(arr[i]);
+    } else result[index+1].push(arr[i]);
+  }
+  return result;
+}
 
+// ---------- 外部接口 ----------
 function init(ext) {
   print(`初始化 ${VERSION}`);
   let configData = null;
@@ -139,58 +233,64 @@ function init(ext) {
     }
   }
   if (configData) {
-    if (Array.isArray(configData)) __ext_config.sources = configData;
+    if (Array.isArray(configData) && configData[0]?.name && configData[0]?.url) __ext_config.sources = configData;
     else if (configData.sources) __ext_config = configData;
     if (__ext_config.global) {
       if (__ext_config.global.defaultPic) def_pic = __ext_config.global.defaultPic;
+      if (__ext_config.global.defaultTimeout) defaultTimeout = __ext_config.global.defaultTimeout;
       if (__ext_config.global.debug !== undefined) debugMode = __ext_config.global.debug;
     }
   }
   showMode = getItem('showMode', 'groups');
   groupDict = JSON.parse(getItem('groupDict', '{}'));
   print(`加载 ${__ext_config.sources.length} 个分类`);
-  // 检查是否已解锁
+
+  // 检查解锁状态
   isUnlocked = getItem('global_unlock', 'false') === 'true';
   if (!isUnlocked) {
-    globalUnlockToken = generateToken();
-    print(`生成解锁 token: ${globalUnlockToken}`);
-    print(`手机访问以下 URL 并附加 ?password=您的密码 来解锁：`);
-    let authUrl = `${WORKER_URL}?token=${globalUnlockToken}&password=密码`;
-    print(authUrl);
-    startPolling(globalUnlockToken, (pwd) => {
-      if (pwd === 'admin') {  // 这里可以改为从 ext 或固定密码
-        setItem('global_unlock', 'true');
-        isUnlocked = true;
-        print("手机解锁成功！");
-      } else {
-        print("密码错误，解锁失败");
-      }
-    });
+    if (createJsonBlob()) {
+      print(`请用手机访问以下链接，并将内容改为 {"password": "${PASSWORD}"}：`);
+      print(writeUrl);
+      startPolling();
+    } else {
+      print("创建临时解锁通道失败，请重启或检查网络");
+    }
   }
 }
 
 function home(filter) {
+  if (!isUnlocked) {
+    // 未解锁时只显示一个解锁分类
+    let unlockClass = {
+      type_id: '__UNLOCK__',
+      type_name: `🔓 手机解锁 (点击进入)`,
+      icon: '📱'
+    };
+    return JSON.stringify({ class: [unlockClass], filters: {} });
+  }
+  // 已解锁，正常显示所有分类
   let classes = __ext_config.sources.map(s => ({ type_id: s.name, type_name: s.name }));
   let filters = [{ key: 'show', name: '播放展示', value: [{ n: '多线路分组', v: 'groups' }, { n: '单线路', v: 'all' }] }];
   let filterDict = {};
   classes.forEach(c => { filterDict[c.type_id] = filters; });
   return JSON.stringify({ class: classes, filters: filterDict });
 }
+
 function homeVod() { return JSON.stringify({ list: [] }); }
 
 function category(tid, pg, filter, extend) {
   if (!isUnlocked) {
-    // 未解锁：返回一个提示条目，显示解锁二维码/网址
-    let authUrl = `${WORKER_URL}?token=${globalUnlockToken}`;
+    // 点击解锁分类时，显示解锁指引
     let vod = {
-      vod_id: 'unlock_placeholder',
-      vod_name: `📱 手机扫码解锁：${authUrl}`,
+      vod_id: 'unlock_tip',
+      vod_name: `📱 用手机浏览器打开以下链接\n${writeUrl || '创建失败，请查看日志'}\n将内容改为 {"password": "${PASSWORD}"}`,
       vod_pic: def_pic,
-      vod_remarks: '请用手机浏览器访问该网址，并添加 ?password=admin'
+      vod_remarks: '修改后等待几秒，返回首页刷新即可'
     };
     return JSON.stringify({ list: [vod], page: 1, pagecount: 1, limit: 1, total: 1 });
   }
 
+  // 以下为正常分类逻辑（同 v36）
   let fl = filter ? extend : {};
   if (fl.show) { showMode = fl.show; setItem('showMode', showMode); }
   if (parseInt(pg) > 1) return JSON.stringify({ list: [] });
@@ -299,24 +399,6 @@ function search(wd, quick) {
     }
   }
   return JSON.stringify({ list: results });
-}
-
-function splitArray(arr, parse) {
-  parse = parse && typeof parse == 'function' ? parse : '';
-  if (!arr.length) return [];
-  let result = [[arr[0]]];
-  for (let i = 1; i < arr.length; i++) {
-    let index = -1;
-    for (let j = 0; j < result.length; j++) {
-      if (parse && result[j].map(parse).includes(parse(arr[i]))) index = j;
-      else if ((!parse) && result[j].includes(arr[i])) index = j;
-    }
-    if (index >= result.length - 1) {
-      result.push([]);
-      result[result.length-1].push(arr[i]);
-    } else result[index+1].push(arr[i]);
-  }
-  return result;
 }
 
 export default {
