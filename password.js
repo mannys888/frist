@@ -1,10 +1,10 @@
-// ==================== 通用动态爬虫 v38（加载即验证 + 备用入口） ====================
+// ==================== 通用动态爬虫 v39（分类级密码验证） ====================
 // 功能：
 //   - 支持普通线路、合集模式、多格式解析、全局搜索
-//   - 密码验证（默认 admin）
-//   - 优先在 init 时弹出密码输入框（若环境支持）
-//   - 若环境不支持弹窗，则在首页显示一个“验证密码”分类，点击后验证
-//   - 验证后永久解锁，显示全部分类
+//   - 数据源文件中使用 "#genre#" 标记密码分类，格式："vip_密码,#genre#"
+//   - 例如："vip_001,#genre#" 表示该分类密码为 "001"
+//   - 用户点击分类时弹窗输入密码，验证通过后才能加载该分类内容
+//   - 验证状态按分类独立保存
 // ================================================================
 
 // ---------- 基础配置 ----------
@@ -21,11 +21,9 @@ let debugMode = true;
 let defaultTimeout = 8000;
 let defaultRetry = 2;
 let def_pic = 'https://avatars.githubusercontent.com/u/97389433?s=120&v=4';
-const VERSION = 'universal v3.8 (load-auth)';
+const VERSION = 'universal v3.9 (category password)';
 const tips = `\n${VERSION}`;
 const RKEY = 'universal_spider';
-const PASSWORD_KEY = 'cctv_auth';
-const DEFAULT_PASSWORD = 'admin';
 
 // ---------- 辅助函数 ----------
 function print(any) {
@@ -37,34 +35,99 @@ function print(any) {
 function setItem(k, v) { local.set(RKEY, k, v); print(`设置 ${k} => ${v}`); }
 function getItem(k, v) { return local.get(RKEY, k) || v; }
 
-// 密码验证状态
-function isAuthorized() {
-  return getItem(PASSWORD_KEY, 'false') === 'true';
+// ---------- 分类密码管理 ----------
+// 存储每个分类的密码哈希（key: 分类名, value: 密码）
+let categoryPasswords = {};
+
+// 检查某分类是否已被解锁
+function isCategoryUnlocked(categoryName) {
+  return getItem(`unlock_${categoryName}`, 'false') === 'true';
 }
-function setAuthorized(val) {
-  setItem(PASSWORD_KEY, val ? 'true' : 'false');
+function setCategoryUnlocked(categoryName, unlocked) {
+  setItem(`unlock_${categoryName}`, unlocked ? 'true' : 'false');
 }
 
-// 验证密码（返回布尔值）
-function verifyPassword(pwd) {
-  if (pwd === DEFAULT_PASSWORD) {
-    setAuthorized(true);
-    print("密码正确，已解锁");
+// 验证某分类的密码
+function verifyCategoryPassword(categoryName, pwd) {
+  let expected = categoryPasswords[categoryName];
+  if (!expected) return false; // 该分类无密码，无需验证
+  if (pwd === expected) {
+    setCategoryUnlocked(categoryName, true);
+    print(`分类 ${categoryName} 解锁成功`);
     return true;
   }
-  print("密码错误");
+  print(`分类 ${categoryName} 密码错误`);
   return false;
 }
 
 // 尝试弹窗输入密码（如果环境支持）
-function tryPromptAuth() {
+function tryPromptForCategory(categoryName) {
   if (typeof prompt !== 'undefined') {
-    let pwd = prompt("请输入密码以解锁所有内容：", "");
+    let pwd = prompt(`请输入分类“${categoryName}”的密码：`, "");
     if (pwd !== null) {
-      return verifyPassword(pwd);
+      return verifyCategoryPassword(categoryName, pwd);
     }
   }
   return false;
+}
+
+// ---------- 解析源文件，提取分类和条目 ----------
+// 输入：源文件URL、parseConfig、源文件内容
+// 输出：{ categories: [{ name, password, lines }], 普通条目列表 }
+function parseSourceWithPassword(content, baseUrl, sourceName) {
+  let lines = content.split(/\r?\n/);
+  let result = {
+    categories: [],      // 分类信息 { name, password, startLineIdx, endLineIdx }
+    plainItems: []       // 不属于任何密码分类的普通条目
+  };
+  let currentCategory = null;
+  let categoryStart = -1;
+  let i = 0;
+  while (i < lines.length) {
+    let line = lines[i].trim();
+    // 检测密码行格式：xxx,#genre#
+    if (line.includes('#genre#')) {
+      // 如果之前有未闭合的分类，先闭合
+      if (currentCategory) {
+        currentCategory.endLineIdx = i - 1;
+        result.categories.push(currentCategory);
+        currentCategory = null;
+      }
+      // 解析新分类
+      let parts = line.split(',');
+      let namePart = parts[0]; // 例如 "vip_001"
+      let password = null;
+      let categoryName = namePart;
+      if (namePart.startsWith('vip_')) {
+        password = namePart.substring(4); // 提取 "001"
+        categoryName = `🔒 ${namePart}`;   // 前端显示带锁图标
+      }
+      currentCategory = {
+        name: categoryName,
+        rawName: namePart,
+        password: password,
+        startLineIdx: i + 1,
+        endLineIdx: -1,
+        sourceUrl: baseUrl,
+        sourceName: sourceName
+      };
+      i++;
+      continue;
+    }
+    // 如果在分类内部
+    if (currentCategory) {
+      // 分类内容解析暂时跳过，实际内容会在 category 函数中单独解析
+      i++;
+      continue;
+    }
+    // 普通行（无分类）
+    i++;
+  }
+  if (currentCategory) {
+    currentCategory.endLineIdx = lines.length - 1;
+    result.categories.push(currentCategory);
+  }
+  return result;
 }
 
 // ---------- 网络请求（与前相同） ----------
@@ -114,7 +177,7 @@ function fetchSource(url, sourceConfig = {}, noCache = false) {
   return content;
 }
 
-// ---------- 解析函数 ----------
+// ---------- 解析普通条目 ----------
 function parseList(content, parseConfig, baseUrl) {
   let items = [];
   let type = parseConfig.type || 'text';
@@ -162,6 +225,8 @@ function parseList(content, parseConfig, baseUrl) {
     for (let line of lines) {
       line = line.trim();
       if (!line || line.startsWith('#')) continue;
+      // 跳过密码行
+      if (line.includes('#genre#')) continue;
       let match = line.match(regex);
       if (match) {
         items.push({ title: match[1].trim(), url: match[2].trim() });
@@ -213,9 +278,10 @@ function splitArray(arr, parse) {
 }
 
 // ---------- 外部接口 ----------
+let sourceParsedCache = {}; // 缓存每个源的解析结果（分类信息）
+
 function init(ext) {
   print(`初始化 ${VERSION}`);
-  // 1. 解析配置
   let configData = null;
   if (typeof ext === 'object') configData = ext;
   else if (typeof ext === 'string') {
@@ -237,30 +303,46 @@ function init(ext) {
   }
   showMode = getItem('showMode', 'groups');
   groupDict = JSON.parse(getItem('groupDict', '{}'));
-  print(`原始配置加载 ${__ext_config.sources.length} 个分类`);
+  print(`加载 ${__ext_config.sources.length} 个源配置`);
 
-  // 2. 尝试立即弹窗验证（如果环境支持且未验证）
-  if (!isAuthorized()) {
-    let success = tryPromptAuth();
-    if (!success && __ext_config.sources.length === 0) {
-      // 配置本身为空，也可以不处理
+  // 预解析所有源，提取密码分类信息
+  for (let src of __ext_config.sources) {
+    let content = fetchSource(src.url, src);
+    let baseDir = src.url.substring(0, src.url.lastIndexOf('/')+1);
+    let parsed = parseSourceWithPassword(content, baseDir, src.name);
+    sourceParsedCache[src.url] = parsed;
+    // 记录密码映射
+    for (let cat of parsed.categories) {
+      if (cat.password) {
+        categoryPasswords[cat.name] = cat.password;
+        print(`发现密码分类: ${cat.name} (密码: ${cat.password})`);
+      }
     }
   }
 }
 
 function home(filter) {
-  // 如果未验证，返回一个特殊的“密码验证”分类，引导用户点击验证
-  if (!isAuthorized()) {
-    let authClass = [{
-      type_id: '__AUTH__',
-      type_name: '🔐 点击验证密码',
-      icon: ''
-    }];
-    return JSON.stringify({ class: authClass, filters: {} });
+  // 构建分类列表：来自所有源的分类 + 普通未分类的源（如果是 series 模式则作为单独分类）
+  let classes = [];
+  for (let src of __ext_config.sources) {
+    let parsed = sourceParsedCache[src.url];
+    if (parsed && parsed.categories.length) {
+      for (let cat of parsed.categories) {
+        classes.push({
+          type_id: `${src.url}###${cat.name}`,
+          type_name: cat.name,
+          icon: cat.password ? '🔒' : ''
+        });
+      }
+    } else {
+      // 没有分类的源视为普通分类（直接使用源名称）
+      classes.push({
+        type_id: src.name,
+        type_name: src.name,
+        icon: ''
+      });
+    }
   }
-
-  // 已验证，返回正常分类
-  let classes = __ext_config.sources.map(s => ({ type_id: s.name, type_name: s.name }));
   let filters = [{ key: 'show', name: '播放展示', value: [{ n: '多线路分组', v: 'groups' }, { n: '单线路', v: 'all' }] }];
   let filterDict = {};
   classes.forEach(c => { filterDict[c.type_id] = filters; });
@@ -269,79 +351,103 @@ function home(filter) {
 function homeVod() { return JSON.stringify({ list: [] }); }
 
 function category(tid, pg, filter, extend) {
-  // 处理特殊分类：验证入口
-  if (tid === '__AUTH__') {
-    // 尝试再次弹窗验证（兼容无prompt环境，这里会报错，但至少用户点击了）
-    let pwd = null;
-    if (typeof prompt !== 'undefined') {
-      pwd = prompt("请输入密码以解锁全部内容：", "");
-    }
-    if (pwd !== null && verifyPassword(pwd)) {
-      // 验证成功，返回空列表（前端会重新加载首页，从而显示正常分类）
-      return JSON.stringify({ list: [], page: 1, pagecount: 1, limit: 0, total: 0 });
-    } else {
-      return JSON.stringify({ list: [], page: 1, pagecount: 1, limit: 0, total: 0 });
+  pg = parseInt(pg) || 1;
+  if (pg > 1) return JSON.stringify({ list: [] });
+
+  // 解析 tid：如果是密码分类，tid 格式为 "源URL###分类名"
+  let isProtectedCategory = tid.includes('###');
+  let sourceUrl = null;
+  let categoryName = null;
+  if (isProtectedCategory) {
+    let parts = tid.split('###');
+    sourceUrl = parts[0];
+    categoryName = parts[1];
+  } else {
+    // 普通分类（无密码）
+    let source = __ext_config.sources.find(s => s.name === tid);
+    if (!source) return JSON.stringify({ list: [] });
+    sourceUrl = source.url;
+    categoryName = null;
+  }
+
+  // 检查是否需要密码验证
+  if (categoryName && categoryPasswords[categoryName] && !isCategoryUnlocked(categoryName)) {
+    // 尝试弹窗验证
+    let success = tryPromptForCategory(categoryName);
+    if (!success) {
+      // 验证失败，返回空列表，并可选提示
+      return JSON.stringify({ list: [], page: 1, pagecount: 1, limit: 0, total: 0, error: '需要密码验证' });
     }
   }
 
-  // 未验证时拒绝访问其他分类
-  if (!isAuthorized()) {
-    return JSON.stringify({ list: [], page: 1, pagecount: 0, total: 0 });
-  }
-
-  let fl = filter ? extend : {};
-  if (fl.show) { showMode = fl.show; setItem('showMode', showMode); }
-  if (parseInt(pg) > 1) return JSON.stringify({ list: [] });
-  let source = __ext_config.sources.find(s => s.name === tid);
+  // 获取源分类内容
+  let source = __ext_config.sources.find(s => s.url === sourceUrl);
   if (!source) return JSON.stringify({ list: [] });
 
-  // 合集模式
+  let parsed = sourceParsedCache[sourceUrl];
+  if (!parsed) return JSON.stringify({ list: [] });
+
+  let targetCategory = null;
+  if (categoryName) {
+    targetCategory = parsed.categories.find(c => c.name === categoryName);
+    if (!targetCategory) return JSON.stringify({ list: [] });
+  }
+
+  // 解析分类内的内容（从源文件中提取对应行）
+  let content = fetchSource(sourceUrl, source);
+  let lines = content.split(/\r?\n/);
+  let startLine = targetCategory ? targetCategory.startLineIdx : 0;
+  let endLine = targetCategory ? targetCategory.endLineIdx : lines.length - 1;
+  let categoryContent = lines.slice(startLine, endLine + 1).join('\n');
+  let baseDir = sourceUrl.substring(0, sourceUrl.lastIndexOf('/')+1);
+  let items = parseList(categoryContent, source.parseConfig || {}, baseDir);
+
+  // 检查是否为合集模式
   let isSeries = source.parseConfig?.mode === 'series';
   if (isSeries) {
-    let content = fetchSource(source.url, source);
-    let baseDir = source.url.substring(0, source.url.lastIndexOf('/')+1);
-    let items = parseList(content, source.parseConfig || {}, baseDir);
     if (!items.length) return JSON.stringify({ list: [] });
-    let collectionName = source.parseConfig.collectionName || (source.url.split('/').pop().replace(/\.(txt|m3u8?|json)$/i, '') + '合集');
-    let vod_id = source.url + '###series';
+    let collectionName = source.parseConfig.collectionName || (categoryName || source.name);
+    let vod_id = `${sourceUrl}###${categoryName || source.name}###series`;
     return JSON.stringify({
       list: [{ vod_id, vod_name: collectionName, vod_pic: def_pic, vod_remarks: `📚 共${items.length}集` }],
       page: 1, pagecount: 1, limit: 1, total: items.length
     });
   }
 
-  // 普通模式
-  let html = fetchSource(source.url, source);
-  let arr = html.match(/.*?[,，]#[\s\S].*?#/g) || [];
-  let _list = [];
-  for (let it of arr) {
-    let vname = it.split(/[,，]/)[0];
-    let vtab = it.match(/#(.*?)#/)[0];
-    let vod_id = source.url + '$' + vname + '###single';
-    _list.push({ vod_name: vname, vod_id, vod_pic: def_pic, vod_remarks: vtab });
-  }
-  return JSON.stringify({ page: 1, pagecount: 1, limit: _list.length, total: _list.length, list: _list });
+  // 普通模式（分组）
+  // 将 items 转换为 vod 列表
+  let videos = items.map(item => ({
+    vod_id: `${item.url}###single`,
+    vod_name: item.title,
+    vod_pic: def_pic,
+    vod_remarks: ''
+  }));
+  return JSON.stringify({ list: videos, page: 1, pagecount: 1, limit: videos.length, total: videos.length });
 }
 
 function detail(tid) {
-  if (!isAuthorized()) return JSON.stringify({ list: [] });
-
   let parts = tid.split('###');
   let mode = parts.length > 1 ? parts[1] : 'single';
   let left = parts[0];
-  let sourceUrl = left.split('$')[0];
-  let tab = left.split('$')[1];
-  let source = __ext_config.sources.find(s => s.url === sourceUrl);
-  if (!source) return JSON.stringify({ list: [] });
 
   if (mode === 'series') {
+    // 合集模式：需要知道源URL和分类名
+    let sourceUrl = parts.length > 2 ? parts[0] : null;
+    let categoryName = parts[1];
+    if (!sourceUrl) return JSON.stringify({ list: [] });
+    let source = __ext_config.sources.find(s => s.url === sourceUrl);
+    if (!source) return JSON.stringify({ list: [] });
+    let parsed = sourceParsedCache[sourceUrl];
+    let targetCategory = parsed.categories.find(c => c.name === categoryName);
+    if (!targetCategory) return JSON.stringify({ list: [] });
     let content = fetchSource(sourceUrl, source);
+    let lines = content.split(/\r?\n/);
+    let categoryContent = lines.slice(targetCategory.startLineIdx, targetCategory.endLineIdx + 1).join('\n');
     let baseDir = sourceUrl.substring(0, sourceUrl.lastIndexOf('/')+1);
-    let parseConfig = source.parseConfig || {};
-    let episodes = parseList(content, parseConfig, baseDir);
+    let episodes = parseList(categoryContent, source.parseConfig || {}, baseDir);
     if (!episodes.length) return JSON.stringify({ list: [] });
     let playUrl = episodes.map(ep => `${ep.title}$${ep.url}`).join('#');
-    let vodName = parseConfig.collectionName || (sourceUrl.split('/').pop().replace(/\.(txt|m3u8?|json)$/i, '') + '合集');
+    let vodName = source.parseConfig?.collectionName || (categoryName || source.name);
     let vod = {
       vod_id: tid, vod_name: vodName, vod_pic: def_pic,
       type_name: "连续剧", vod_play_from: source.name, vod_play_url: playUrl,
@@ -350,38 +456,20 @@ function detail(tid) {
     return JSON.stringify({ list: [vod] });
   }
 
-  // 普通模式
-  let html = fetchSource(sourceUrl, source);
-  let regex = new RegExp(`.*?${tab.replace('(', '\\(').replace(')', '\\)')}[,，]#[\\s\\S].*?#`);
-  let match = html.match(regex);
-  if (!match) return JSON.stringify({ list: [] });
-  let rest = html.split(match[0])[1];
-  if (rest.match(/.*?[,，]#[\s\S].*?#/)) rest = rest.split(rest.match(/.*?[,，]#[\s\S].*?#/)[0])[0];
-  let lines = rest.trim().split('\n').filter(l => l.trim());
-  let items = lines.map(l => { let [t, u] = l.split(','); return t + '$' + u; });
-  let playUrl, playFrom;
-  if (showMode === 'groups') {
-    let groups = splitArray(items, x => x.split('$')[0]);
-    let tabs = groups.map((_,i) => i===0 ? source.name+'1' : ` ${i+1} `);
-    playUrl = groups.map(g => g.join('#')).join('$$$');
-    playFrom = tabs.join('$$$');
-  } else {
-    playUrl = items.join('#');
-    playFrom = source.name;
-  }
+  // 单文件模式
+  let url = left;
+  let title = decodeURIComponent(url.split('/').pop().split('.')[0] || "媒体");
   let vod = {
-    vod_id: tid, vod_name: source.name + '|' + tab, type_name: "直播列表", vod_pic: def_pic,
-    vod_content: tid, vod_play_from: playFrom, vod_play_url: playUrl,
-    vod_director: tips, vod_remarks: VERSION
+    vod_id: url,
+    vod_name: title,
+    vod_pic: def_pic,
+    vod_play_from: "播放源",
+    vod_play_url: "播放$" + url
   };
   return JSON.stringify({ list: [vod] });
 }
 
-// 播放器（未验证返回错误）
 function play(flag, id, vipFlags) {
-  if (!isAuthorized()) {
-    return JSON.stringify({ parse: 0, playUrl: '', url: '', error: '需要密码验证' });
-  }
   let parse = 0;
   let finalUrl = id;
   if (__ext_config.global && __ext_config.global.parseUrl) {
@@ -397,7 +485,6 @@ function play(flag, id, vipFlags) {
 }
 
 function search(wd, quick) {
-  if (!isAuthorized()) return JSON.stringify({ list: [] });
   let results = [];
   for (let src of __ext_config.sources) {
     let content = fetchSource(src.url, src);
@@ -418,5 +505,5 @@ function search(wd, quick) {
 
 export default {
   init, home, homeVod, category, detail, play, search,
-  verifyPassword   // 提供手动验证接口
+  verifyCategoryPassword   // 可手动调用验证
 };
