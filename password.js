@@ -1,37 +1,18 @@
 /**
- * universal_spider_v28.js (v27 基础上增加时间密码解锁)
- * 特性：
- *   - 支持直播源 (text/m3u/json) 和点播API链式调用
- *   - 支持连续剧模式 (自动解析剧集，用 # 连接)
- *   - 支持自定义请求头、请求体、方法 (POST/GET)
- *   - 保留原分组算法 (splitArray) 和 join 方式: # 和 $$$
- *   - 新增：基于当前时间的4位数字密码解锁 (有效期60分钟)
- * ================================================================
+ * universal_spider_v30.js (基于 v29 增加时间密码解锁)
+ * 特点：
+ *   - 保留 v29 所有特性：数据源请求自动添加 User-Agent、Referer 等
+ *   - 保留原分组/连续剧/搜索等全部逻辑
+ *   - 新增：基于当前时间的4位数字密码解锁（默认有效期60分钟）
+ *   - 未解锁时只显示“🔒 点击解锁”分类，解锁后显示真实分类
  */
 
-String.prototype.rstrip = function (chars) {
-  let regex = new RegExp(chars + "$");
-  return this.replace(regex, "");
-};
-
-const request_timeout = 5000;
-const RKEY = 'universal_spider';
-const VERSION = 'universal v2.8 (时间密码解锁)';
-const UA = 'Mozilla/5.0';
-let def_pic = 'https://avatars.githubusercontent.com/u/97389433?s=120&v=4';
-const tips = `\n${VERSION}`;
-
-let __ext_config = { sources: [], global: {} };
-let cache_data = {};
-let showMode = 'groups';
-let groupDict = {};
-
-// ========== 新增：时间密码解锁相关 ==========
+// ========== 新增：时间密码解锁模块 ==========
 const UNLOCK_VALID_MINUTES = 60;   // 解锁有效期（分钟）
 let unlocked = false;
 let unlockTime = 0;
 let unlockMode = false;            // 是否处于解锁界面
-let unlockBuffer = '';             // 当前输入的密码暂存
+let unlockBuffer = '';             // 暂存输入的密码
 
 function setUnlocked(status) {
   if (status) {
@@ -71,7 +52,6 @@ function verifyDynamicPassword(input) {
   return input === getCurrentTimePassword();
 }
 
-// 虚拟键盘视频列表（卡片样式）
 function getKeyboardVideos() {
   let items = [];
   for (let i = 0; i <= 9; i++) {
@@ -97,7 +77,24 @@ function getKeyboardVideos() {
   return items;
 }
 
-// ========== 原辅助函数 ==========
+// ========== 以下为 v29 原版内容（未改动，仅整合新增解锁逻辑） ==========
+String.prototype.rstrip = function (chars) {
+  let regex = new RegExp(chars + "$");
+  return this.replace(regex, "");
+};
+
+const request_timeout = 5000;
+const RKEY = 'universal_spider';
+const VERSION = 'universal v2.9 (增强数据源请求头) + 时间密码解锁';
+const UA = 'Mozilla/5.0';
+let def_pic = 'https://avatars.githubusercontent.com/u/97389433?s=120&v=4';
+const tips = `\n${VERSION}`;
+
+let __ext_config = { sources: [], global: {} };
+let cache_data = {};
+let showMode = 'groups';
+let groupDict = {};
+
 function setItem(k, v) { local.set(RKEY, k, v); console.log(`设置 ${k} => ${v}`); }
 function getItem(k, v) { return local.get(RKEY, k) || v; }
 function clearItem(k) { local.delete(RKEY, k); }
@@ -117,7 +114,7 @@ function getHome(url) {
   return url;
 }
 
-// ========== 网络请求 ==========
+// ========== 原始 httpRequest（用于 ext 请求，不带额外头，保证成功） ==========
 function httpRequest(url, options = {}) {
   let method = options.method || 'GET';
   let headers = { 'User-Agent': UA, ...(options.headers || {}) };
@@ -135,6 +132,50 @@ function httpRequest(url, options = {}) {
     return res;
   } catch (e) {
     print(`请求失败 ${url}: ${e.message}`);
+    return { json: () => null, text: () => '', content: '' };
+  }
+}
+
+// ========== 用于数据源的请求（自带默认请求头） ==========
+const DATA_DEFAULT_HEADERS = {
+  "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+  "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+  "Accept-Language": "zh-CN,zh;q=0.8,zh-TW;q=0.7,zh-HK;q=0.5,en-US;q=0.3,en;q=0.2",
+  "Connection": "keep-alive"
+};
+
+function getDynamicHeaders(url) {
+  let headers = {};
+  if (url.includes('cntv.cn') || url.includes('cctv.com')) {
+    headers['Referer'] = 'https://tv.cctv.com/';
+    headers['Origin'] = 'https://tv.cctv.com';
+  } else if (url.includes('bilibili.com')) {
+    headers['Referer'] = 'https://www.bilibili.com/';
+  } else {
+    let match = url.match(/^(https?:\/\/[^/]+)/);
+    if (match) headers['Referer'] = match[1] + '/';
+  }
+  return headers;
+}
+
+function httpRequestForData(url, options = {}) {
+  let method = options.method || 'GET';
+  let dynamicHeaders = getDynamicHeaders(url);
+  let headers = { ...DATA_DEFAULT_HEADERS, ...dynamicHeaders, ...(options.headers || {}) };
+  if (options.referer) headers['Referer'] = options.referer;
+  if (options.contentType) headers['Content-Type'] = options.contentType;
+  let reqOptions = { method, headers, timeout: options.timeout || request_timeout };
+  if (options.body) {
+    reqOptions.body = typeof options.body === 'string' ? options.body : JSON.stringify(options.body);
+    if (!headers['Content-Type']) headers['Content-Type'] = 'application/json';
+  }
+  try {
+    const res = req(url, reqOptions);
+    res.json = () => res && res.content ? JSON.parse(res.content) : null;
+    res.text = () => res && res.content ? res.content : '';
+    return res;
+  } catch (e) {
+    print(`数据源请求失败 ${url}: ${e.message}`);
     return { json: () => null, text: () => '', content: '' };
   }
 }
@@ -177,7 +218,7 @@ function parseSource(content, sourceConfig, baseUrl) {
     } catch(e) { print("JSON解析失败: " + e.message); }
     return items;
   }
-  else { // text 默认
+  else {
     let lines = content.split(/\r?\n/);
     let sep = sourceConfig.line_sep || ',';
     let regex = new RegExp(`^(.+?)${sep}(https?://\\S+)`);
@@ -204,7 +245,7 @@ function fetchSource(url, sourceConfig) {
     contentType: sourceConfig.contentType,
     timeout: sourceConfig.timeout
   };
-  let resp = httpRequest(url, options);
+  let resp = httpRequestForData(url, options);
   let content = resp.text();
   if (!sourceConfig.type && content.includes('#EXTM3U')) {
     content = convertM3uToNormal(content);
@@ -306,7 +347,7 @@ function handleVodSource(vodConfig, extraParams) {
       body: vodConfig.infoBody,
       contentType: vodConfig.infoContentType
     };
-    let resp = httpRequest(infoUrl, infoOpts);
+    let resp = httpRequestForData(infoUrl, infoOpts);
     infoData = resp.json();
   }
   let listUrl = vodConfig.listApi;
@@ -320,7 +361,7 @@ function handleVodSource(vodConfig, extraParams) {
     body: vodConfig.listBody,
     contentType: vodConfig.listContentType
   };
-  let resp = httpRequest(listUrl, listOpts);
+  let resp = httpRequestForData(listUrl, listOpts);
   let listJson = resp.json();
   if (!listJson) return null;
   let parseConf = vodConfig.listParse || { type: 'json', dataPath: 'data.list', titleField: 'title', urlField: 'guid' };
@@ -369,6 +410,7 @@ function init(ext) {
   print('init执行完毕，共 ' + __ext_config.sources.length + ' 个源');
 }
 
+// ========== 修改 home：未解锁时只显示解锁分类 ==========
 function home(filter) {
   // 检查解锁有效期（被动超时）
   if (unlocked) {
@@ -378,12 +420,11 @@ function home(filter) {
       unlocked = false;
     }
   }
-  // 未解锁：只显示一个解锁分类
   if (!unlocked) {
     let unlockClass = { type_id: '__UNLOCK__', type_name: '🔒 点击解锁', icon: '🔒' };
     return JSON.stringify({ class: [unlockClass], filters: {} });
   }
-  // 已解锁：正常返回所有分类
+  // 已解锁，正常返回分类
   let classes = __ext_config.sources.map(it => ({
     type_id: it.name,
     type_name: it.name,
@@ -400,9 +441,8 @@ function homeVod(params) {
   return JSON.stringify({ list: [] });
 }
 
-// 修改 category 函数：解锁界面入口
+// 修改 category：处理解锁分类
 function category(tid, pg, filter, extend) {
-  // 处理解锁分类
   if (!unlocked && tid === '__UNLOCK__') {
     unlockMode = true;
     unlockBuffer = '';
@@ -416,7 +456,7 @@ function category(tid, pg, filter, extend) {
     videos.unshift(statusItem);
     return JSON.stringify({ list: videos, page: 1, pagecount: 1, limit: videos.length, total: videos.length });
   }
-  // 已解锁或其它分类正常处理
+  
   let fl = filter ? extend : {};
   if (fl.show) {
     showMode = fl.show;
@@ -425,7 +465,6 @@ function category(tid, pg, filter, extend) {
   if (parseInt(pg) > 1) return JSON.stringify({ list: [] });
   let source = __ext_config.sources.find(s => s.name === tid);
   if (!source) return JSON.stringify({ list: [] });
-  
   let html = fetchSource(source.url, source);
   let arr = html.match(/.*?[,，]#[\s\S].*?#/g) || [];
   let _list = [];
@@ -446,9 +485,9 @@ function category(tid, pg, filter, extend) {
   });
 }
 
-// 修改 detail 函数：处理虚拟键盘按键和解锁成功
+// 修改 detail：处理虚拟键盘按键和解锁成功
 function detail(tid) {
-  // 处理解锁界面的按键
+  // 处理解锁界面按键
   if (unlockMode && tid.startsWith('__UNLOCK_KEY__')) {
     let digit = tid.replace('__UNLOCK_KEY__', '');
     if (digit >= '0' && digit <= '9') {
@@ -521,13 +560,12 @@ function detail(tid) {
   }
   if (unlocked) unlockMode = false; // 确保解锁后退出解锁模式
 
-  // 以下为原始 detail 逻辑（处理正常视频）
+  // 以下为原 detail 逻辑（处理正常视频）
   let parts = tid.split('###');
   let mode = parts.length > 1 ? parts[1] : 'single';
   let left = parts[0];
   let sourceUrl = left.split('$')[0];
   let tab = left.split('$')[1];
-  
   let source = __ext_config.sources.find(s => s.url === sourceUrl);
   if (!source) return JSON.stringify({ list: [] });
   
