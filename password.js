@@ -18,12 +18,12 @@ let debugMode = true;
 let defaultTimeout = 8000;
 let defaultRetry = 2;
 let def_pic = 'https://picsum.photos/200/300?random=1';
-const VERSION = 'universal v3.4 (time password optimized)';
+const VERSION = 'universal v3.4 ';
 const tips = `\n${VERSION}`;
 const RKEY = 'universal_spider';
 
 // ========== 动态时间密码配置 ==========
-const UNLOCK_VALID_MINUTES = 60;
+const UNLOCK_VALID_MINUTES = 10;
 
 function getCurrentTimePassword() {
   let now = new Date();
@@ -360,10 +360,10 @@ function category(tid, pg, filter, extend) {
     unlockBuffer = '';
     let videos = getKeyboardVideos();
     let statusItem = {
-      vod_id: '__UNLOCK_STATUS_INIT_' + Date.now(),
+      vod_id: '__UNLOCK_STATUS_INIT_',
       vod_name: `🔐 请输入密码（4位数字）`,
       vod_pic: def_pic,
-      vod_remarks: '例如 上午9:08 输入 0908'
+      vod_remarks: '密码找管理员'
     };
     videos.unshift(statusItem);
     return JSON.stringify({ list: videos, page: 1, pagecount: 1, limit: videos.length, total: videos.length });
@@ -476,7 +476,7 @@ function detail(tid) {
     let display = '*'.repeat(unlockBuffer.length) + '_'.repeat(4 - unlockBuffer.length);
     let statusItem = {
       vod_id: '__UNLOCK_STATUS_' + unlockBuffer.length + '_' + Date.now(),
-      vod_name: `🔐 密码: ${display}`,
+      vod_name: `🔐 密码: ___`,
       vod_pic: def_pic,
       vod_remarks: '请输入4位数字'
     };
@@ -489,7 +489,7 @@ function detail(tid) {
     let display = '_'.repeat(4);
     let statusItem = {
       vod_id: '__UNLOCK_STATUS_CLEAR_' + Date.now(),
-      vod_name: `🔐 密码: ${display}`,
+      vod_name: `🔐 密码: ___`,
       vod_pic: def_pic,
       vod_remarks: '请输入4位数字'
     };
