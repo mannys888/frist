@@ -1,6 +1,7 @@
-// ==================== 通用动态爬虫 v34（时间密码 + 自动锁定） ====================
-// 密码为当前时间（小时+分钟），例如 19:22 -> 1922，9:08 -> 0908
-// 解锁后有效期为 60 分钟（可修改），超时自动重新锁定
+// ==================== 通用动态爬虫 v34（时间密码 + 系统输入框解锁） ====================
+// 密码为当前时间 HHMM（例如 19:22 -> 1922，9:08 -> 0908）
+// 解锁后有效期 60 分钟，超时自动锁定
+// 使用系统输入框输入密码（电视需支持键盘弹窗）
 // ================================================================
 
 String.prototype.rstrip = function (chars) {
@@ -8,7 +9,6 @@ String.prototype.rstrip = function (chars) {
   return this.replace(regex, "");
 };
 
-// ========== 全局配置 ==========
 let __ext_config = { sources: [], global: {} };
 let cache_data = {};
 let showMode = 'groups';
@@ -22,9 +22,8 @@ const tips = `\n${VERSION}`;
 const RKEY = 'universal_spider';
 
 // ========== 动态时间密码配置 ==========
-const UNLOCK_VALID_MINUTES = 60;           // 解锁有效时长（分钟）
+const UNLOCK_VALID_MINUTES = 60;  // 解锁有效时长（分钟）
 
-// 获取当前时间的四位数字密码（HHMM，例如 09:08 -> 0908）
 function getCurrentTimePassword() {
   let now = new Date();
   let hours = now.getHours().toString().padStart(2, '0');
@@ -32,9 +31,8 @@ function getCurrentTimePassword() {
   return hours + minutes;
 }
 
-// 解锁状态管理（含有效期）
 let unlocked = false;
-let unlockTime = 0;          // 解锁时的时间戳（毫秒）
+let unlockTime = 0;
 
 function setUnlocked(status) {
   if (status) {
@@ -54,11 +52,8 @@ function getUnlocked() {
   if (!stored) return false;
   let storedTime = parseInt(getItem('global_unlock_time', '0'));
   if (storedTime === 0) return false;
-  // 检查是否超时
   let now = Date.now();
-  let diffMinutes = (now - storedTime) / (1000 * 60);
-  if (diffMinutes > UNLOCK_VALID_MINUTES) {
-    // 已超时，自动清除解锁状态
+  if ((now - storedTime) > UNLOCK_VALID_MINUTES * 60 * 1000) {
     setUnlocked(false);
     return false;
   }
@@ -66,43 +61,20 @@ function getUnlocked() {
   return true;
 }
 
-// 验证输入的密码是否为当前时间密码
-function verifyDynamicPassword(input) {
-  let currentPwd = getCurrentTimePassword();
-  return input === currentPwd;
+function verifyPassword(pwd) {
+  return pwd === getCurrentTimePassword();
 }
 
-// 解锁界面变量
-let unlockBuffer = '';
-let unlockMode = false;
-
-// 生成虚拟键盘视频列表
-function getKeyboardVideos() {
-  let items = [];
-  for (let i = 0; i <= 9; i++) {
-    items.push({
-      vod_id: `__UNLOCK_KEY__${i}`,
-      vod_name: `${i}`,
-      vod_pic: def_pic,
-      vod_remarks: ''
-    });
+// 弹窗输入密码（如果你的电视支持 prompt）
+function promptPassword() {
+  if (typeof prompt !== 'undefined') {
+    let pwd = prompt("请输入当前时间（四位数字，例如 1922）：", "");
+    return pwd;
   }
-  items.push({
-    vod_id: '__UNLOCK_BACKSPACE',
-    vod_name: '⌫ 删除',
-    vod_pic: def_pic,
-    vod_remarks: ''
-  });
-  items.push({
-    vod_id: '__UNLOCK_CLEAR',
-    vod_name: '🗑 清除',
-    vod_pic: def_pic,
-    vod_remarks: ''
-  });
-  return items;
+  return null;
 }
 
-// ========== 辅助函数 ==========
+// ========== 辅助函数（与原版相同） ==========
 function print(any) {
   if (!debugMode) return;
   if (typeof any == 'object' && Object.keys(any).length > 0) {
@@ -112,7 +84,7 @@ function print(any) {
 function setItem(k, v) { local.set(RKEY, k, v); print(`设置 ${k} => ${v}`); }
 function getItem(k, v) { return local.get(RKEY, k) || v; }
 
-// ========== 智能请求 ==========
+// 智能请求（与原版相同）
 function smartRequest(url, options = {}) {
   let method = options.method || 'GET';
   let headers = { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36', ...(options.headers || {}) };
@@ -140,7 +112,6 @@ function smartRequest(url, options = {}) {
   }
 }
 
-// ========== 数据源专用请求 ==========
 function fetchSource(url, sourceConfig = {}, noCache = false) {
   if (!noCache && cache_data[url]) return cache_data[url];
   let opts = {
@@ -160,7 +131,6 @@ function fetchSource(url, sourceConfig = {}, noCache = false) {
   return content;
 }
 
-// ========== 列表解析 ==========
 function parseList(content, parseConfig, baseUrl) {
   let items = [];
   let type = parseConfig.type || 'text';
@@ -342,15 +312,16 @@ function init(ext) {
 }
 
 function home(filter) {
-  // 每次首页调用时重新检查解锁有效期（被动刷新）
+  // 每次访问首页时检查是否超时
   if (unlocked) {
     let storedTime = parseInt(getItem('global_unlock_time', '0'));
-    if (storedTime && (Date.now() - storedTime) > (UNLOCK_VALID_MINUTES * 60 * 1000)) {
+    if (storedTime && (Date.now() - storedTime) > UNLOCK_VALID_MINUTES * 60 * 1000) {
       setUnlocked(false);
       unlocked = false;
     }
   }
   if (!unlocked) {
+    // 未解锁时只显示解锁分类
     let unlockClass = { type_id: '__UNLOCK__', type_name: '🔒 点击解锁', icon: '🔒' };
     return JSON.stringify({ class: [unlockClass], filters: {} });
   }
@@ -364,19 +335,22 @@ function homeVod() { return JSON.stringify({ list: [] }); }
 
 function category(tid, pg, filter, extend) {
   if (!unlocked && tid === '__UNLOCK__') {
-    unlockMode = true;
-    unlockBuffer = '';
-    let videos = getKeyboardVideos();
-    let statusItem = {
-      vod_id: '__UNLOCK_STATUS_INIT_' + Date.now(),
-      vod_name: `🔐 请输入当前时间（HHMM），例如 ${getCurrentTimePassword()}`,
-      vod_pic: def_pic,
-      vod_remarks: '使用遥控器数字键选择'
-    };
-    videos.unshift(statusItem);
-    return JSON.stringify({ list: videos, page: 1, pagecount: 1, limit: videos.length, total: videos.length });
+    // 弹出输入框（电视需支持 prompt）
+    let pwd = promptPassword();
+    if (pwd && verifyPassword(pwd)) {
+      setUnlocked(true);
+      unlocked = true;
+      print("解锁成功");
+      // 返回空列表，让前端返回到首页，然后刷新显示分类
+      return JSON.stringify({ list: [] });
+    } else {
+      // 密码错误，重新显示解锁界面（可停留在当前页面并提示错误）
+      let errorClass = { type_id: '__UNLOCK__', type_name: '❌ 密码错误，重新点击解锁', icon: '🔒' };
+      return JSON.stringify({ class: [errorClass], filters: {} });
+    }
   }
 
+  // 以下是原有的 category 逻辑（完全未修改）
   let fl = filter ? extend : {};
   if (fl.show) { showMode = fl.show; setItem('showMode', showMode); }
   if (parseInt(pg) > 1) return JSON.stringify({ list: [] });
@@ -433,73 +407,7 @@ function category(tid, pg, filter, extend) {
 }
 
 function detail(tid) {
-  if (unlockMode && tid.startsWith('__UNLOCK_KEY__')) {
-    let digit = tid.replace('__UNLOCK_KEY__', '');
-    if (digit >= '0' && digit <= '9') {
-      if (unlockBuffer.length < 4) {
-        unlockBuffer += digit;
-        if (unlockBuffer.length === 4) {
-          if (verifyDynamicPassword(unlockBuffer)) {
-            setUnlocked(true);
-            unlocked = true;
-            unlockMode = false;
-            print("密码正确，解锁成功！");
-            return JSON.stringify({ list: [] });
-          } else {
-            unlockBuffer = '';
-            let videos = getKeyboardVideos();
-            let statusItem = {
-              vod_id: '__UNLOCK_STATUS_ERR_' + Date.now(),
-              vod_name: `❌ 密码错误，当前时间密码应为 ${getCurrentTimePassword()}`,
-              vod_pic: def_pic,
-              vod_remarks: '请重新输入'
-            };
-            videos.unshift(statusItem);
-            return JSON.stringify({ list: videos });
-          }
-        }
-      }
-    }
-    let videos = getKeyboardVideos();
-    let display = '*'.repeat(unlockBuffer.length) + '_'.repeat(4 - unlockBuffer.length);
-    let statusItem = {
-      vod_id: '__UNLOCK_STATUS_' + unlockBuffer.length + '_' + Date.now(),
-      vod_name: `🔐 请输入当前时间（HHMM）: ${display}`,
-      vod_pic: def_pic,
-      vod_remarks: '例如 ' + getCurrentTimePassword()
-    };
-    videos.unshift(statusItem);
-    return JSON.stringify({ list: videos });
-  }
-  if (unlockMode && tid === '__UNLOCK_BACKSPACE') {
-    if (unlockBuffer.length > 0) unlockBuffer = unlockBuffer.slice(0, -1);
-    let videos = getKeyboardVideos();
-    let display = '*'.repeat(unlockBuffer.length) + '_'.repeat(4 - unlockBuffer.length);
-    let statusItem = {
-      vod_id: '__UNLOCK_STATUS_' + unlockBuffer.length + '_' + Date.now(),
-      vod_name: `🔐 请输入当前时间（HHMM）: ${display}`,
-      vod_pic: def_pic,
-      vod_remarks: '例如 ' + getCurrentTimePassword()
-    };
-    videos.unshift(statusItem);
-    return JSON.stringify({ list: videos });
-  }
-  if (unlockMode && tid === '__UNLOCK_CLEAR') {
-    unlockBuffer = '';
-    let videos = getKeyboardVideos();
-    let display = '_'.repeat(4);
-    let statusItem = {
-      vod_id: '__UNLOCK_STATUS_CLEAR_' + Date.now(),
-      vod_name: `🔐 请输入当前时间（HHMM）: ${display}`,
-      vod_pic: def_pic,
-      vod_remarks: '例如 ' + getCurrentTimePassword()
-    };
-    videos.unshift(statusItem);
-    return JSON.stringify({ list: videos });
-  }
-  if (unlocked) unlockMode = false;
-
-  // 原有 detail 逻辑保持不变
+  // 原版 detail 逻辑（未修改）
   let parts = tid.split('###');
   let mode = parts.length > 1 ? parts[1] : 'single';
   let left = parts[0];
