@@ -1,6 +1,8 @@
-// ==================== 通用动态爬虫 v34（时间密码 + 自动锁定） ====================
+// ==================== 通用动态爬虫 v34（时间密码 + 自动锁定 - 优化版） ====================
 // 密码为当前时间（小时+分钟），例如 19:22 -> 1922，9:08 -> 0908
-// 解锁后有效期为 60 分钟（可修改），超时自动重新锁定
+// 解锁后有效期为 60 分钟，超时自动重新锁定
+// 优化：解锁成功后显示提示，按返回键即可回到首页
+// 按钮样式优化为卡片样式
 // ================================================================
 
 String.prototype.rstrip = function (chars) {
@@ -17,14 +19,13 @@ let debugMode = true;
 let defaultTimeout = 8000;
 let defaultRetry = 2;
 let def_pic = 'https://avatars.githubusercontent.com/u/97389433?s=120&v=4';
-const VERSION = 'universal v3.4 (time password)';
+const VERSION = 'universal v3.4 (time password optimized)';
 const tips = `\n${VERSION}`;
 const RKEY = 'universal_spider';
 
 // ========== 动态时间密码配置 ==========
-const UNLOCK_VALID_MINUTES = 60;           // 解锁有效时长（分钟）
+const UNLOCK_VALID_MINUTES = 60;
 
-// 获取当前时间的四位数字密码（HHMM，例如 09:08 -> 0908）
 function getCurrentTimePassword() {
   let now = new Date();
   let hours = now.getHours().toString().padStart(2, '0');
@@ -32,9 +33,8 @@ function getCurrentTimePassword() {
   return hours + minutes;
 }
 
-// 解锁状态管理（含有效期）
 let unlocked = false;
-let unlockTime = 0;          // 解锁时的时间戳（毫秒）
+let unlockTime = 0;
 
 function setUnlocked(status) {
   if (status) {
@@ -54,11 +54,8 @@ function getUnlocked() {
   if (!stored) return false;
   let storedTime = parseInt(getItem('global_unlock_time', '0'));
   if (storedTime === 0) return false;
-  // 检查是否超时
   let now = Date.now();
-  let diffMinutes = (now - storedTime) / (1000 * 60);
-  if (diffMinutes > UNLOCK_VALID_MINUTES) {
-    // 已超时，自动清除解锁状态
+  if ((now - storedTime) > UNLOCK_VALID_MINUTES * 60 * 1000) {
     setUnlocked(false);
     return false;
   }
@@ -66,36 +63,33 @@ function getUnlocked() {
   return true;
 }
 
-// 验证输入的密码是否为当前时间密码
 function verifyDynamicPassword(input) {
-  let currentPwd = getCurrentTimePassword();
-  return input === currentPwd;
+  return input === getCurrentTimePassword();
 }
 
-// 解锁界面变量
 let unlockBuffer = '';
 let unlockMode = false;
 
-// 生成虚拟键盘视频列表
+// 生成虚拟键盘视频列表（卡片样式按钮）
 function getKeyboardVideos() {
   let items = [];
   for (let i = 0; i <= 9; i++) {
     items.push({
       vod_id: `__UNLOCK_KEY__${i}`,
-      vod_name: `${i}`,
+      vod_name: `[ ${i} ]`,
       vod_pic: def_pic,
       vod_remarks: ''
     });
   }
   items.push({
     vod_id: '__UNLOCK_BACKSPACE',
-    vod_name: '⌫ 删除',
+    vod_name: '⌫ [删除]',
     vod_pic: def_pic,
     vod_remarks: ''
   });
   items.push({
     vod_id: '__UNLOCK_CLEAR',
-    vod_name: '🗑 清除',
+    vod_name: '🗑 [清除]',
     vod_pic: def_pic,
     vod_remarks: ''
   });
@@ -342,10 +336,9 @@ function init(ext) {
 }
 
 function home(filter) {
-  // 每次首页调用时重新检查解锁有效期（被动刷新）
   if (unlocked) {
     let storedTime = parseInt(getItem('global_unlock_time', '0'));
-    if (storedTime && (Date.now() - storedTime) > (UNLOCK_VALID_MINUTES * 60 * 1000)) {
+    if (storedTime && (Date.now() - storedTime) > UNLOCK_VALID_MINUTES * 60 * 1000) {
       setUnlocked(false);
       unlocked = false;
     }
@@ -369,9 +362,9 @@ function category(tid, pg, filter, extend) {
     let videos = getKeyboardVideos();
     let statusItem = {
       vod_id: '__UNLOCK_STATUS_INIT_' + Date.now(),
-      vod_name: `🔐 请输入密码___`,
+      vod_name: `🔐 请输入当前时间密码（4位数字）`,
       vod_pic: def_pic,
-      vod_remarks: '使用遥控器数字键选择'
+      vod_remarks: '例如 上午9:08 输入 0908'
     };
     videos.unshift(statusItem);
     return JSON.stringify({ list: videos, page: 1, pagecount: 1, limit: videos.length, total: videos.length });
@@ -433,6 +426,7 @@ function category(tid, pg, filter, extend) {
 }
 
 function detail(tid) {
+  // 处理虚拟键盘按键
   if (unlockMode && tid.startsWith('__UNLOCK_KEY__')) {
     let digit = tid.replace('__UNLOCK_KEY__', '');
     if (digit >= '0' && digit <= '9') {
@@ -444,15 +438,22 @@ function detail(tid) {
             unlocked = true;
             unlockMode = false;
             print("密码正确，解锁成功！");
-            return JSON.stringify({ list: [] });
+            // 返回一个提示条目，用户按返回键即可回到首页
+            let successItem = {
+              vod_id: '__UNLOCK_SUCCESS',
+              vod_name: '✅ 解锁成功！请按返回键返回首页',
+              vod_pic: def_pic,
+              vod_remarks: '密码正确，内容已解锁'
+            };
+            return JSON.stringify({ list: [successItem] });
           } else {
             unlockBuffer = '';
             let videos = getKeyboardVideos();
             let statusItem = {
               vod_id: '__UNLOCK_STATUS_ERR_' + Date.now(),
-              vod_name: `❌ 密码错误，密码应为 四位数`,
+              vod_name: `❌ 密码错误，请重试`,
               vod_pic: def_pic,
-              vod_remarks: '请重新输入'
+              vod_remarks: '当前时间密码是 ' + getCurrentTimePassword()
             };
             videos.unshift(statusItem);
             return JSON.stringify({ list: videos });
@@ -464,9 +465,9 @@ function detail(tid) {
     let display = '*'.repeat(unlockBuffer.length) + '_'.repeat(4 - unlockBuffer.length);
     let statusItem = {
       vod_id: '__UNLOCK_STATUS_' + unlockBuffer.length + '_' + Date.now(),
-      vod_name: `🔐 请输入密码`,
+      vod_name: `🔐 密码: ${display}`,
       vod_pic: def_pic,
-      vod_remarks: '例如数字 '
+      vod_remarks: '请输入4位数字'
     };
     videos.unshift(statusItem);
     return JSON.stringify({ list: videos });
@@ -477,9 +478,9 @@ function detail(tid) {
     let display = '*'.repeat(unlockBuffer.length) + '_'.repeat(4 - unlockBuffer.length);
     let statusItem = {
       vod_id: '__UNLOCK_STATUS_' + unlockBuffer.length + '_' + Date.now(),
-      vod_name: `🔐 请输入密码: ___`,
+      vod_name: `🔐 密码: ${display}`,
       vod_pic: def_pic,
-      vod_remarks: '例如 '
+      vod_remarks: '请输入4位数字'
     };
     videos.unshift(statusItem);
     return JSON.stringify({ list: videos });
@@ -489,10 +490,10 @@ function detail(tid) {
     let videos = getKeyboardVideos();
     let display = '_'.repeat(4);
     let statusItem = {
-      vod_id: '__UNLOCK_STATUS_CLEAR_' ,
-      vod_name: `🔐 请输入密码: ___`,
+      vod_id: '__UNLOCK_STATUS_CLEAR_' + Date.now(),
+      vod_name: `🔐 密码: ${display}`,
       vod_pic: def_pic,
-      vod_remarks: '例如 数字'
+      vod_remarks: '请输入4位数字'
     };
     videos.unshift(statusItem);
     return JSON.stringify({ list: videos });
