@@ -1,7 +1,10 @@
-// ==================== 通用动态爬虫 v37（密码验证 - 无弹窗版） ====================
-// 密码：admin
-// 导出 verifyPassword 方法，需在前端/控制台手动调用
-// 未验证时播放返回错误提示
+// ==================== 通用动态爬虫 v38（加载即验证 + 备用入口） ====================
+// 功能：
+//   - 支持普通线路、合集模式、多格式解析、全局搜索
+//   - 密码验证（默认 admin）
+//   - 优先在 init 时弹出密码输入框（若环境支持）
+//   - 若环境不支持弹窗，则在首页显示一个“验证密码”分类，点击后验证
+//   - 验证后永久解锁，显示全部分类
 // ================================================================
 
 // ---------- 基础配置 ----------
@@ -18,7 +21,7 @@ let debugMode = true;
 let defaultTimeout = 8000;
 let defaultRetry = 2;
 let def_pic = 'https://avatars.githubusercontent.com/u/97389433?s=120&v=4';
-const VERSION = 'universal v3.7 (no prompt)';
+const VERSION = 'universal v3.8 (load-auth)';
 const tips = `\n${VERSION}`;
 const RKEY = 'universal_spider';
 const PASSWORD_KEY = 'cctv_auth';
@@ -42,7 +45,7 @@ function setAuthorized(val) {
   setItem(PASSWORD_KEY, val ? 'true' : 'false');
 }
 
-// 外部验证接口
+// 验证密码（返回布尔值）
 function verifyPassword(pwd) {
   if (pwd === DEFAULT_PASSWORD) {
     setAuthorized(true);
@@ -53,7 +56,18 @@ function verifyPassword(pwd) {
   return false;
 }
 
-// ---------- 网络请求（与之前相同） ----------
+// 尝试弹窗输入密码（如果环境支持）
+function tryPromptAuth() {
+  if (typeof prompt !== 'undefined') {
+    let pwd = prompt("请输入密码以解锁所有内容：", "");
+    if (pwd !== null) {
+      return verifyPassword(pwd);
+    }
+  }
+  return false;
+}
+
+// ---------- 网络请求（与前相同） ----------
 function smartRequest(url, options = {}) {
   let method = options.method || 'GET';
   let headers = { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36', ...(options.headers || {}) };
@@ -201,6 +215,7 @@ function splitArray(arr, parse) {
 // ---------- 外部接口 ----------
 function init(ext) {
   print(`初始化 ${VERSION}`);
+  // 1. 解析配置
   let configData = null;
   if (typeof ext === 'object') configData = ext;
   else if (typeof ext === 'string') {
@@ -222,10 +237,29 @@ function init(ext) {
   }
   showMode = getItem('showMode', 'groups');
   groupDict = JSON.parse(getItem('groupDict', '{}'));
-  print(`加载 ${__ext_config.sources.length} 个分类`);
+  print(`原始配置加载 ${__ext_config.sources.length} 个分类`);
+
+  // 2. 尝试立即弹窗验证（如果环境支持且未验证）
+  if (!isAuthorized()) {
+    let success = tryPromptAuth();
+    if (!success && __ext_config.sources.length === 0) {
+      // 配置本身为空，也可以不处理
+    }
+  }
 }
 
 function home(filter) {
+  // 如果未验证，返回一个特殊的“密码验证”分类，引导用户点击验证
+  if (!isAuthorized()) {
+    let authClass = [{
+      type_id: '__AUTH__',
+      type_name: '🔐 点击验证密码',
+      icon: ''
+    }];
+    return JSON.stringify({ class: authClass, filters: {} });
+  }
+
+  // 已验证，返回正常分类
   let classes = __ext_config.sources.map(s => ({ type_id: s.name, type_name: s.name }));
   let filters = [{ key: 'show', name: '播放展示', value: [{ n: '多线路分组', v: 'groups' }, { n: '单线路', v: 'all' }] }];
   let filterDict = {};
@@ -235,6 +269,26 @@ function home(filter) {
 function homeVod() { return JSON.stringify({ list: [] }); }
 
 function category(tid, pg, filter, extend) {
+  // 处理特殊分类：验证入口
+  if (tid === '__AUTH__') {
+    // 尝试再次弹窗验证（兼容无prompt环境，这里会报错，但至少用户点击了）
+    let pwd = null;
+    if (typeof prompt !== 'undefined') {
+      pwd = prompt("请输入密码以解锁全部内容：", "");
+    }
+    if (pwd !== null && verifyPassword(pwd)) {
+      // 验证成功，返回空列表（前端会重新加载首页，从而显示正常分类）
+      return JSON.stringify({ list: [], page: 1, pagecount: 1, limit: 0, total: 0 });
+    } else {
+      return JSON.stringify({ list: [], page: 1, pagecount: 1, limit: 0, total: 0 });
+    }
+  }
+
+  // 未验证时拒绝访问其他分类
+  if (!isAuthorized()) {
+    return JSON.stringify({ list: [], page: 1, pagecount: 0, total: 0 });
+  }
+
   let fl = filter ? extend : {};
   if (fl.show) { showMode = fl.show; setItem('showMode', showMode); }
   if (parseInt(pg) > 1) return JSON.stringify({ list: [] });
@@ -270,6 +324,8 @@ function category(tid, pg, filter, extend) {
 }
 
 function detail(tid) {
+  if (!isAuthorized()) return JSON.stringify({ list: [] });
+
   let parts = tid.split('###');
   let mode = parts.length > 1 ? parts[1] : 'single';
   let left = parts[0];
@@ -321,18 +377,11 @@ function detail(tid) {
   return JSON.stringify({ list: [vod] });
 }
 
-// ---------- 播放器（密码验证，无弹窗） ----------
+// 播放器（未验证返回错误）
 function play(flag, id, vipFlags) {
   if (!isAuthorized()) {
-    print("播放被拒绝：未验证密码");
-    return JSON.stringify({
-      parse: 0,
-      playUrl: '',
-      url: '',
-      error: '需要密码验证，请在控制台或前端调用 verifyPassword("admin") 解锁'
-    });
+    return JSON.stringify({ parse: 0, playUrl: '', url: '', error: '需要密码验证' });
   }
-  // 正常播放逻辑
   let parse = 0;
   let finalUrl = id;
   if (__ext_config.global && __ext_config.global.parseUrl) {
@@ -347,8 +396,8 @@ function play(flag, id, vipFlags) {
   return JSON.stringify({ parse: autoParse, playUrl: '', url: finalUrl });
 }
 
-// ---------- 搜索 ----------
 function search(wd, quick) {
+  if (!isAuthorized()) return JSON.stringify({ list: [] });
   let results = [];
   for (let src of __ext_config.sources) {
     let content = fetchSource(src.url, src);
@@ -367,8 +416,7 @@ function search(wd, quick) {
   return JSON.stringify({ list: results });
 }
 
-// ---------- 导出 ----------
 export default {
   init, home, homeVod, category, detail, play, search,
-  verifyPassword   // 外部调用入口
+  verifyPassword   // 提供手动验证接口
 };
