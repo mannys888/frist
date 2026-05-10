@@ -1,7 +1,6 @@
-// ==================== 通用动态爬虫 v34（全能旗舰版）+ 四位数字解锁 ====================
-// 新增功能：电视端遥控器输入四位数字密码（默认 1234）解锁全部内容
-// 未解锁时首页只显示一个“🔒 点击解锁”分类，点击后进入虚拟键盘界面
-// 用户使用遥控器方向键选择数字，按确定输入，输入完四位自动验证，正确后永久解锁
+// ==================== A通用动态爬虫 v34（全能旗舰版）+ 四位数字解锁（修复状态刷新） ====================
+// 新增：电视端遥控器输入四位数字密码（默认 1234）解锁全部内容
+// 修复：状态行实时更新，每次按键后显示当前输入进度
 // ================================================================
 
 String.prototype.rstrip = function (chars) {
@@ -73,11 +72,10 @@ function print(any) {
 function setItem(k, v) { local.set(RKEY, k, v); print(`设置 ${k} => ${v}`); }
 function getItem(k, v) { return local.get(RKEY, k) || v; }
 
-// ========== 智能请求（带重试、缓存、自动 Referer） ==========
+// ========== 智能请求 ==========
 function smartRequest(url, options = {}) {
   let method = options.method || 'GET';
   let headers = { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36', ...(options.headers || {}) };
-  // 动态 Referer
   if (!headers['Referer']) {
     let match = url.match(/^(https?:\/\/[^/]+)/);
     if (match) headers['Referer'] = match[1] + '/';
@@ -102,7 +100,7 @@ function smartRequest(url, options = {}) {
   }
 }
 
-// ========== 数据源专用请求（自动处理缓存） ==========
+// ========== 数据源专用请求 ==========
 function fetchSource(url, sourceConfig = {}, noCache = false) {
   if (!noCache && cache_data[url]) return cache_data[url];
   let opts = {
@@ -115,7 +113,6 @@ function fetchSource(url, sourceConfig = {}, noCache = false) {
   };
   let resp = smartRequest(url, opts);
   let content = resp.text();
-  // 自动识别 M3U 并转换
   if (!sourceConfig.type && content.includes('#EXTM3U')) {
     content = convertM3uToNormal(content);
   }
@@ -123,7 +120,7 @@ function fetchSource(url, sourceConfig = {}, noCache = false) {
   return content;
 }
 
-// ========== 列表解析（支持 txt/json/m3u/rss） ==========
+// ========== 列表解析 ==========
 function parseList(content, parseConfig, baseUrl) {
   let items = [];
   let type = parseConfig.type || 'text';
@@ -187,7 +184,7 @@ function parseList(content, parseConfig, baseUrl) {
   return items;
 }
 
-// M3U 转普通列表（用于分组）
+// M3U 转普通列表
 function convertM3uToNormal(m3u) {
   try {
     const lines = m3u.split('\n');
@@ -240,31 +237,25 @@ function gen_group_dict(arr, parse) {
 
 // ========== 特殊站点处理器 ==========
 const customHandlers = {
-  // 示例：加密站点（需实现真实解密）
   encryptedSite: function(ctx) {
     let { url, parseConfig } = ctx;
     let encryptedContent = fetchSource(url, parseConfig);
-    // TODO: 替换为真实的解密函数
     let decryptedContent = myDecrypt(encryptedContent, parseConfig.key || 'defaultKey');
     let items = parseList(decryptedContent, parseConfig, url);
     return items;
   },
-  // 示例：需要登录的站点
   loginRequired: function(ctx) {
     let { url, parseConfig } = ctx;
-    // 1. 登录获取 Cookie
     let loginUrl = parseConfig.loginUrl;
     let loginBody = parseConfig.loginBody;
     let loginResp = smartRequest(loginUrl, { method: 'POST', body: loginBody });
     let cookie = loginResp.headers['set-cookie'];
     if (cookie) setItem('site_cookie', cookie);
-    // 2. 携带 Cookie 请求目标数据
     let opts = { headers: { 'Cookie': getItem('site_cookie') } };
     let content = fetchSource(url, { ...parseConfig, ...opts });
     let items = parseList(content, parseConfig, url);
     return items;
   },
-  // 示例：动态加载（需部署无头浏览器服务）
   dynamicContent: function(ctx) {
     let { url, parseConfig } = ctx;
     let browserService = parseConfig.browserService || 'http://localhost:3000/render';
@@ -275,9 +266,7 @@ const customHandlers = {
   }
 };
 
-// 模拟解密函数（实际使用需替换为真实解密算法）
 function myDecrypt(encrypted, key) {
-  // 示例：简单的 XOR 解密（仅为演示）
   let result = '';
   for (let i = 0; i < encrypted.length; i++) {
     result += String.fromCharCode(encrypted.charCodeAt(i) ^ key.charCodeAt(i % key.length));
@@ -288,7 +277,6 @@ function myDecrypt(encrypted, key) {
 // ========== 外部接口 ==========
 function init(ext) {
   print(`初始化 ${VERSION}`);
-  // 读取解锁状态
   unlocked = getUnlocked();
   print(`解锁状态: ${unlocked ? '已解锁' : '未解锁'}`);
 
@@ -317,12 +305,10 @@ function init(ext) {
 }
 
 function home(filter) {
-  // ----- 新增：未解锁时只显示解锁分类 -----
   if (!unlocked) {
     let unlockClass = { type_id: '__UNLOCK__', type_name: '🔒 点击解锁', icon: '🔒' };
     return JSON.stringify({ class: [unlockClass], filters: {} });
   }
-  // ----- 原有代码（未修改）-----
   let classes = __ext_config.sources.map(s => ({ type_id: s.name, type_name: s.name }));
   let filters = [{ key: 'show', name: '播放展示', value: [{ n: '多线路分组', v: 'groups' }, { n: '单线路', v: 'all' }] }];
   let filterDict = {};
@@ -332,29 +318,26 @@ function home(filter) {
 function homeVod() { return JSON.stringify({ list: [] }); }
 
 function category(tid, pg, filter, extend) {
-  // ----- 新增：处理解锁分类 -----
   if (!unlocked && tid === '__UNLOCK__') {
     unlockMode = true;
     unlockBuffer = '';
     let videos = getKeyboardVideos();
-    // 在顶部显示当前输入状态
     let statusItem = {
-      vod_id: '__UNLOCK_STATUS',
-      vod_name: `🔐 请输入 4 位密码: ${'*'.repeat(unlockBuffer.length)}${'_'.repeat(4 - unlockBuffer.length)}`,
+      vod_id: '__UNLOCK_STATUS_INIT_' + Date.now(),
+      vod_name: `🔐 请输入 4 位密码: ${'_'.repeat(4)}`,
       vod_pic: def_pic,
       vod_remarks: '使用遥控器数字键选择'
     };
     videos.unshift(statusItem);
     return JSON.stringify({ list: videos, page: 1, pagecount: 1, limit: videos.length, total: videos.length });
   }
-  // ----- 原有代码（未修改）-----
+
   let fl = filter ? extend : {};
   if (fl.show) { showMode = fl.show; setItem('showMode', showMode); }
   if (parseInt(pg) > 1) return JSON.stringify({ list: [] });
   let source = __ext_config.sources.find(s => s.name === tid);
   if (!source) return JSON.stringify({ list: [] });
 
-  // 特殊站点处理器优先
   if (source.handler && customHandlers[source.handler]) {
     let ctx = { url: source.url, parseConfig: source.parseConfig || {}, extra: { tid, pg, filter, extend } };
     let items = customHandlers[source.handler](ctx);
@@ -378,7 +361,6 @@ function category(tid, pg, filter, extend) {
     }
   }
 
-  // 普通模式（使用 # 分组）
   let isSeries = source.parseConfig?.mode === 'series';
   if (isSeries) {
     let content = fetchSource(source.url, source);
@@ -406,7 +388,7 @@ function category(tid, pg, filter, extend) {
 }
 
 function detail(tid) {
-  // ----- 新增：处理密码键盘按键 -----
+  // ----- 处理密码键盘按键（修复状态刷新）-----
   if (unlockMode && tid.startsWith('__UNLOCK_KEY__')) {
     let digit = tid.replace('__UNLOCK_KEY__', '');
     if (digit >= '0' && digit <= '9') {
@@ -418,16 +400,13 @@ function detail(tid) {
             unlocked = true;
             unlockMode = false;
             print("密码正确，解锁成功！");
-            // 返回空列表，让应用返回首页刷新
             return JSON.stringify({ list: [] });
           } else {
             unlockBuffer = '';
-            print("密码错误，已清空");
-            // 刷新键盘界面（显示错误提示）
             let videos = getKeyboardVideos();
             let statusItem = {
-              vod_id: '__UNLOCK_STATUS',
-              vod_name: `❌ 密码错误，请重新输入: ${'*'.repeat(unlockBuffer.length)}${'_'.repeat(4)}`,
+              vod_id: '__UNLOCK_STATUS_ERR_' + Date.now(),
+              vod_name: `❌ 密码错误，请重新输入: ${'_'.repeat(4)}`,
               vod_pic: def_pic,
               vod_remarks: '使用遥控器数字键选择'
             };
@@ -437,11 +416,11 @@ function detail(tid) {
         }
       }
     }
-    // 刷新键盘界面
     let videos = getKeyboardVideos();
+    let display = '*'.repeat(unlockBuffer.length) + '_'.repeat(4 - unlockBuffer.length);
     let statusItem = {
-      vod_id: '__UNLOCK_STATUS',
-      vod_name: `🔐 请输入 4 位密码: ${'*'.repeat(unlockBuffer.length)}${'_'.repeat(4 - unlockBuffer.length)}`,
+      vod_id: '__UNLOCK_STATUS_' + unlockBuffer.length + '_' + Date.now(),
+      vod_name: `🔐 请输入 4 位密码: ${display}`,
       vod_pic: def_pic,
       vod_remarks: '使用遥控器数字键选择'
     };
@@ -451,9 +430,10 @@ function detail(tid) {
   if (unlockMode && tid === '__UNLOCK_BACKSPACE') {
     if (unlockBuffer.length > 0) unlockBuffer = unlockBuffer.slice(0, -1);
     let videos = getKeyboardVideos();
+    let display = '*'.repeat(unlockBuffer.length) + '_'.repeat(4 - unlockBuffer.length);
     let statusItem = {
-      vod_id: '__UNLOCK_STATUS',
-      vod_name: `🔐 请输入 4 位密码: ${'*'.repeat(unlockBuffer.length)}${'_'.repeat(4 - unlockBuffer.length)}`,
+      vod_id: '__UNLOCK_STATUS_' + unlockBuffer.length + '_' + Date.now(),
+      vod_name: `🔐 请输入 4 位密码: ${display}`,
       vod_pic: def_pic,
       vod_remarks: '使用遥控器数字键选择'
     };
@@ -463,16 +443,16 @@ function detail(tid) {
   if (unlockMode && tid === '__UNLOCK_CLEAR') {
     unlockBuffer = '';
     let videos = getKeyboardVideos();
+    let display = '_'.repeat(4);
     let statusItem = {
-      vod_id: '__UNLOCK_STATUS',
-      vod_name: `🔐 请输入 4 位密码: ${'*'.repeat(unlockBuffer.length)}${'_'.repeat(4 - unlockBuffer.length)}`,
+      vod_id: '__UNLOCK_STATUS_CLEAR_' + Date.now(),
+      vod_name: `🔐 请输入 4 位密码: ${display}`,
       vod_pic: def_pic,
       vod_remarks: '使用遥控器数字键选择'
     };
     videos.unshift(statusItem);
     return JSON.stringify({ list: videos });
   }
-  // 如果已解锁，确保退出解锁模式
   if (unlocked) unlockMode = false;
 
   // ----- 原有代码（未修改）-----
@@ -484,7 +464,6 @@ function detail(tid) {
   let source = __ext_config.sources.find(s => s.url === sourceUrl);
   if (!source) return JSON.stringify({ list: [] });
 
-  // 特殊站点处理器（合集模式）
   if (source.handler && customHandlers[source.handler] && mode === 'series') {
     let ctx = { url: sourceUrl, parseConfig: source.parseConfig || {}, extra: { tid } };
     let items = customHandlers[source.handler](ctx);
@@ -499,7 +478,6 @@ function detail(tid) {
     return JSON.stringify({ list: [vod] });
   }
 
-  // 普通合集模式
   if (mode === 'series') {
     let content = fetchSource(sourceUrl, source);
     let baseDir = sourceUrl.substring(0, sourceUrl.lastIndexOf('/')+1);
@@ -516,7 +494,6 @@ function detail(tid) {
     return JSON.stringify({ list: [vod] });
   }
 
-  // 普通模式（分组/单线路）
   let html = fetchSource(sourceUrl, source);
   let regex = new RegExp(`.*?${tab.replace('(', '\\(').replace(')', '\\)')}[,，]#[\\s\\S].*?#`);
   let match = html.match(regex);
@@ -543,7 +520,6 @@ function detail(tid) {
   return JSON.stringify({ list: [vod] });
 }
 
-// 播放器优化：支持全局解析接口、自定义请求头
 function play(flag, id, vipFlags) {
   let parse = 0;
   let finalUrl = id;
@@ -559,7 +535,6 @@ function play(flag, id, vipFlags) {
   return JSON.stringify({ parse: autoParse, playUrl: '', url: finalUrl });
 }
 
-// 全局搜索
 function search(wd, quick) {
   let results = [];
   for (let src of __ext_config.sources) {
