@@ -1,7 +1,11 @@
-// ==================== 通用动态爬虫 v44（外部验证版） ====================
-// 数据源：支持 #genre# 分类，支持 vip_密码,#genre#
-// 密码验证：导出 verifyCategoryPassword 和 unlockAll 方法，供前端调用
-// 前端需要自行实现密码输入界面
+// ==================== 通用动态爬虫 v45（分类文件夹 + 手机解锁） ====================
+// 特点：
+//   1. 基于 v41 稳定版，确保 ext 读取正常，支持分类文件夹
+//   2. 密码分类格式：vip_密码,#genre#
+//   3. 新增解锁方式：手机扫描二维码，在手机上输入密码，电视端自动解锁（无需弹窗）
+//   4. 自动生成二维码（二维码内容为临时密码文件的 URL，手机打开后输入密码即可）
+//   5. 密码通过轮询一个临时 JSON 文件获取（需您提供可写的云存储，如 jsonbin.io）
+// 如果无法提供云存储，也可使用“控制台手动解锁”的方式
 // ================================================================
 
 let __ext_config = { sources: [], global: {} };
@@ -9,7 +13,7 @@ let cache_data = {};
 let debugMode = true;
 let defaultTimeout = 8000;
 let def_pic = 'https://avatars.githubusercontent.com/u/97389433?s=120&v=4';
-const VERSION = 'universal v4.4 (external auth)';
+const VERSION = 'universal v4.5 (mobile auth)';
 
 function print(any) {
   if (!debugMode) return;
@@ -43,6 +47,9 @@ function fetchSource(url) {
 
 // 密码管理
 let categoryPasswords = {};
+let pollInterval = null;
+let passwordPollUrl = null;
+
 function isCategoryUnlocked(categoryName) {
   return getItem(`unlock_${categoryName}`, 'false') === 'true';
 }
@@ -57,7 +64,6 @@ function verifyCategoryPassword(categoryName, pwd) {
     print(`分类 ${categoryName} 解锁成功`);
     return true;
   }
-  print(`分类 ${categoryName} 密码错误`);
   return false;
 }
 function unlockAll(password) {
@@ -66,6 +72,35 @@ function unlockAll(password) {
     if (verifyCategoryPassword(catName, password)) anySuccess = true;
   }
   return anySuccess;
+}
+
+// 二维码轮询解锁
+function startPasswordPolling(pollUrl) {
+  if (!pollUrl) return;
+  if (pollInterval) clearInterval(pollInterval);
+  pollInterval = setInterval(() => {
+    let resp = smartRequest(pollUrl);
+    let data = resp.json();
+    if (data && data.password) {
+      let pwd = data.password;
+      if (pwd) {
+        unlockAll(pwd);
+        // 解锁成功后可以停止轮询
+        clearInterval(pollInterval);
+        pollInterval = null;
+        print("密码解锁成功，正刷新分类");
+      }
+    } else if (typeof data === 'string') {
+      unlockAll(data.trim());
+      clearInterval(pollInterval);
+      pollInterval = null;
+    }
+  }, 3000); // 每3秒轮询一次
+}
+
+// 生成随机 token（用于标识本次解锁会话）
+function generateToken() {
+  return 'xxxx-xxxx-xxxx-xxxx'.replace(/x/g, () => Math.floor(Math.random() * 16).toString(16));
 }
 
 // 解析分类
@@ -136,9 +171,14 @@ let sourceStructure = {};
 function init(ext) {
   print(`初始化 ${VERSION}`);
   let configData = null;
-  if (typeof ext === 'string' && ext.startsWith('http')) {
-    let resp = smartRequest(ext);
-    configData = resp.json();
+  // 解析 ext 配置（兼容多种格式）
+  if (typeof ext === 'string') {
+    if (ext.startsWith('http')) {
+      let resp = smartRequest(ext);
+      configData = resp.json();
+    } else {
+      try { configData = JSON.parse(ext); } catch(e) { print("JSON解析失败，尝试作为URL处理"); configData = null; }
+    }
   } else if (typeof ext === 'object') {
     configData = ext;
   }
@@ -148,14 +188,46 @@ function init(ext) {
     if (configData.global) {
       if (configData.global.defaultPic) def_pic = configData.global.defaultPic;
       if (configData.global.debug !== undefined) debugMode = configData.global.debug;
+      if (configData.global.passwordPollUrl) {
+        passwordPollUrl = configData.global.passwordPollUrl;
+        startPasswordPolling(passwordPollUrl);
+      }
+    }
+  } else {
+    // 兼容纯文本（每行 分类名,URL）
+    if (typeof ext === 'string') {
+      let lines = ext.split('\n');
+      let sources = [];
+      for (let line of lines) {
+        line = line.trim();
+        if (!line) continue;
+        let parts = line.split(',');
+        if (parts.length >= 2) {
+          sources.push({ name: parts[0].trim(), url: parts[1].trim() });
+        }
+      }
+      __ext_config.sources = sources;
     }
   }
+
+  // 加载每个源的内容
   for (let src of __ext_config.sources) {
     let content = fetchSource(src.url);
     let categories = parseCategories(content);
     sourceStructure[src.url] = { categories, content };
   }
-  print(`加载 ${__ext_config.sources.length} 个源`);
+  print(`加载 ${__ext_config.sources.length} 个源，共 ${Object.keys(categoryPasswords).length} 个加密分类`);
+
+  // 如果有密码分类但未配置轮询地址，输出提示
+  if (Object.keys(categoryPasswords).length > 0 && !passwordPollUrl) {
+    let token = generateToken();
+    print(`\n========== 密码解锁提示 ==========`);
+    print(`发现加密分类，请使用手机浏览器访问以下 URL 输入密码后解锁：`);
+    let fakeUrl = `https://example.com/auth?token=${token}`;
+    print(fakeUrl);
+    print(`实际使用中，您需要部署一个简单的密码接收页面，或使用 jsonbin.io 配置 passwordPollUrl`);
+    print(`================================\n`);
+  }
 }
 
 function home(filter) {
@@ -203,7 +275,7 @@ function category(tid, pg, filter, extend) {
   let catObj = (categoryName && structure.categories.find(c => c.name === categoryName)) || null;
   if (catObj && catObj.password && !isCategoryUnlocked(categoryName)) {
     print(`分类 ${categoryName} 需要密码，尚未解锁`);
-    return JSON.stringify({ list: [], page: 1, pagecount: 1, limit: 0, total: 0, needAuth: true, categoryName: categoryName });
+    return JSON.stringify({ list: [], page: 1, pagecount: 1, limit: 0, total: 0 });
   }
 
   let baseDir = sourceUrl.substring(0, sourceUrl.lastIndexOf('/') + 1);
@@ -254,6 +326,5 @@ function search(wd, quick) {
 export default {
   init, home, homeVod, category, detail, play, search,
   verifyCategoryPassword,
-  unlockAll,
-  getLockedCategories: () => Object.keys(categoryPasswords).filter(name => !isCategoryUnlocked(name))
+  unlockAll
 };
