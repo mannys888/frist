@@ -1,4 +1,4 @@
-// ==================== 通用动态爬虫 v34（时间密码 + 自动锁定 - 图片卡片版） ====================
+// ====================(AB)通用动态爬虫 v34（时间密码 + 自动锁定 - 图片卡片版） ====================
 // 密码为当前时间（小时+分钟），例如 19:22 -> 1922，9:08 -> 0908
 // 解锁后有效期为 60 分钟，超时自动重新锁定
 // 优化：数字键和功能键各自使用不同的随机图片，形成卡片效果
@@ -23,7 +23,7 @@ const tips = `\n${VERSION}`;
 const RKEY = 'universal_spider';
 
 // ========== 动态时间密码配置 ==========
-const UNLOCK_VALID_MINUTES = 10;
+const UNLOCK_VALID_MINUTES = 30;
 
 function getCurrentTimePassword() {
   let now = new Date();
@@ -597,4 +597,13 @@ function search(wd, quick) {
   return JSON.stringify({ list: results });
 }
 
-export default { init, home, homeVod, category, detail, play, search };
+// ========== 定义全局 __JS_SPIDER__ 对象（兼容 Web 和 TVBox） ==========
+var __JS_SPIDER__ = {
+  init: init,
+  home: home,
+  homeVod: homeVod,
+  category: category,
+  detail: detail,
+  play: play,
+  search: search
+};
