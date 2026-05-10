@@ -369,7 +369,7 @@ function category(tid, pg, filter, extend) {
     let videos = getKeyboardVideos();
     let statusItem = {
       vod_id: '__UNLOCK_STATUS_INIT_' + Date.now(),
-      vod_name: `🔐 请输入当前时间（HHMM），例如 ${getCurrentTimePassword()}`,
+      vod_name: `🔐 请输入密码___`,
       vod_pic: def_pic,
       vod_remarks: '使用遥控器数字键选择'
     };
@@ -450,7 +450,7 @@ function detail(tid) {
             let videos = getKeyboardVideos();
             let statusItem = {
               vod_id: '__UNLOCK_STATUS_ERR_' + Date.now(),
-              vod_name: `❌ 密码错误，当前时间密码应为 ${getCurrentTimePassword()}`,
+              vod_name: `❌ 密码错误，密码应为 ${getCurrentTimePassword()}`,
               vod_pic: def_pic,
               vod_remarks: '请重新输入'
             };
@@ -464,9 +464,9 @@ function detail(tid) {
     let display = '*'.repeat(unlockBuffer.length) + '_'.repeat(4 - unlockBuffer.length);
     let statusItem = {
       vod_id: '__UNLOCK_STATUS_' + unlockBuffer.length + '_' + Date.now(),
-      vod_name: `🔐 请输入当前时间（HHMM）: ${display}`,
+      vod_name: `🔐 请输入密码`,
       vod_pic: def_pic,
-      vod_remarks: '例如 ' + getCurrentTimePassword()
+      vod_remarks: '例如数字 '
     };
     videos.unshift(statusItem);
     return JSON.stringify({ list: videos });
@@ -477,9 +477,9 @@ function detail(tid) {
     let display = '*'.repeat(unlockBuffer.length) + '_'.repeat(4 - unlockBuffer.length);
     let statusItem = {
       vod_id: '__UNLOCK_STATUS_' + unlockBuffer.length + '_' + Date.now(),
-      vod_name: `🔐 请输入当前时间（HHMM）: ${display}`,
+      vod_name: `🔐 请输入密码: ___`,
       vod_pic: def_pic,
-      vod_remarks: '例如 ' + getCurrentTimePassword()
+      vod_remarks: '例如 '
     };
     videos.unshift(statusItem);
     return JSON.stringify({ list: videos });
@@ -490,9 +490,9 @@ function detail(tid) {
     let display = '_'.repeat(4);
     let statusItem = {
       vod_id: '__UNLOCK_STATUS_CLEAR_' + Date.now(),
-      vod_name: `🔐 请输入当前时间（HHMM）: ${display}`,
+      vod_name: `🔐 请输入密码: ___`,
       vod_pic: def_pic,
-      vod_remarks: '例如 ' + getCurrentTimePassword()
+      vod_remarks: '例如 数字'
     };
     videos.unshift(statusItem);
     return JSON.stringify({ list: videos });
