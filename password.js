@@ -1,5 +1,5 @@
 /**
- * 体验universal_spider_v29.js (基于 v27 成功版，为数据源请求增加默认头)
+ * universal_spider_v29.js (基于 v27 成功版，为数据源请求增加默认头)
  * 特点：
  *   - ext 读取逻辑与 v27 完全相同（保证能读）
  *   - 请求直播源/TXT/JSON/M3U 时自动添加 User-Agent、Referer 等
@@ -495,180 +495,177 @@ function category(tid, pg, filter, extend) {
 }
 
 function detail(tid) {
-    // 处理虚拟键盘按键
-    if (unlockMode && tid.startsWith('__UNLOCK_KEY__')) {
-        let digit = tid.replace('__UNLOCK_KEY__', '');
-        if (digit >= '0' && digit <= '9') {
-            if (unlockBuffer.length < 4) {
-                unlockBuffer += digit;
-                if (unlockBuffer.length === 4) {
-                    if (verifyDynamicPassword(unlockBuffer)) {
-                        setUnlocked(true);
-                        unlocked = true;
-                        unlockMode = false;
-                        print("密码正确，解锁成功！");
-                        // ----- 修改开始：返回可播放的视频 -----
-                        const unlockVideoUrl = 'https://vd2.bdstatic.com/mda-sbehdejw4kmibhkh/576p/h264/1771157811027978795/mda-sbehdejw4kmibhkh.mp4';
-                        let vod = {
-                            vod_id: '__UNLOCK_SUCCESS_VIDEO',
-                            vod_name: '🎉 解锁成功！点击播放视频',
-                            vod_pic: def_pic,
-                            type_name: "解锁视频",
-                            vod_play_from: "庆祝源",
-                            vod_play_url: `解锁视频$${unlockVideoUrl}`,
-                            vod_remarks: '密码正确，内容已解锁'
-                        };
-                        return JSON.stringify({ list: [vod] });
-                        // ----- 修改结束 -----
-                    } else {
-                        unlockBuffer = '';
-                        let videos = getKeyboardVideos();
-                        let statusItem = {
-                            vod_id: '__UNLOCK_STATUS_ERR_' + Date.now(),
-                            vod_name: `❌ 密码错误，请重试`,
-                            vod_pic: def_pic,
-                            vod_remarks: '找管理员要密码 '
-                        };
-                        videos.unshift(statusItem);
-                        return JSON.stringify({ list: videos });
-                    }
-                }
-            }
-        }
-        let videos = getKeyboardVideos();
-        let display = '*'.repeat(unlockBuffer.length) + '_'.repeat(4 - unlockBuffer.length);
-        let statusItem = {
-            vod_id: '__UNLOCK_STATUS_' + unlockBuffer.length + '_' + Date.now(),
-            vod_name: `🔐 密码: ${display}`,
-            vod_pic: def_pic,
-            vod_remarks: '请输入4位数字'
-        };
-        videos.unshift(statusItem);
-        return JSON.stringify({ list: videos });
-    }
-    if (unlockMode && tid === '__UNLOCK_BACKSPACE') {
-        if (unlockBuffer.length > 0) unlockBuffer = unlockBuffer.slice(0, -1);
-        let videos = getKeyboardVideos();
-        let display = '*'.repeat(unlockBuffer.length) + '_'.repeat(4 - unlockBuffer.length);
-        let statusItem = {
-            vod_id: '__UNLOCK_STATUS_' + unlockBuffer.length + '_' + Date.now(),
-            vod_name: `🔐 密码: ${display}`,
-            vod_pic: def_pic,
-            vod_remarks: '请输入4位数字'
-        };
-        videos.unshift(statusItem);
-        return JSON.stringify({ list: videos });
-    }
-    if (unlockMode && tid === '__UNLOCK_CLEAR') {
-        unlockBuffer = '';
-        let videos = getKeyboardVideos();
-        let display = '_'.repeat(4);
-        let statusItem = {
-            vod_id: '__UNLOCK_STATUS_CLEAR_' + Date.now(),
-            vod_name: `🔐 密码: ${display}`,
-            vod_pic: def_pic,
-            vod_remarks: '请输入4位数字'
-        };
-        videos.unshift(statusItem);
-        return JSON.stringify({ list: videos });
-    }
-    if (unlocked) unlockMode = false;
+    
 
-    let parts = tid.split('###');
-    let mode = parts.length > 1 ? parts[1] : 'single';
-    let left = parts[0];
-    let sourceUrl = left.split('$')[0];
-    let tab = left.split('$')[1];
-    let source = __ext_config.sources.find(s => s.url === sourceUrl);
-    if (!source) return JSON.stringify({ list: [] });
-
-    if (tid.includes('#search#')) {
-        let vod_name = tab.replace('#search#', '');
-        let vod_play_from = '来自搜索:' + sourceUrl;
-        let vod_play_url = groupDict[sourceUrl].map(x => x.replace(',', '$')).join('#');
-        return JSON.stringify({
-            list: [{
-                vod_id: tid,
-                vod_name: '搜索:' + vod_name,
-                type_name: "直播列表",
-                vod_pic: def_pic,
-                vod_content: tid,
-                vod_play_from: vod_play_from,
-                vod_play_url: vod_play_url,
-                vod_director: tips,
-                vod_remarks: VERSION,
-            }]
-        });
-    }
-
-    if (mode === 'series') {
-        let seriesUrl = sourceUrl;
-        let seriesConfig = __ext_config.series || {};
-        let content = fetchSource(seriesUrl, source);
-        let baseDir = seriesUrl.substring(0, seriesUrl.lastIndexOf('/') + 1);
-        let episodes = parseSeriesEpisodes(content, baseDir, seriesConfig);
-        if (!episodes.length) return JSON.stringify({ list: [] });
-        let videoList = episodes.map(ep => `${ep.title}$${ep.url}`);
-        let playUrl = videoList.join('#');
-        let seriesTitle = seriesConfig.title || source.name;
-        let vod = {
-            vod_id: tid,
-            vod_name: seriesTitle + '|' + tab,
-            vod_pic: def_pic,
-            type_name: "连续剧",
-            vod_play_from: seriesConfig.playFrom || source.name,
-            vod_play_url: playUrl,
-            vod_director: tips,
-            vod_remarks: VERSION,
-        };
-        return JSON.stringify({ list: [vod] });
-    }
-
-    let html = fetchSource(sourceUrl, source);
-    let a = new RegExp(`.*?${tab.replace('(', '\\(').replace(')', '\\)')}[,，]#[\\s\\S].*?#`);
-    let b = html.match(a);
-    if (!b) return JSON.stringify({ list: [] });
-    let c = html.split(b[0])[1];
-    if (c.match(/.*?[,，]#[\s\S].*?#/)) {
-        let d = c.match(/.*?[,，]#[\s\S].*?#/)[0];
-        c = c.split(d)[0];
-    }
-    let lines = c.trim().split('\n');
-    let _list = [];
-    for (let line of lines) {
-        if (line.trim()) {
-            let t = line.trim().split(',')[0];
-            let u = line.trim().split(',')[1];
-            _list.push(t + '$' + u);
-        }
-    }
-    let vod_name = source.name;
-    let vod_play_url, vod_play_from;
-    if (showMode === 'groups') {
-        let groups = splitArray(_list, x => x.split('$')[0]);
-        let tabs = [];
-        for (let i = 0; i < groups.length; i++) {
-            if (i === 0) tabs.push(vod_name + '1');
-            else tabs.push(` ${i + 1} `);
-        }
-        vod_play_url = groups.map(it => it.join('#')).join('$$$');
-        vod_play_from = tabs.join('$$$');
-    } else {
-        vod_play_url = _list.join('#');
-        vod_play_from = vod_name;
-    }
+ // 处理虚拟键盘按键
+  if (unlockMode && tid.startsWith('__UNLOCK_KEY__')) {
+    let digit = tid.replace('__UNLOCK_KEY__', '');
+    if (digit >= '0' && digit <= '9') {
+      if (unlockBuffer.length < 4) {
+        unlockBuffer += digit;
+        if (unlockBuffer.length === 4) {
+          if (verifyDynamicPassword(unlockBuffer)) {
+    setUnlocked(true);
+    unlocked = true;
+    unlockMode = false;
+    print("密码正确，解锁成功！");
+    // 指定的解锁庆祝视频地址
+    const unlockVideoUrl = 'https://vd2.bdstatic.com/mda-sbehdejw4kmibhkh/576p/h264/1771157811027978795/mda-sbehdejw4kmibhkh.mp4';
     let vod = {
-        vod_id: tid,
-        vod_name: vod_name + '|' + tab,
-        type_name: "直播列表",
-        vod_pic: def_pic,
-        vod_content: tid,
-        vod_play_from: vod_play_from,
-        vod_play_url: vod_play_url,
-        vod_director: tips,
-        vod_remarks: VERSION,
+        vod_id: '__UNLOCK_SUCCESS_VIDEO',          // 唯一标识
+        vod_name: '🎉 解锁成功！点击播放视频',      // 视频标题
+        vod_pic: def_pic,                          // 海报图
+        type_name: "解锁视频",                     // 类型名称
+        vod_play_from: "庆祝源",                   // 线路名称
+        vod_play_url: `解锁视频$${unlockVideoUrl}`, // 播放地址（格式：名称$URL）
+        vod_remarks: '密码正确，内容已解锁'        // 备注信息
+    };
+    // 返回包含可播放视频的详情页，用户点击即播放
+    return JSON.stringify({ list: [vod] });
+} else {
+            unlockBuffer = '';
+            let videos = getKeyboardVideos();
+            let statusItem = {
+              vod_id: '__UNLOCK_STATUS_ERR_' + Date.now(),
+              vod_name: `❌ 密码错误，请重试`,
+              vod_pic: def_pic,
+              vod_remarks: '找管理员要密码 '
+            };
+            videos.unshift(statusItem);
+            return JSON.stringify({ list: videos });
+          }
+        }
+      }
+    }
+    let videos = getKeyboardVideos();
+    let display = '*'.repeat(unlockBuffer.length) + '_'.repeat(4 - unlockBuffer.length);
+    let statusItem = {
+      vod_id: '__UNLOCK_STATUS_' + unlockBuffer.length + '_' + Date.now(),
+      vod_name: `🔐 密码: ${display}`,
+      vod_pic: def_pic,
+      vod_remarks: '请输入4位数字'
+    };
+    videos.unshift(statusItem);
+    return JSON.stringify({ list: videos });
+  }
+  if (unlockMode && tid === '__UNLOCK_BACKSPACE') {
+    if (unlockBuffer.length > 0) unlockBuffer = unlockBuffer.slice(0, -1);
+    let videos = getKeyboardVideos();
+    let display = '*'.repeat(unlockBuffer.length) + '_'.repeat(4 - unlockBuffer.length);
+    let statusItem = {
+      vod_id: '__UNLOCK_STATUS_' + unlockBuffer.length + '_' + Date.now(),
+      vod_name: `🔐 密码: ${display}`,
+      vod_pic: def_pic,
+      vod_remarks: '请输入4位数字'
+    };
+    videos.unshift(statusItem);
+    return JSON.stringify({ list: videos });
+  }
+  if (unlockMode && tid === '__UNLOCK_CLEAR') {
+    unlockBuffer = '';
+    let videos = getKeyboardVideos();
+    let display = '_'.repeat(4);
+    let statusItem = {
+      vod_id: '__UNLOCK_STATUS_CLEAR_' + Date.now(),
+      vod_name: `🔐 密码: ${display}`,
+      vod_pic: def_pic,
+      vod_remarks: '请输入4位数字'
+    };
+    videos.unshift(statusItem);
+    return JSON.stringify({ list: videos });
+  }
+  if (unlocked) unlockMode = false;
+
+
+  let parts = tid.split('###');
+  let mode = parts.length > 1 ? parts[1] : 'single';
+  let left = parts[0];
+  let sourceUrl = left.split('$')[0];
+  let tab = left.split('$')[1];
+  let source = __ext_config.sources.find(s => s.url === sourceUrl);
+  if (!source) return JSON.stringify({ list: [] });
+  
+  if (tid.includes('#search#')) {
+    let vod_name = tab.replace('#search#', '');
+    let vod_play_from = '来自搜索:' + sourceUrl;
+    let vod_play_url = groupDict[sourceUrl].map(x => x.replace(',', '$')).join('#');
+    return JSON.stringify({
+      list: [{
+        vod_id: tid, vod_name: '搜索:' + vod_name, type_name: "直播列表", vod_pic: def_pic,
+        vod_content: tid, vod_play_from: vod_play_from, vod_play_url: vod_play_url,
+        vod_director: tips, vod_remarks: VERSION,
+      }]
+    });
+  }
+  
+  if (mode === 'series') {
+    let seriesUrl = sourceUrl;
+    let seriesConfig = __ext_config.series || {};
+    let content = fetchSource(seriesUrl, source);
+    let baseDir = seriesUrl.substring(0, seriesUrl.lastIndexOf('/') + 1);
+    let episodes = parseSeriesEpisodes(content, baseDir, seriesConfig);
+    if (!episodes.length) return JSON.stringify({ list: [] });
+    let videoList = episodes.map(ep => `${ep.title}$${ep.url}`);
+    let playUrl = videoList.join('#');
+    let seriesTitle = seriesConfig.title || source.name;
+    let vod = {
+      vod_id: tid,
+      vod_name: seriesTitle + '|' + tab,
+      vod_pic: def_pic,
+      type_name: "连续剧",
+      vod_play_from: seriesConfig.playFrom || source.name,
+      vod_play_url: playUrl,
+      vod_director: tips,
+      vod_remarks: VERSION,
     };
     return JSON.stringify({ list: [vod] });
+  }
+  
+  let html = fetchSource(sourceUrl, source);
+  let a = new RegExp(`.*?${tab.replace('(', '\\(').replace(')', '\\)')}[,，]#[\\s\\S].*?#`);
+  let b = html.match(a);
+  if (!b) return JSON.stringify({ list: [] });
+  let c = html.split(b[0])[1];
+  if (c.match(/.*?[,，]#[\s\S].*?#/)) {
+    let d = c.match(/.*?[,，]#[\s\S].*?#/)[0];
+    c = c.split(d)[0];
+  }
+  let lines = c.trim().split('\n');
+  let _list = [];
+  for (let line of lines) {
+    if (line.trim()) {
+      let t = line.trim().split(',')[0];
+      let u = line.trim().split(',')[1];
+      _list.push(t + '$' + u);
+    }
+  }
+  let vod_name = source.name;
+  let vod_play_url, vod_play_from;
+  if (showMode === 'groups') {
+    let groups = splitArray(_list, x => x.split('$')[0]);
+    let tabs = [];
+    for (let i = 0; i < groups.length; i++) {
+      if (i === 0) tabs.push(vod_name + '1');
+      else tabs.push(` ${i + 1} `);
+    }
+    vod_play_url = groups.map(it => it.join('#')).join('$$$');
+    vod_play_from = tabs.join('$$$');
+  } else {
+    vod_play_url = _list.join('#');
+    vod_play_from = vod_name;
+  }
+  let vod = {
+    vod_id: tid,
+    vod_name: vod_name + '|' + tab,
+    type_name: "直播列表",
+    vod_pic: def_pic,
+    vod_content: tid,
+    vod_play_from: vod_play_from,
+    vod_play_url: vod_play_url,
+    vod_director: tips,
+    vod_remarks: VERSION,
+  };
+  return JSON.stringify({ list: [vod] });
 }
 
 function play(flag, id, flags) {
