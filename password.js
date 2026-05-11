@@ -1,5 +1,5 @@
 /**
- * 29.js (基于 v27 成功版，为数据源请求增加默认头)
+ * universal_spider_v29.js (基于 v27 成功版，为数据源请求增加默认头)
  * 特点：
  *   - ext 读取逻辑与 v27 完全相同（保证能读）
  *   - 请求直播源/TXT/JSON/M3U 时自动添加 User-Agent、Referer 等
@@ -496,78 +496,79 @@ function category(tid, pg, filter, extend) {
 function detail(tid) {
     
 
- ---------- 解锁模式下的按键处理 ----------
-    if (unlockMode) {
-        // 1. 数字键（0-9）
-        if (tid.startsWith('__UNLOCK_KEY__')) {
-            let digit = tid.replace('__UNLOCK_KEY__','');
-            if (digit >= '0' && digit <= '9') {
-                if (unlockBuffer.length < 4) {
-                    unlockBuffer += digit;
-                    if (unlockBuffer.length === 4) {
-                        // 输入满4位，验证密码
-                        if (verifyDynamicPassword(unlockBuffer)) {
-                            setUnlocked(true);
-                            unlocked = true;
-                            unlockMode = false;
-                            print("解锁成功");
-                            return JSON.stringify({ list: [] }); // 清空页面，前端刷新
-                        } else {
-                            unlockBuffer = ''; // 错误清空
-                            let videos = getKeyboardVideos();
-                            videos.unshift({
-                                vod_id: '__UNLOCK_ERR',
-                                vod_name: '❌ 密码错误，请重新输入',
-                                vod_pic: def_pic,
-                                vod_remarks: '当前时间密码（HHMM）'
-                            });
-                            return JSON.stringify({ list: videos });
-                        }
-                    }
-                }
-            }
-            // 未满4位时，刷新键盘显示输入进度
-            let videos = getKeyboardVideos();
-            let stars = '*'.repeat(unlockBuffer.length) + '_'.repeat(4 - unlockBuffer.length);
-            videos.unshift({
-                vod_id: '__UNLOCK_STATUS',
-                vod_name: `🔐 密码: ${stars}`,
-                vod_pic: def_pic,
-                vod_remarks: `已输入${unlockBuffer.length}位`
-            });
-            return JSON.stringify({ list: videos });
-        }
-        
-        // 2. 退格键
-        if (tid === '__UNLOCK_BACKSPACE') {
-            if (unlockBuffer.length > 0) unlockBuffer = unlockBuffer.slice(0,-1);
-            let videos = getKeyboardVideos();
-            let stars = '*'.repeat(unlockBuffer.length) + '_'.repeat(4 - unlockBuffer.length);
-            videos.unshift({
-                vod_id: '__UNLOCK_STATUS',
-                vod_name: `🔐 密码: ${stars}`,
-                vod_pic: def_pic,
-                vod_remarks: '按删除键'
-            });
-            return JSON.stringify({ list: videos });
-        }
-        
-        // 3. 清除键
-        if (tid === '__UNLOCK_CLEAR') {
+ // 处理虚拟键盘按键
+  if (unlockMode && tid.startsWith('__UNLOCK_KEY__')) {
+    let digit = tid.replace('__UNLOCK_KEY__', '');
+    if (digit >= '0' && digit <= '9') {
+      if (unlockBuffer.length < 4) {
+        unlockBuffer += digit;
+        if (unlockBuffer.length === 4) {
+          if (verifyDynamicPassword(unlockBuffer)) {
+            setUnlocked(true);
+            unlocked = true;
+            unlockMode = false;
+            print("密码正确，解锁成功！");
+            let successItem = {
+              vod_id: '__UNLOCK_SUCCESS',
+              vod_name: '✅ 解锁成功！请按返回键返回首页',
+              vod_pic: def_pic,
+              vod_remarks: '密码正确，内容已解锁'
+            };
+            return JSON.stringify({ list: [successItem] });
+          } else {
             unlockBuffer = '';
             let videos = getKeyboardVideos();
-            videos.unshift({
-                vod_id: '__UNLOCK_STATUS',
-                vod_name: '🔐 已清空，请输入4位密码',
-                vod_pic: def_pic,
-                vod_remarks: ''
-            });
+            let statusItem = {
+              vod_id: '__UNLOCK_STATUS_ERR_' + Date.now(),
+              vod_name: `❌ 密码错误，请重试`,
+              vod_pic: def_pic,
+              vod_remarks: '找管理员要密码 '
+            };
+            videos.unshift(statusItem);
             return JSON.stringify({ list: videos });
+          }
         }
+      }
     }
-    
-    // 如果已解锁，确保退出解锁模式
-    if (unlocked) unlockMode = false;
+    let videos = getKeyboardVideos();
+    let display = '*'.repeat(unlockBuffer.length) + '_'.repeat(4 - unlockBuffer.length);
+    let statusItem = {
+      vod_id: '__UNLOCK_STATUS_' + unlockBuffer.length + '_' + Date.now(),
+      vod_name: `🔐 密码: ${display}`,
+      vod_pic: def_pic,
+      vod_remarks: '请输入4位数字'
+    };
+    videos.unshift(statusItem);
+    return JSON.stringify({ list: videos });
+  }
+  if (unlockMode && tid === '__UNLOCK_BACKSPACE') {
+    if (unlockBuffer.length > 0) unlockBuffer = unlockBuffer.slice(0, -1);
+    let videos = getKeyboardVideos();
+    let display = '*'.repeat(unlockBuffer.length) + '_'.repeat(4 - unlockBuffer.length);
+    let statusItem = {
+      vod_id: '__UNLOCK_STATUS_' + unlockBuffer.length + '_' + Date.now(),
+      vod_name: `🔐 密码: ___`,
+      vod_pic: def_pic,
+      vod_remarks: '请输入4位数字'
+    };
+    videos.unshift(statusItem);
+    return JSON.stringify({ list: videos });
+  }
+  if (unlockMode && tid === '__UNLOCK_CLEAR') {
+    unlockBuffer = '';
+    let videos = getKeyboardVideos();
+    let display = '_'.repeat(4);
+    let statusItem = {
+      vod_id: '__UNLOCK_STATUS_CLEAR_' + Date.now(),
+      vod_name: `🔐 密码: ___`,
+      vod_pic: def_pic,
+      vod_remarks: '请输入4位数字'
+    };
+    videos.unshift(statusItem);
+    return JSON.stringify({ list: videos });
+  }
+  if (unlocked) unlockMode = false;
+
 
   let parts = tid.split('###');
   let mode = parts.length > 1 ? parts[1] : 'single';
