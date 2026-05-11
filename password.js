@@ -47,8 +47,8 @@ let cache_data = {};
 let showMode = 'groups';
 let groupDict = {};
 
-// ========== 🔻密码锁配置 🔻==========
-const UNLOCK_VALID_MINUTES = 60;      // 解锁有效分钟数，可改
+// 1️⃣========== 🔻密码锁配置 🔻==========
+const UNLOCK_VALID_MINUTES = 10;      // 解锁有效分钟数，可改
 
 // 获取当前时间密码（HHMM）
 function getCurrentTimePassword() {
@@ -107,6 +107,7 @@ function getKeyboardVideos() {
 let unlockBuffer = '';
 let unlockMode = false;
 // =========🔺密码锁核心结束 🔺============
+
 
 function setItem(k, v) { local.set(RKEY, k, v); console.log(`设置 ${k} => ${v}`); }
 function getItem(k, v) { return local.get(RKEY, k) || v; }
@@ -453,9 +454,9 @@ function category(tid, pg, filter, extend) {
         // 在顶部加一个状态条
         videos.unshift({
             vod_id: '__UNLOCK_STATUS_INIT',
-            vod_name: '🔐 请输入4位密码（当前时间 HHMM）',
+            vod_name: '🔐 请输入4位',
             vod_pic: def_pic,
-            vod_remarks: '例如 0930'
+            vod_remarks: '找管理员要0101'
         });
         return JSON.stringify({
             list: videos,
@@ -509,12 +510,13 @@ function detail(tid) {
             unlockMode = false;
             print("密码正确，解锁成功！");
             let successItem = {
-              vod_id: '__UNLOCK_SUCCESS',
+              vod_id: 'https://mr.baidu.com/r/1W4pXhcQtCo?f=cp&rs=1646891518&ruk=ueqKEzKJz9RanEwfuz4u2w&u=1d27208ce5042409',
               vod_name: '✅ 解锁成功！请按返回键返回首页',
               vod_pic: def_pic,
               vod_remarks: '密码正确，内容已解锁'
             };
-            return JSON.stringify({ list: [successItem] });
+             return JSON.stringify({ list: [vod] });
+            //return JSON.stringify({ list: [successItem] });
           } else {
             unlockBuffer = '';
             let videos = getKeyboardVideos();
@@ -547,7 +549,7 @@ function detail(tid) {
     let display = '*'.repeat(unlockBuffer.length) + '_'.repeat(4 - unlockBuffer.length);
     let statusItem = {
       vod_id: '__UNLOCK_STATUS_' + unlockBuffer.length + '_' + Date.now(),
-      vod_name: `🔐 密码: ___`,
+      vod_name: `🔐 密码: ${display}`,
       vod_pic: def_pic,
       vod_remarks: '请输入4位数字'
     };
@@ -560,7 +562,7 @@ function detail(tid) {
     let display = '_'.repeat(4);
     let statusItem = {
       vod_id: '__UNLOCK_STATUS_CLEAR_' + Date.now(),
-      vod_name: `🔐 密码: ___`,
+      vod_name: `🔐 密码: ${display}`,
       vod_pic: def_pic,
       vod_remarks: '请输入4位数字'
     };
