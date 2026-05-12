@@ -50,11 +50,6 @@ let cache_data = {};
 let showMode = 'groups';
 let groupDict = {};
 
-// 保存解锁庆祝视频列表（如果配置了 global.unlockVideos）
-if (__ext_config.global && __ext_config.global.unlockVideos) {
-    window._unlockVideos = __ext_config.global.unlockVideos; // 或使用普通变量
-}
-
 
 // 1️⃣========== 🔻密码锁配置 🔻==========
 const UNLOCK_VALID_MINUTES = 10;      // 解锁有效分钟数，可改
