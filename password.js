@@ -524,45 +524,24 @@ function detail(tid) {
                         unlockMode = false;
                         print("密码正确，解锁成功！");
 
-                        // ------------------- 获取视频列表（优先级：远程JSON > ext配置 > 内置默认）-------------------
+                        // ----- 获取视频列表：优先使用 ext 配置，否则使用内置默认 -----
                         let videoList = [];
-
-                        // 1. 尝试从远程 JSON 加载（同步请求）
-                        let remoteUrl = "https://raw.githubusercontent.com/userfree66666/TVpg/refs/heads/main/ext.json";
-                        try {
-                            print("开始从远程加载视频列表: " + remoteUrl);
-                            let resp = httpRequest(remoteUrl, { timeout: 5000 });
-                            let json = resp.json();
-                            print("远程响应原始内容: " + JSON.stringify(json).substring(0, 200)); // 打印前200字符
-                            if (json && Array.isArray(json)) {
-                                // 过滤出有效条目（必须同时包含 title 和 url）
-                                videoList = json.filter(item => item && item.title && item.url);
-                                print("从远程成功加载 " + videoList.length + " 个有效视频");
-                            } else {
-                                print("远程返回的数据不是数组，类型: " + typeof json);
-                                throw new Error("数据格式错误");
-                            }
-                        } catch(e) {
-                            print("远程加载失败: " + e.message);
-                        }
-
-                        // 2. 如果远程加载失败或没有有效视频，尝试从 ext 配置加载
-                        if (videoList.length === 0 && externalUnlockVideos && Array.isArray(externalUnlockVideos)) {
+                        if (externalUnlockVideos && Array.isArray(externalUnlockVideos) && externalUnlockVideos.length > 0) {
+                            // 过滤出有效项（必须包含 title 和 url）
                             videoList = externalUnlockVideos.filter(item => item && item.title && item.url);
                             print("从 ext 配置加载到 " + videoList.length + " 个视频");
                         }
-
-                        // 3. 最终降级为内置默认视频列表（确保始终有可播放内容）
                         if (videoList.length === 0) {
+                            // 内置默认视频（确保总有内容可播放）
                             videoList = [
                                 { title: "🎉 庆祝视频 - 精彩剪辑", url: "https://vd2.bdstatic.com/mda-sbehdejw4kmibhkh/576p/h264/1771157811027978795/mda-sbehdejw4kmibhkh.mp4" },
                                 { title: "📺 第二集 - 花絮彩蛋",   url: "https://vd2.bdstatic.com/mda-qiakr3cmtvs6w0d4/hd/cae_h264/1726065783439501256/mda-qiakr3cmtvs6w0d4.mp4" },
                                 { title: "🔔 第三集 - 幕后制作",   url: "https://vd3.bdstatic.com/mda-rdkgd5132u941fcr/576p/h264/1745235281540035966/mda-rdkgd5132u941fcr.mp4" }
                             ];
-                            print("使用内置默认视频列表，共 " + videoList.length + " 个");
+                            print("ext 配置无有效视频，使用内置默认列表");
                         }
 
-                        // 构造多集播放URL
+                        // 构造多集播放串：标题$URL#标题$URL#...
                         const playUrl = videoList.map(item => `${item.title}$${item.url}`).join('#');
                         let vod = {
                             vod_id: '__UNLOCK_SUCCESS_MULTI',
