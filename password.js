@@ -42,10 +42,19 @@ const UA = 'Mozilla/5.0';
 let def_pic = 'https://avatars.githubusercontent.com/u/97389433?s=120&v=4';
 const tips = `\n${VERSION}`;
 
+// 外部视频列表（可从 ext 配置中加载）
+let externalUnlockVideos = null;
+
 let __ext_config = { sources: [], global: {} };
 let cache_data = {};
 let showMode = 'groups';
 let groupDict = {};
+
+// 保存解锁庆祝视频列表（如果配置了 global.unlockVideos）
+if (__ext_config.global && __ext_config.global.unlockVideos) {
+    window._unlockVideos = __ext_config.global.unlockVideos; // 或使用普通变量
+}
+
 
 // 1️⃣========== 🔻密码锁配置 🔻==========
 const UNLOCK_VALID_MINUTES = 10;      // 解锁有效分钟数，可改
@@ -402,6 +411,13 @@ function init(ext) {
   }
   showMode = getItem('showMode', 'groups');
   groupDict = JSON.parse(getItem('groupDict', '{}'));
+  // 加载外部解锁视频列表（如果配置了 global.unlockVideos）
+  if (__ext_config.global && __ext_config.global.unlockVideos) {
+      externalUnlockVideos = __ext_config.global.unlockVideos;
+      print("已加载外部解锁视频列表，共 " + externalUnlockVideos.length + " 个");
+  } else {
+      externalUnlockVideos = null;
+  }
   print('init执行完毕，共 ' + __ext_config.sources.length + ' 个源');
 }
 
@@ -504,45 +520,54 @@ function detail(tid) {
       if (unlockBuffer.length < 4) {
         unlockBuffer += digit;
         if (unlockBuffer.length === 4) {
-          if (verifyDynamicPassword(unlockBuffer)) {
+         if (verifyDynamicPassword(unlockBuffer)) {
     setUnlocked(true);
     unlocked = true;
     unlockMode = false;
     print("密码正确，解锁成功！");
 
+    // 优先使用外部配置的视频列表，否则使用内置默认
+    let videoList = [];
+    if (externalUnlockVideos && Array.isArray(externalUnlockVideos) && externalUnlockVideos.length > 0) {
+        // 过滤出有效项（必须包含 title 和 url）
+        videoList = externalUnlockVideos.filter(item => item.title && item.url);
+        if (videoList.length === 0) {
+            print("外部视频列表格式无效，使用默认列表");
+        }
+    }
+    // 如果外部列表无效或为空，使用默认列表
+    if (videoList.length === 0) {
+        videoList = [
+            { title: "🎉 庆祝视频 - 精彩剪辑", url: "https://vd2.bdstatic.com/mda-sbehdejw4kmibhkh/576p/h264/1771157811027978795/mda-sbehdejw4kmibhkh.mp4" },
+            { title: "📺 第二集 - 花絮彩蛋",   url: "https://vd2.bdstatic.com/mda-qiakr3cmtvs6w0d4/hd/cae_h264/1726065783439501256/mda-qiakr3cmtvs6w0d4.mp4" },
+            { title: "🔔 第三集 - 幕后制作",   url: "https://vd3.bdstatic.com/mda-rdkgd5132u941fcr/576p/h264/1745235281540035966/mda-rdkgd5132u941fcr.mp4" }
+        ];
+    }
 
-    // ----- 多集视频配置（可任意增删）-----
-    const videoList = [
-        { title: "🎉 庆祝视频 - 精彩剪辑", url: "https://vd2.bdstatic.com/mda-sbehdejw4kmibhkh/576p/h264/1771157811027978795/mda-sbehdejw4kmibhkh.mp4" },
-        { title: "📺 第二集 - 花絮彩蛋",   url: "https://vd2.bdstatic.com/mda-qiakr3cmtvs6w0d4/hd/cae_h264/1726065783439501256/mda-qiakr3cmtvs6w0d4.mp4" },   // 替换为真实地址
-        { title: "🔔 第三集 - 幕后制作",   url: "https://vd3.bdstatic.com/mda-rdkgd5132u941fcr/576p/h264/1745235281540035966/mda-rdkgd5132u941fcr.mp4" }    // 替换为真实地址
-    ];
-
-    // 构造多集播放串：标题$URL#标题$URL#...
     const playUrl = videoList.map(item => `${item.title}$${item.url}`).join('#');
-    
     let vod = {
         vod_id: '__UNLOCK_SUCCESS_MULTI',
         vod_name: '🎉 解锁成功！请选择视频播放',
         vod_pic: def_pic,
         type_name: "解锁合集",
-        vod_play_from: "庆祝源",            // 单线路名称
-        vod_play_url: playUrl,              // 多集格式
+        vod_play_from: "庆祝源",
+        vod_play_url: playUrl,
         vod_remarks: `共${videoList.length}个视频，密码正确已解锁`
     };
     return JSON.stringify({ list: [vod] });
 } else {
-            unlockBuffer = '';
-            let videos = getKeyboardVideos();
-            let statusItem = {
-              vod_id: '__UNLOCK_STATUS_ERR_' + Date.now(),
-              vod_name: `❌ 密码错误，请重试`,
-              vod_pic: def_pic,
-              vod_remarks: '找管理员要密码 '
-            };
-            videos.unshift(statusItem);
-            return JSON.stringify({ list: videos });
-          }
+    // 密码错误处理（保持原有代码）
+    unlockBuffer = '';
+    let videos = getKeyboardVideos();
+    let statusItem = {
+        vod_id: '__UNLOCK_STATUS_ERR_' + Date.now(),
+        vod_name: `❌ 密码错误，请重试`,
+        vod_pic: def_pic,
+        vod_remarks: '找管理员要密码 '
+    };
+    videos.unshift(statusItem);
+    return JSON.stringify({ list: videos });
+}
         }
       }
     }
