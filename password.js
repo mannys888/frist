@@ -509,18 +509,27 @@ function detail(tid) {
     unlocked = true;
     unlockMode = false;
     print("密码正确，解锁成功！");
-    // 指定的解锁庆祝视频地址
-    const unlockVideoUrl = 'https://vd2.bdstatic.com/mda-sbehdejw4kmibhkh/576p/h264/1771157811027978795/mda-sbehdejw4kmibhkh.mp4';
+
+
+    // ----- 多集视频配置（可任意增删）-----
+    const videoList = [
+        { title: "🎉 庆祝视频 - 精彩剪辑", url: "https://vd2.bdstatic.com/mda-sbehdejw4kmibhkh/576p/h264/1771157811027978795/mda-sbehdejw4kmibhkh.mp4" },
+        { title: "📺 第二集 - 花絮彩蛋",   url: "https://vd2.bdstatic.com/mda-qiakr3cmtvs6w0d4/hd/cae_h264/1726065783439501256/mda-qiakr3cmtvs6w0d4.mp4" },   // 替换为真实地址
+        { title: "🔔 第三集 - 幕后制作",   url: "https://vd3.bdstatic.com/mda-rdkgd5132u941fcr/576p/h264/1745235281540035966/mda-rdkgd5132u941fcr.mp4" }    // 替换为真实地址
+    ];
+
+    // 构造多集播放串：标题$URL#标题$URL#...
+    const playUrl = videoList.map(item => `${item.title}$${item.url}`).join('#');
+    
     let vod = {
-        vod_id: '__UNLOCK_SUCCESS_VIDEO',          // 唯一标识
-        vod_name: '🎉 解锁成功！点击播放视频',      // 视频标题
-        vod_pic: def_pic,                          // 海报图
-        type_name: "解锁视频",                     // 类型名称
-        vod_play_from: "庆祝源",                   // 线路名称
-        vod_play_url: `解锁视频$${unlockVideoUrl}`, // 播放地址（格式：名称$URL）
-        vod_remarks: '密码正确，内容已解锁'        // 备注信息
+        vod_id: '__UNLOCK_SUCCESS_MULTI',
+        vod_name: '🎉 解锁成功！请选择视频播放',
+        vod_pic: def_pic,
+        type_name: "解锁合集",
+        vod_play_from: "庆祝源",            // 单线路名称
+        vod_play_url: playUrl,              // 多集格式
+        vod_remarks: `共${videoList.length}个视频，密码正确已解锁`
     };
-    // 返回包含可播放视频的详情页，用户点击即播放
     return JSON.stringify({ list: [vod] });
 } else {
             unlockBuffer = '';
