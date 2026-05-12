@@ -1,5 +1,5 @@
 /**
- *_spider_v29.js (基于 v27 成功版，为数据源请求增加默认头)
+ * universal_spider_v29.js (基于 v27 成功版，为数据源请求增加默认头)
  * 特点：
  *   - ext 读取逻辑与 v27 完全相同（保证能读）
  *   - 请求直播源/TXT/JSON/M3U 时自动添加 User-Agent、Referer 等
@@ -732,8 +732,10 @@ function detail(tid) {
 }
 
 function play(flag, id, flags) {
-  let vod = { 'parse': /m3u8/.test(id) ? 0 : 1, 'playUrl': '', 'url': id };
-  return JSON.stringify(vod);
+  // 对于常见直播源格式，强制解析（parse=0）；否则根据是否m3u8判断
+  let isLiveSource = /\.(m3u|txt|json|m3u8)$/i.test(id);
+  let parse = isLiveSource ? 0 : (/m3u8/.test(id) ? 0 : 1);
+  return JSON.stringify({ parse: parse, playUrl: '', url: id });
 }
 
 function search(wd, quick) {
