@@ -1,5 +1,5 @@
 /**
- * universal_spider_v29.js (基于 v27 成功版，为数据源请求增加默认头)
+ * AAuniversal_spider_v29.js (基于 v27 成功版，为数据源请求增加默认头)
  * 特点：
  *   - ext 读取逻辑与 v27 完全相同（保证能读）
  *   - 请求直播源/TXT/JSON/M3U 时自动添加 User-Agent、Referer 等
