@@ -359,7 +359,7 @@ function init(ext) {
     // 【新增】预加载远程解锁视频列表（推荐将远程地址放在 ext 的 global.unlockVideosUrl 中）
     let remoteUrl = (__ext_config.global && __ext_config.global.unlockVideosUrl) 
                     ? __ext_config.global.unlockVideosUrl 
-                    : "https://raw.githubusercontent.com/userfree66666/TVpg/refs/heads/main/ext.json";  // 默认地址
+                    : "https://raw.githubusercontent.com/mannys888/frist/refs/heads/main/迦南诗歌.txt";  // 默认地址
     try {
         print("正在预加载远程视频列表: " + remoteUrl);
         let resp = smartRequest(remoteUrl, { timeout: 3000 });
