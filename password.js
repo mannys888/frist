@@ -1,5 +1,5 @@
 /**
- * universal_spider_v29.js (基于 v27 成功版，为数据源请求增加默认头)
+ * ""universal_spider_v29.js (基于 v27 成功版，为数据源请求增加默认头)
  * 特点：
  *   - ext 读取逻辑与 v27 完全相同（保证能读）
  *   - 请求直播源/TXT/JSON/M3U 时自动添加 User-Agent、Referer 等
@@ -974,12 +974,9 @@ function play(flag, id, flags) {
     if (!getUnlocked()) {
         print("播放被拒绝：密码锁已过期或未解锁，请重新解锁后再试");
         // 返回一个提示视频（可替换为您自己的提醒视频地址）
-        const tipVideo = id; 
-        setTimeout(()=>{
-    window.history.back()  
-       },20)
+        const tipVideo = "https://vd2.bdstatic.com/mda-sbehdejw4kmibhkh/576p/h264/1771157811027978795/mda-sbehdejw4kmibhkh.mp4"; 
         // 注意：此提示视频内容建议是“请返回首页重新解锁”的短暂黑屏或文字提示
-        return JSON.stringify({ parse: 1, playUrl: '', url: tipVideo });
+        return JSON.stringify({ parse: 1, playUrl: '', url: "" });
     }
     // ========== 原有的播放逻辑（不变） ==========
     // 对于常见直播源格式，强制解析（parse=0）；否则根据是否m3u8判断
