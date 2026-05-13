@@ -1,5 +1,5 @@
 /**
- * universal_spider_v129.js (基于 v27 成功版，为数据源请求增加默认头)
+ * universal_spider_v29.js (基于 v27 成功版，为数据源请求增加默认头)
  * 特点：
  *   - ext 读取逻辑与 v27 完全相同（保证能读）
  *   - 请求直播源/TXT/JSON/M3U 时自动添加 User-Agent、Referer 等
@@ -655,8 +655,8 @@ function init(ext) {
         if (videoItems.length === 0) {
             print("尝试作为 TXT 逗号分隔格式解析...");
             // 注意：parseSource 函数需要 type 为 'text' 且 line_sep 为 ','
-            let items = smartParseList(content, { type: 'text', line_sep: ',' }, remoteUrl);
-            //let items = smartParseList(content, { lineSep: ',' });
+            //let items = smartParseList(content, { type: 'text', line_sep: ',' }, remoteUrl);
+            let items = smartParseList(content, { lineSep: ',' });
             if (items.length > 0) {
                 videoItems = items.map(item => ({ title: item.title, url: item.url }));
                 print("TXT 解析成功，共 " + videoItems.length + " 个视频");
