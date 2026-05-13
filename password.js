@@ -113,6 +113,142 @@ function getKeyboardVideos() {
 
 let unlockBuffer = '';
 let unlockMode = false;
+
+/**
+ * 通用列表解析函数（支持 TXT / M3U / JSON / RSS / 自定义分隔符）
+ * @param {string} content - 原始文本内容
+ * @param {object} options - 可选配置
+ *   - type: 强制指定类型 ('txt', 'm3u', 'json', 'rss')，不指定则自动识别
+ *   - line_sep: TXT 模式的分隔符，默认 ','
+ *   - trim_title: 是否去除标题首尾空格，默认 true
+ *   - trim_url: 是否去除 URL 首尾空格，默认 true
+ *   - skip_comments: 是否跳过以 '#' 开头的行，默认 true
+ *   - skip_empty: 是否跳过空行，默认 true
+ *   - default_title: 当行内只有 URL 时使用的默认标题，默认 '直播流'
+ * @returns {Array<{title: string, url: string}>}
+ */
+function parseUniversalList(content, options = {}) {
+    const opts = {
+        line_sep: ',',
+        trim_title: true,
+        trim_url: true,
+        skip_comments: true,
+        skip_empty: true,
+        default_title: '直播流',
+        ...options
+    };
+
+    if (!content || typeof content !== 'string') return [];
+
+    // 自动识别格式（若未指定 type）
+    let type = opts.type;
+    if (!type) {
+        const trimmed = content.trim();
+        if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+            type = 'json';
+        } else if (trimmed.startsWith('#EXTM3U')) {
+            type = 'm3u';
+        } else if (/<rss|<feed/i.test(trimmed)) {
+            type = 'rss';
+        } else {
+            type = 'txt';
+        }
+    }
+
+    // 处理 JSON 格式
+    if (type === 'json') {
+        try {
+            let json = JSON.parse(content);
+            let dataArr = json;
+            if (opts.dataPath) {
+                const parts = opts.dataPath.split('.');
+                for (let p of parts) dataArr = dataArr[p];
+            }
+            if (!Array.isArray(dataArr)) dataArr = dataArr || [];
+            return dataArr
+                .map(item => {
+                    let title = opts.titleField ? item[opts.titleField] : (item.title || item.name);
+                    let url = opts.urlField ? item[opts.urlField] : (item.url || item.link || item.play_url);
+                    if (title && url) return { title: String(title), url: String(url) };
+                    return null;
+                })
+                .filter(v => v);
+        } catch(e) {
+            print("JSON 解析失败: " + e.message);
+            return [];
+        }
+    }
+
+    // 处理 M3U 格式
+    if (type === 'm3u') {
+        const lines = content.split(/\r?\n/);
+        let items = [];
+        let currentTitle = "";
+        for (let line of lines) {
+            line = line.trim();
+            if (line.startsWith("#EXTINF:")) {
+                const match = line.match(/#EXTINF:.*?,(.*)/);
+                if (match) currentTitle = match[1].trim();
+            } else if (line && !line.startsWith("#") && line.match(/^https?:\/\//i)) {
+                items.push({ title: currentTitle || opts.default_title, url: line });
+                currentTitle = "";
+            }
+        }
+        return items;
+    }
+
+    // 处理 RSS / XML 格式
+    if (type === 'rss') {
+        try {
+            const titleRe = /<title>(.*?)<\/title>/g;
+            const linkRe = /<link>(.*?)<\/link>/g;
+            const titles = [...content.matchAll(titleRe)].map(m => m[1]);
+            const links = [...content.matchAll(linkRe)].map(m => m[1]);
+            const items = [];
+            for (let i = 0; i < Math.min(titles.length, links.length); i++) {
+                if (links[i].startsWith('http')) {
+                    items.push({ title: titles[i], url: links[i] });
+                }
+            }
+            return items;
+        } catch(e) {
+            print("RSS 解析失败: " + e.message);
+            return [];
+        }
+    }
+
+    // 处理 TXT 格式（默认）
+    const lines = content.split(/\r?\n/);
+    const items = [];
+    // 构建正则：支持分隔符前后有空白字符
+    const sep = opts.line_sep.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); // 转义特殊字符
+    const regex = new RegExp(`^(.+?)${sep}\\s*(https?://\\S+)`, 'i');
+    
+    for (let rawLine of lines) {
+        let line = rawLine.trim();
+        if (opts.skip_empty && line === '') continue;
+        if (opts.skip_comments && line.startsWith('#')) continue;
+        
+        // 尝试匹配 "标题分隔符URL" 格式
+        let match = line.match(regex);
+        if (match) {
+            let title = match[1];
+            let url = match[2];
+            if (opts.trim_title) title = title.trim();
+            if (opts.trim_url) url = url.trim();
+            items.push({ title: title, url: url });
+            continue;
+        }
+        
+        // 如果整行就是 URL（没有标题）
+        if (line.match(/^https?:\/\//i)) {
+            let title = opts.default_title;
+            items.push({ title: title, url: line });
+        }
+    }
+    return items;
+}
+
 // =========🔺密码锁核心结束 🔺============
 
 
@@ -221,8 +357,8 @@ function parseSource(content, sourceConfig, baseUrl) {
   else {
     let lines = content.split(/\r?\n/);
     let sep = sourceConfig.line_sep || ',';
-    let regex = new RegExp(`^(.+?)${sep}\\s*(https?://\\S+)`);
-    //let regex = new RegExp(`^(.+?)${sep}(https?://\\S+)`);
+     //let regex = new RegExp(`^(.+?)${sep}\\s*(https?://\\S+)`);
+    let regex = new RegExp(`^(.+?)${sep}(https?://\\S+)`);
     for (let line of lines) {
       line = line.trim();
       if (!line || line.startsWith('#')) continue;
@@ -425,7 +561,7 @@ function init(ext) {
     // 【修改】预加载远程解锁视频列表（支持 JSON 数组 或 TXT 逗号分隔格式）
     let remoteUrl = (__ext_config.global && __ext_config.global.unlockVideosUrl) 
                     ? __ext_config.global.unlockVideosUrl 
-                    : "https://raw.githubusercontent.com/userfree66666/TVpg/refs/heads/main/ext.json";  // 默认地址
+                    : "https://raw.githubusercontent.com/mannys888/frist/refs/heads/main/迦南诗歌.txt";  // 默认地址
     try {
         print("正在预加载远程视频列表: " + remoteUrl);
         let resp = httpRequest(remoteUrl, { timeout: 3000 });
@@ -448,7 +584,7 @@ function init(ext) {
         if (videoItems.length === 0) {
             print("尝试作为 TXT 逗号分隔格式解析...");
             // 注意：parseSource 函数需要 type 为 'text' 且 line_sep 为 ','
-            let items = parseSource(content, { type: 'text', line_sep: ',' }, remoteUrl);
+            let items = parseUniversalList(content, { type: 'text', line_sep: ',' }, remoteUrl);
             if (items.length > 0) {
                 videoItems = items.map(item => ({ title: item.title, url: item.url }));
                 print("TXT 解析成功，共 " + videoItems.length + " 个视频");
@@ -761,8 +897,10 @@ function detail(tid) {
 }
 
 function play(flag, id, flags) {
-  let vod = { 'parse': /m3u8/.test(id) ? 0 : 1, 'playUrl': '', 'url': id };
-  return JSON.stringify(vod);
+  // 对于常见直播源格式，强制解析（parse=0）；否则根据是否m3u8判断
+  let isLiveSource = /\.(m3u|txt|json|m3u8)$/i.test(id);
+  let parse = isLiveSource ? 0 : (/m3u8/.test(id) ? 0 : 1);
+  return JSON.stringify({ parse: parse, playUrl: '', url: id });
 }
 
 function search(wd, quick) {
