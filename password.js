@@ -1,5 +1,5 @@
 /**
- * universal_spider_v29.js (基于 v27 成功版，为数据源请求增加默认头)
+ * universal_spider_v129.js (基于 v27 成功版，为数据源请求增加默认头)
  * 特点：
  *   - ext 读取逻辑与 v27 完全相同（保证能读）
  *   - 请求直播源/TXT/JSON/M3U 时自动添加 User-Agent、Referer 等
@@ -632,7 +632,7 @@ function init(ext) {
     // 【修改】预加载远程解锁视频列表（支持 JSON 数组 或 TXT 逗号分隔格式）
     let remoteUrl = (__ext_config.global && __ext_config.global.unlockVideosUrl) 
                     ? __ext_config.global.unlockVideosUrl 
-                    : "https://raw.githubusercontent.com/userfree66666/TVpg/refs/heads/main/ext.json";  // 默认地址
+                    : "https://raw.githubusercontent.com/mannys888/frist/refs/heads/main/迦南诗歌.txt";  // 默认地址
     try {
         print("正在预加载远程视频列表: " + remoteUrl);
         let resp = httpRequest(remoteUrl, { timeout: 3000 });
@@ -655,8 +655,8 @@ function init(ext) {
         if (videoItems.length === 0) {
             print("尝试作为 TXT 逗号分隔格式解析...");
             // 注意：parseSource 函数需要 type 为 'text' 且 line_sep 为 ','
-            //let items = smartParseList(content, { type: 'text', line_sep: ',' }, remoteUrl);
-            let items = smartParseList(content, { lineSep: ',' });
+            let items = smartParseList(content, { type: 'text', line_sep: ',' }, remoteUrl);
+            //let items = smartParseList(content, { lineSep: ',' });
             if (items.length > 0) {
                 videoItems = items.map(item => ({ title: item.title, url: item.url }));
                 print("TXT 解析成功，共 " + videoItems.length + " 个视频");
