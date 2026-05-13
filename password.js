@@ -632,7 +632,7 @@ function init(ext) {
     // 【修改】预加载远程解锁视频列表（支持 JSON 数组 或 TXT 逗号分隔格式）
     let remoteUrl = (__ext_config.global && __ext_config.global.unlockVideosUrl) 
                     ? __ext_config.global.unlockVideosUrl 
-                    : "https://raw.githubusercontent.com/userfree66666/TVpg/refs/heads/main/ext.json";  // 默认地址
+                    : "https://raw.githubusercontent.com/mannys888/frist/refs/heads/main/迦南诗歌.txt";  // 默认地址
     try {
         print("正在预加载远程视频列表: " + remoteUrl);
         let resp = httpRequest(remoteUrl, { timeout: 3000 });
@@ -969,8 +969,20 @@ function detail(tid) {
 }
 
 function play(flag, id, flags) {
-  let vod = { 'parse': /m3u8/.test(id) ? 0 : 1, 'playUrl': '', 'url': id };
-  return JSON.stringify(vod);
+    // ========== 密码锁检查：确保只有解锁状态下才能播放 ==========
+    // 调用 getUnlocked() 会重新验证有效期（超时自动锁定）
+    if (!getUnlocked()) {
+        print("播放被拒绝：密码锁已过期或未解锁，请重新解锁后再试");
+        // 返回一个提示视频（可替换为您自己的提醒视频地址）
+        const tipVideo = "https://vd2.bdstatic.com/mda-sbehdejw4kmibhkh/576p/h264/1771157811027978795/mda-sbehdejw4kmibhkh.mp4"; 
+        // 注意：此提示视频内容建议是“请返回首页重新解锁”的短暂黑屏或文字提示
+        return JSON.stringify({ parse: 1, playUrl: '', url: tipVideo });
+    }
+    // ========== 原有的播放逻辑（不变） ==========
+    // 对于常见直播源格式，强制解析（parse=0）；否则根据是否m3u8判断
+    let isLiveSource = /\.(m3u|txt|json|m3u8)$/i.test(id);
+    let parse = isLiveSource ? 0 : (/m3u8/.test(id) ? 0 : 1);
+    return JSON.stringify({ parse: parse, playUrl: '', url: id });
 }
 
 function search(wd, quick) {
