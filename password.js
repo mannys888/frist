@@ -426,7 +426,9 @@ function parseSource(content, sourceConfig, baseUrl) {
   else {
     let lines = content.split(/\r?\n/);
     let sep = sourceConfig.line_sep || ',';
-    let regex = new RegExp(`^(.+?)${sep}\\s*(https?://\\S+)`);
+    let escapedSep = sep.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+let regex = new RegExp(`^(.+?)${escapedSep}\\s*(https?://\\S+)`, 'i');
+   
     //let regex = new RegExp(`^(.+?)${sep}(https?://\\S+)`);
     for (let line of lines) {
       line = line.trim();
@@ -653,7 +655,8 @@ function init(ext) {
         if (videoItems.length === 0) {
             print("尝试作为 TXT 逗号分隔格式解析...");
             // 注意：parseSource 函数需要 type 为 'text' 且 line_sep 为 ','
-            let items = smartParseList(content, { type: 'text', line_sep: ',' }, remoteUrl);
+            //let items = smartParseList(content, { type: 'text', line_sep: ',' }, remoteUrl);
+            let items = smartParseList(content, { lineSep: ',' });
             if (items.length > 0) {
                 videoItems = items.map(item => ({ title: item.title, url: item.url }));
                 print("TXT 解析成功，共 " + videoItems.length + " 个视频");
