@@ -1,10 +1,10 @@
-//A ==================== 通用动态爬虫 v34（分类密码锁 + 数字进度显示） ====================
+// ==================== 通用动态爬虫 v34（分类伪装密码锁，稳定版） ====================
 // 特点：
-//   - 未解锁时首页显示伪装分类（爱情片=1，动作片=2，...）
-//   - 第一个分类（原“爱情片”）动态显示已输入的数字，例如“密码: 1”、“密码: 19”
-//   - 点击分类追加对应数字，退格/清除可修改
-//   - 满4位自动验证当前时间密码（HHMM），正确则解锁
-//   - 其他功能（数据源、搜索、合集等）完全保留
+//   - 未解锁时首页显示“🔒 点击解锁”
+//   - 点击后进入虚拟键盘视频列表（每个视频是一个分类，点击输入对应数字）
+//   - 顶部状态视频动态显示已输入的数字（例如“密码: 1”，“密码: 19”）
+//   - 满4位自动验证时间密码，正确则解锁并显示正常数据源
+//   - 保留所有原有功能（数据源解析、搜索、合集、特殊处理器等）
 // ================================================================
 
 String.prototype.rstrip = function (chars) {
@@ -20,7 +20,7 @@ let debugMode = true;
 let defaultTimeout = 8000;
 let defaultRetry = 2;
 let def_pic = 'https://avatars.githubusercontent.com/u/97389433?s=120&v=4';
-const VERSION = 'universal v3.4 (digital display lock)';
+const VERSION = 'universal v3.4 (category password lock)';
 const tips = `\n${VERSION}`;
 const RKEY = 'universal_spider';
 
@@ -64,8 +64,8 @@ let externalUnlockVideos = null;
 let unlockBuffer = '';
 let unlockMode = false;
 
-// 分类映射
-const UNLOCK_CATEGORIES_BASE = {
+// 分类映射（数字→显示名称）
+const CATEGORY_NAMES = {
     '1': '🌸 爱情片',
     '2': '⚔️ 动作片',
     '3': '📰 新闻',
@@ -78,13 +78,47 @@ const UNLOCK_CATEGORIES_BASE = {
     '0': '🎵 音乐'
 };
 
-// 获取第一个分类的显示名称（根据当前输入数字显示）
-function getFirstCategoryName() {
-    if (!unlockMode && unlockBuffer.length === 0) {
-        return UNLOCK_CATEGORIES_BASE['1'];
-    }
+// 生成键盘视频列表（包括状态显示和数字键）
+function getKeyboardVideos() {
+    let items = [];
+    // 状态视频（显示当前输入的数字）
     let display = unlockBuffer.length === 0 ? '未输入' : unlockBuffer;
-    return `🔐 密码: ${display} (剩余${4-unlockBuffer.length}位)`;
+    items.push({
+        vod_id: '__UNLOCK_STATUS',
+        vod_name: `🔐 密码: ${display} (剩余${4-unlockBuffer.length}位)`,
+        vod_pic: def_pic,
+        vod_remarks: '点击分类输入数字'
+    });
+    // 数字键 1-9
+    for (let i = 1; i <= 9; i++) {
+        items.push({
+            vod_id: `__UNLOCK_KEY__${i}`,
+            vod_name: CATEGORY_NAMES[String(i)],
+            vod_pic: def_pic,
+            vod_remarks: `输入数字 ${i}`
+        });
+    }
+    // 数字键 0
+    items.push({
+        vod_id: '__UNLOCK_KEY__0',
+        vod_name: CATEGORY_NAMES['0'],
+        vod_pic: def_pic,
+        vod_remarks: '输入数字 0'
+    });
+    // 退格和清除
+    items.push({
+        vod_id: '__UNLOCK_BACKSPACE',
+        vod_name: '⌫ 删除上一步',
+        vod_pic: def_pic,
+        vod_remarks: '删除最后一位'
+    });
+    items.push({
+        vod_id: '__UNLOCK_CLEAR',
+        vod_name: '🗑 全部清空',
+        vod_pic: def_pic,
+        vod_remarks: '重置密码'
+    });
+    return items;
 }
 
 // ========== 辅助函数 ==========
@@ -120,7 +154,6 @@ function smartRequest(url, options = {}) {
   }
 }
 
-// ========== 数据源请求 ==========
 function fetchSource(url, sourceConfig = {}, noCache = false) {
   if (!noCache && cache_data[url]) return cache_data[url];
   let opts = {
@@ -138,7 +171,7 @@ function fetchSource(url, sourceConfig = {}, noCache = false) {
   return content;
 }
 
-// ========== 通用解析器（紧凑版） ==========
+// 通用解析器（精简但保留全部功能）
 function smartParseList(content, opt = {}) {
     if (!content || typeof content !== 'string') return [];
     const cfg = { defaultTitle:'媒体流', trimTitle:true, trimUrl:true, skipEmptyLines:true, skipCommentLines:true, commentChars:['#','//'], lineSep:',', allowSepSpaces:true, jsonPath:null, titleFields:['title','name','节目名','vod_name','episode','fulltitle'], urlFields:['url','link','play_url','src','href','m3u8','stream'], m3uUseGroupTitle:false, rssTitleTag:'title', rssLinkTag:'link', autoDetect:true, forceType:null, debug:false };
@@ -150,7 +183,7 @@ function smartParseList(content, opt = {}) {
     if (type==='rss') { try { let titleReg=new RegExp(`<${cfg.rssTitleTag}>(.*?)</${cfg.rssTitleTag}>`,'gi'); let linkReg=new RegExp(`<${cfg.rssLinkTag}>(.*?)</${cfg.rssLinkTag}>`,'gi'); let titles=[...content.matchAll(titleReg)].map(m=>m[1]); let links=[...content.matchAll(linkReg)].map(m=>m[1]); let res=[]; for(let i=0;i<Math.min(titles.length,links.length);i++) if(links[i].startsWith('http')) res.push({title:titles[i],url:links[i]}); return res; } catch(e){ if(cfg.debug) print("RSS解析失败"); } }
     let lines=content.split(/\r?\n/); let res=[]; let sepEsc=cfg.lineSep.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'); let sepRegex=cfg.allowSepSpaces?new RegExp(`^(.+?)${sepEsc}\\s*(https?://\\S+)`,'i'):new RegExp(`^(.+?)${sepEsc}(https?://\\S+)`,'i'); for(let raw of lines){ let line=raw; if(cfg.skipEmptyLines&&line.trim()==='') continue; if(cfg.skipCommentLines){ let isCmt=false; for(let cmt of cfg.commentChars) if(line.trim().startsWith(cmt)){isCmt=true;break;} if(isCmt) continue; } let m=line.match(sepRegex); if(m){ let title=m[1],url=m[2]; if(cfg.trimTitle) title=title.trim(); if(cfg.trimUrl) url=url.trim(); res.push({title,url}); continue; } if(line.match(/^https?:\/\//i)) res.push({title:cfg.defaultTitle,url:line.trim()}); } return res;
 }
-function parseList(content, parseConfig, baseUrl) { // 保留原实现，但简化
+function parseList(content, parseConfig, baseUrl) {
   let items = [], type = parseConfig.type || 'text';
   if (type === 'json') { try { let json = JSON.parse(content); let dataArr = json; if (parseConfig.jsonPath) { let parts = parseConfig.jsonPath.split('.'); for (let p of parts) dataArr = dataArr[p]; } if (!Array.isArray(dataArr)) dataArr = dataArr || []; for (let item of dataArr) { let title = parseConfig.titleField ? item[parseConfig.titleField] : (item.title || item.name); let url = parseConfig.urlField ? item[parseConfig.urlField] : (item.url || item.link || item.play_url); if (title && url) items.push({ title, url }); } } catch(e) { print("JSON解析错误: " + e.message); } }
   else if (type === 'rss') { try { let titles = [...content.matchAll(/<title>(.*?)<\/title>/g)].map(m=>m[1]); let links = [...content.matchAll(/<link>(.*?)<\/link>/g)].map(m=>m[1]); for (let i=0;i<Math.min(titles.length,links.length);i++) if(links[i].startsWith('http')) items.push({title:titles[i],url:links[i]}); } catch(e){ print("RSS解析失败"); } }
@@ -199,13 +232,8 @@ function init(ext) {
 function home(filter) {
   if (unlocked) { let t=parseInt(getItem('global_unlock_time','0')); if(t && (Date.now()-t)>UNLOCK_VALID_MINUTES*60*1000) { setUnlocked(false); unlocked=false; } }
   if (!unlocked) {
-    let classes = [];
-    classes.push({ type_id: '__UNLOCK_STATUS', type_name: getFirstCategoryName(), icon: '🔐' }); // 状态卡片，实际不可点击，但显示密码进度
-    for (let i = 1; i <= 9; i++) classes.push({ type_id: `__UNLOCK_KEY__${i}`, type_name: UNLOCK_CATEGORIES_BASE[String(i)], icon: '🎬' });
-    classes.push({ type_id: '__UNLOCK_KEY__0', type_name: UNLOCK_CATEGORIES_BASE['0'], icon: '🎵' });
-    classes.push({ type_id: '__UNLOCK_BACKSPACE', type_name: '⌫ 删除上一步', icon: '⬅️' });
-    classes.push({ type_id: '__UNLOCK_CLEAR', type_name: '🗑 全部清空', icon: '🗑️' });
-    return JSON.stringify({ class: classes, filters: {} });
+    let unlockClass = { type_id: '__UNLOCK__', type_name: '🔒 点击解锁', icon: '🔒' };
+    return JSON.stringify({ class: [unlockClass], filters: {} });
   }
   let classes = __ext_config.sources.map(s => ({ type_id: s.name, type_name: s.name }));
   let filters = [{ key: 'show', name: '播放展示', value: [{ n: '多线路分组', v: 'groups' }, { n: '单线路', v: 'all' }] }];
@@ -215,36 +243,11 @@ function home(filter) {
 function homeVod() { return JSON.stringify({ list: [] }); }
 
 function category(tid, pg, filter, extend) {
-  if (!unlocked && (tid.startsWith('__UNLOCK_KEY__') || tid === '__UNLOCK_BACKSPACE' || tid === '__UNLOCK_CLEAR')) {
-    if (unlockMode === false) { unlockMode = true; unlockBuffer = ''; }
-    if (tid.startsWith('__UNLOCK_KEY__')) {
-      let digit = tid.replace('__UNLOCK_KEY__', '');
-      if (digit >= '0' && digit <= '9') {
-        if (unlockBuffer.length < 4) {
-          unlockBuffer += digit;
-          if (unlockBuffer.length === 4) {
-            if (verifyDynamicPassword(unlockBuffer)) {
-              setUnlocked(true); unlocked = true; unlockMode = false;
-              print("密码正确，解锁成功！");
-              return JSON.stringify({ list: [] });
-            } else {
-              unlockBuffer = '';
-              print("密码错误，请重新输入");
-            }
-          }
-        }
-      }
-    }
-    if (tid === '__UNLOCK_BACKSPACE') { if (unlockBuffer.length > 0) unlockBuffer = unlockBuffer.slice(0, -1); }
-    if (tid === '__UNLOCK_CLEAR') { unlockBuffer = ''; }
-    // 重新构造分类列表，状态卡片显示当前输入数字
-    let classes = [];
-    classes.push({ type_id: '__UNLOCK_STATUS', type_name: getFirstCategoryName(), icon: '🔐' });
-    for (let i = 1; i <= 9; i++) classes.push({ type_id: `__UNLOCK_KEY__${i}`, type_name: UNLOCK_CATEGORIES_BASE[String(i)], icon: '🎬' });
-    classes.push({ type_id: '__UNLOCK_KEY__0', type_name: UNLOCK_CATEGORIES_BASE['0'], icon: '🎵' });
-    classes.push({ type_id: '__UNLOCK_BACKSPACE', type_name: '⌫ 删除上一步', icon: '⬅️' });
-    classes.push({ type_id: '__UNLOCK_CLEAR', type_name: '🗑 全部清空', icon: '🗑️' });
-    return JSON.stringify({ class: classes, filters: {} });
+  if (!unlocked && tid === '__UNLOCK__') {
+    unlockMode = true;
+    unlockBuffer = '';
+    let videos = getKeyboardVideos();
+    return JSON.stringify({ list: videos, page: 1, pagecount: 1, limit: videos.length, total: videos.length });
   }
   let fl = filter ? extend : {};
   if (fl.show) { showMode = fl.show; setItem('showMode', showMode); }
@@ -288,7 +291,50 @@ function category(tid, pg, filter, extend) {
 }
 
 function detail(tid) {
+  // 处理键盘按键
+  if (unlockMode) {
+    if (tid.startsWith('__UNLOCK_KEY__')) {
+      let digit = tid.replace('__UNLOCK_KEY__', '');
+      if (digit >= '0' && digit <= '9') {
+        if (unlockBuffer.length < 4) {
+          unlockBuffer += digit;
+          if (unlockBuffer.length === 4) {
+            if (verifyDynamicPassword(unlockBuffer)) {
+              setUnlocked(true); unlocked = true; unlockMode = false;
+              print("密码正确，解锁成功！");
+              return JSON.stringify({ list: [] });
+            } else {
+              unlockBuffer = '';
+              let videos = getKeyboardVideos();
+              videos.unshift({ vod_id: '__UNLOCK_ERR', vod_name: '❌ 密码错误，请重试', vod_pic: def_pic, vod_remarks: '' });
+              return JSON.stringify({ list: videos });
+            }
+          }
+        }
+      }
+      // 刷新键盘界面（显示最新进度）
+      let videos = getKeyboardVideos();
+      return JSON.stringify({ list: videos });
+    }
+    if (tid === '__UNLOCK_BACKSPACE') {
+      if (unlockBuffer.length > 0) unlockBuffer = unlockBuffer.slice(0, -1);
+      let videos = getKeyboardVideos();
+      return JSON.stringify({ list: videos });
+    }
+    if (tid === '__UNLOCK_CLEAR') {
+      unlockBuffer = '';
+      let videos = getKeyboardVideos();
+      return JSON.stringify({ list: videos });
+    }
+    // 如果点击的是状态视频或其他，忽略
+    if (tid === '__UNLOCK_STATUS') {
+      let videos = getKeyboardVideos();
+      return JSON.stringify({ list: videos });
+    }
+  }
   if (unlocked) unlockMode = false;
+
+  // 正常详情处理
   let parts = tid.split('###');
   let mode = parts.length > 1 ? parts[1] : 'single';
   let left = parts[0];
