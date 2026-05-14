@@ -1,10 +1,7 @@
-// ==================== 通用动态爬虫 v34（分类伪装密码锁，稳定版） ====================
-// 特点：
-//   - 未解锁时首页显示“🔒 点击解锁”
-//   - 点击后进入虚拟键盘视频列表（每个视频是一个分类，点击输入对应数字）
-//   - 顶部状态视频动态显示已输入的数字（例如“密码: 1”，“密码: 19”）
-//   - 满4位自动验证时间密码，正确则解锁并显示正常数据源
-//   - 保留所有原有功能（数据源解析、搜索、合集、特殊处理器等）
+// ==================== 通用动态爬虫 v34（分类密码锁，稳定版） ====================
+// 用法：未解锁时首页显示“🔒 点击解锁”，点击后进入分类键盘
+// 点击“爱情片”=输入1，“动作片”=2，……“音乐”=0，顶部显示已输入的数字
+// 满4位自动验证当前时间密码（HHMM），正确后解锁并显示正常数据源
 // ================================================================
 
 String.prototype.rstrip = function (chars) {
@@ -64,8 +61,8 @@ let externalUnlockVideos = null;
 let unlockBuffer = '';
 let unlockMode = false;
 
-// 分类映射（数字→显示名称）
-const CATEGORY_NAMES = {
+// 分类映射（数字 → 显示名称）
+const CATEGORY_MAP = {
     '1': '🌸 爱情片',
     '2': '⚔️ 动作片',
     '3': '📰 新闻',
@@ -78,10 +75,10 @@ const CATEGORY_NAMES = {
     '0': '🎵 音乐'
 };
 
-// 生成键盘视频列表（包括状态显示和数字键）
+// 生成键盘视频列表（包含状态显示和分类键）
 function getKeyboardVideos() {
     let items = [];
-    // 状态视频（显示当前输入的数字）
+    // 状态视频（显示已输入的数字）
     let display = unlockBuffer.length === 0 ? '未输入' : unlockBuffer;
     items.push({
         vod_id: '__UNLOCK_STATUS',
@@ -89,23 +86,20 @@ function getKeyboardVideos() {
         vod_pic: def_pic,
         vod_remarks: '点击分类输入数字'
     });
-    // 数字键 1-9
     for (let i = 1; i <= 9; i++) {
         items.push({
             vod_id: `__UNLOCK_KEY__${i}`,
-            vod_name: CATEGORY_NAMES[String(i)],
+            vod_name: CATEGORY_MAP[String(i)],
             vod_pic: def_pic,
             vod_remarks: `输入数字 ${i}`
         });
     }
-    // 数字键 0
     items.push({
         vod_id: '__UNLOCK_KEY__0',
-        vod_name: CATEGORY_NAMES['0'],
+        vod_name: CATEGORY_MAP['0'],
         vod_pic: def_pic,
         vod_remarks: '输入数字 0'
     });
-    // 退格和清除
     items.push({
         vod_id: '__UNLOCK_BACKSPACE',
         vod_name: '⌫ 删除上一步',
@@ -154,6 +148,7 @@ function smartRequest(url, options = {}) {
   }
 }
 
+// 数据源请求
 function fetchSource(url, sourceConfig = {}, noCache = false) {
   if (!noCache && cache_data[url]) return cache_data[url];
   let opts = {
@@ -171,7 +166,7 @@ function fetchSource(url, sourceConfig = {}, noCache = false) {
   return content;
 }
 
-// 通用解析器（精简但保留全部功能）
+// 通用解析器（兼容各种格式）
 function smartParseList(content, opt = {}) {
     if (!content || typeof content !== 'string') return [];
     const cfg = { defaultTitle:'媒体流', trimTitle:true, trimUrl:true, skipEmptyLines:true, skipCommentLines:true, commentChars:['#','//'], lineSep:',', allowSepSpaces:true, jsonPath:null, titleFields:['title','name','节目名','vod_name','episode','fulltitle'], urlFields:['url','link','play_url','src','href','m3u8','stream'], m3uUseGroupTitle:false, rssTitleTag:'title', rssLinkTag:'link', autoDetect:true, forceType:null, debug:false };
@@ -195,7 +190,7 @@ function convertM3uToNormal(m3u) { try { const lines=m3u.split('\n'); let result
 function splitArray(arr,parse){ parse=parse&&typeof parse=='function'?parse:''; if(!arr.length)return[]; let r=[[arr[0]]]; for(let i=1;i<arr.length;i++){ let idx=-1; for(let j=0;j<r.length;j++){ if(parse&&r[j].map(parse).includes(parse(arr[i]))) idx=j; else if((!parse)&&r[j].includes(arr[i])) idx=j; } if(idx>=r.length-1){ r.push([]); r[r.length-1].push(arr[i]); } else r[idx+1].push(arr[i]); } return r; }
 function gen_group_dict(arr,parse){ let d={}; arr.forEach(it=>{ let k=it.split(',')[0]; if(parse&&typeof parse==='function') k=parse(k); if(!d[k]) d[k]=[it]; else d[k].push(it); }); return d; }
 
-// ========== 特殊站点处理器 ==========
+// 特殊站点处理器
 const customHandlers = {
   encryptedSite: function(ctx) { let {url,parseConfig}=ctx; let enc=fetchSource(url,parseConfig); let dec=myDecrypt(enc,parseConfig.key||'defaultKey'); return parseList(dec,parseConfig,url); },
   loginRequired: function(ctx) { let {url,parseConfig}=ctx; let loginUrl=parseConfig.loginUrl; let loginBody=parseConfig.loginBody; let loginResp=smartRequest(loginUrl,{method:'POST',body:loginBody}); let cookie=loginResp.headers['set-cookie']; if(cookie) setItem('site_cookie',cookie); let opts={headers:{'Cookie':getItem('site_cookie')}}; let content=fetchSource(url,{...parseConfig,...opts}); return parseList(content,parseConfig,url); },
@@ -291,7 +286,7 @@ function category(tid, pg, filter, extend) {
 }
 
 function detail(tid) {
-  // 处理键盘按键
+  // 解锁模式下处理键盘按键
   if (unlockMode) {
     if (tid.startsWith('__UNLOCK_KEY__')) {
       let digit = tid.replace('__UNLOCK_KEY__', '');
@@ -302,6 +297,7 @@ function detail(tid) {
             if (verifyDynamicPassword(unlockBuffer)) {
               setUnlocked(true); unlocked = true; unlockMode = false;
               print("密码正确，解锁成功！");
+              // 返回空列表，前端会刷新首页（调用 home）
               return JSON.stringify({ list: [] });
             } else {
               unlockBuffer = '';
@@ -312,7 +308,7 @@ function detail(tid) {
           }
         }
       }
-      // 刷新键盘界面（显示最新进度）
+      // 未满4位，刷新键盘（状态已更新）
       let videos = getKeyboardVideos();
       return JSON.stringify({ list: videos });
     }
@@ -326,7 +322,6 @@ function detail(tid) {
       let videos = getKeyboardVideos();
       return JSON.stringify({ list: videos });
     }
-    // 如果点击的是状态视频或其他，忽略
     if (tid === '__UNLOCK_STATUS') {
       let videos = getKeyboardVideos();
       return JSON.stringify({ list: videos });
