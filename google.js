@@ -499,15 +499,105 @@ function category(tid, pg, filter, extend) {
 }
 
 function detail(tid) {
-    // 解锁键盘处理（略，与原版相同，为了篇幅此处省略，实际代码需保留完整）
+    // ========== 🔒 解锁模式下的按键处理 ==========
     if (unlockMode && tid.startsWith('__UNLOCK_KEY__')) {
-        // ... 原密码处理逻辑（此处省略，实际使用时必须完整）
-        // 为保持可读性，实际完整代码中保留所有解锁逻辑
+        let digit = tid.replace('__UNLOCK_KEY__', '');
+        if (digit >= '0' && digit <= '9') {
+            if (unlockBuffer.length < 4) {
+                unlockBuffer += digit;
+                // 检查是否输入满4位
+                if (unlockBuffer.length === 4) {
+                    if (verifyDynamicPassword(unlockBuffer)) {
+                        setUnlocked(true);
+                        unlocked = true;
+                        unlockMode = false;
+                        print("密码正确，解锁成功！");
+                        
+                        // 获取视频列表
+                        let videoList = [];
+                        if (remoteUnlockVideos && Array.isArray(remoteUnlockVideos) && remoteUnlockVideos.length > 0) {
+                            videoList = remoteUnlockVideos;
+                        } else if (externalUnlockVideos && Array.isArray(externalUnlockVideos) && externalUnlockVideos.length > 0) {
+                            videoList = externalUnlockVideos.filter(item => item && item.title && item.url);
+                        }
+                        if (videoList.length === 0) {
+                            videoList = [
+                                { title: "🎉 庆祝视频 - 精彩剪辑", url: "https://vd2.bdstatic.com/mda-sbehdejw4kmibhkh/576p/h264/1771157811027978795/mda-sbehdejw4kmibhkh.mp4" },
+                                { title: "📺 第二集 - 花絮彩蛋",   url: "https://vd2.bdstatic.com/mda-qiakr3cmtvs6w0d4/hd/cae_h264/1726065783439501256/mda-qiakr3cmtvs6w0d4.mp4" },
+                                { title: "🔔 第三集 - 幕后制作",   url: "https://vd3.bdstatic.com/mda-rdkgd5132u941fcr/576p/h264/1745235281540035966/mda-rdkgd5132u941fcr.mp4" }
+                            ];
+                        }
+                        const playUrl = videoList.map(item => `${item.title}$${item.url}`).join('#');
+                        let vod = {
+                            vod_id: '__UNLOCK_SUCCESS_MULTI',
+                            vod_name: '🎉 解锁成功！请选择视频播放',
+                            vod_pic: getDynamicPic('unlock_success'),
+                            type_name: "解锁合集",
+                            vod_play_from: "庆祝源",
+                            vod_play_url: playUrl,
+                            vod_remarks: `共${videoList.length}个视频，密码正确已解锁`
+                        };
+                        return JSON.stringify({ list: [vod] });
+                    } else {
+                        // 密码错误
+                        unlockBuffer = '';
+                        let videos = getKeyboardVideos();
+                        let statusItem = {
+                            vod_id: '__UNLOCK_STATUS_ERR_' + Date.now(),
+                            vod_name: `❌ 密码错误，请重试`,
+                            vod_pic: getDynamicPic('unlock_error'),
+                            vod_remarks: '找管理员要密码'
+                        };
+                        videos.unshift(statusItem);
+                        return JSON.stringify({ list: videos });
+                    }
+                }
+            }
+        }
+        // 未满4位，刷新键盘显示
+        let videos = getKeyboardVideos();
+        let displayPlain = unlockBuffer + '_'.repeat(4 - unlockBuffer.length);
+        let statusItem = {
+            vod_id: '__UNLOCK_STATUS_' + unlockBuffer.length + '_' + Date.now(),
+            vod_name: `🔐 密码: ${displayPlain}`,
+            vod_pic: getDynamicPic('unlock_status'),
+            vod_remarks: '请输入4位数字（显示明文）'
+        };
+        videos.unshift(statusItem);
+        return JSON.stringify({ list: videos });
     }
-    if (unlockMode && tid === '__UNLOCK_BACKSPACE') { /* ... */ }
-    if (unlockMode && tid === '__UNLOCK_CLEAR') { /* ... */ }
+    
+    if (unlockMode && tid === '__UNLOCK_BACKSPACE') {
+        if (unlockBuffer.length > 0) unlockBuffer = unlockBuffer.slice(0, -1);
+        let videos = getKeyboardVideos();
+        let displayPlain = unlockBuffer + '_'.repeat(4 - unlockBuffer.length);
+        let statusItem = {
+            vod_id: '__UNLOCK_STATUS_' + unlockBuffer.length + '_' + Date.now(),
+            vod_name: `🔐 密码: ${displayPlain}`,
+            vod_pic: getDynamicPic('unlock_status'),
+            vod_remarks: '请输入4位数字（显示明文）'
+        };
+        videos.unshift(statusItem);
+        return JSON.stringify({ list: videos });
+    }
+    
+    if (unlockMode && tid === '__UNLOCK_CLEAR') {
+        unlockBuffer = '';
+        let videos = getKeyboardVideos();
+        let displayPlain = '_'.repeat(4);
+        let statusItem = {
+            vod_id: '__UNLOCK_STATUS_CLEAR_' + Date.now(),
+            vod_name: `🔐 密码: ${displayPlain}`,
+            vod_pic: getDynamicPic('unlock_status'),
+            vod_remarks: '请输入4位数字（显示明文）'
+        };
+        videos.unshift(statusItem);
+        return JSON.stringify({ list: videos });
+    }
+    
     if (unlocked) unlockMode = false;
     
+    // ========== 正常 detail 解析（播放列表/剧集）==========
     let parts = tid.split('###');
     let mode = parts.length > 1 ? parts[1] : 'single';
     let left = parts[0];
@@ -516,6 +606,7 @@ function detail(tid) {
     let source = __ext_config.sources.find(s => s.url === sourceUrl);
     if (!source) return JSON.stringify({ list: [] });
     
+    // 特殊站点处理器（合集模式）
     if (source.handler && customHandlers[source.handler] && mode === 'series') {
         let ctx = { url: sourceUrl, parseConfig: source.parseConfig || {}, extra: { tid } };
         let items = customHandlers[source.handler](ctx);
@@ -530,6 +621,7 @@ function detail(tid) {
         return JSON.stringify({ list: [vod] });
     }
     
+    // 普通合集模式
     if (mode === 'series') {
         let content = fetchSource(sourceUrl, source);
         let baseDir = sourceUrl.substring(0, sourceUrl.lastIndexOf('/')+1);
@@ -546,6 +638,7 @@ function detail(tid) {
         return JSON.stringify({ list: [vod] });
     }
     
+    // 普通模式（分组/单线路）
     let html = fetchSource(sourceUrl, source);
     let regex = new RegExp(`.*?${tab.replace('(', '\\(').replace(')', '\\)')}[,，]#[\\s\\S].*?#`);
     let match = html.match(regex);
