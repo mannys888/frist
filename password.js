@@ -1,4 +1,4 @@
-// ==================== 通用动态爬虫 v34（全能旗舰版 + 超时跳过增强） ====================
+// ==================== 通用动态爬虫 v34（全能旗舰版 + 超时跳过增强 + 动态封面） ====================
 // 功能：
 //   - 普通线路（分组/单线路）& 合集模式（系列剧）
 //   - 文本/JSON/M3U/RSS 等多格式解析
@@ -8,6 +8,8 @@
 //   - 动态 Referer / Origin 自动适配
 //   - 缓存、重试、超时配置
 //   - 【新增】播放超时自动跳过：合集模式下自动生成主备地址，超时失败后切备源或下一集
+//   - 【新增】卡片图片差异化（基于ID动态生成封面）
+//   - 【新增】密码输入明文显示
 // ================================================================
 
 String.prototype.rstrip = function (chars) {
@@ -23,11 +25,17 @@ let groupDict = {};
 let debugMode = true;
 let defaultTimeout = 8000;
 let defaultRetry = 2;
-//let def_pic = 'https://avatars.githubusercontent.com/u/97389433?s=120&v=4';
-let def_pic = 'https://picsum.photos/200/300?random=1';
-const VERSION = 'universal v3.4 (skip timeout enhanced)';
+let def_pic = 'https://picsum.photos/200/300?random=1';   // 后备默认图
+const VERSION = 'universal v3.4 (skip timeout + dynamic cover)';
 const tips = `\n${VERSION}`;
 const RKEY = 'universal_spider';
+
+// 生成动态图片（基于种子字符串，确保相同种子相同图片）
+function getDynamicPic(seed) {
+  if (!seed) return def_pic;
+  // 使用 picsum 的 seed 参数，保证相同 seed 返回同一张随机图片
+  return `https://picsum.photos/seed/${encodeURIComponent(seed)}/200/300`;
+}
 
 // 1️⃣========== 🔻 密码锁核心 🔻==========
 
@@ -83,14 +91,29 @@ function getUnlocked() {
     return true;
 }
 
-// 虚拟键盘数据
+// 虚拟键盘数据（每个数字按键使用不同的封面图片）
 function getKeyboardVideos() {
     let items = [];
     for (let i = 0; i <= 9; i++) {
-        items.push({ vod_id: `__UNLOCK_KEY__${i}`, vod_name: `${i}`, vod_pic: def_pic, vod_remarks: '' });
+        items.push({ 
+            vod_id: `__UNLOCK_KEY__${i}`, 
+            vod_name: `${i}`, 
+            vod_pic: getDynamicPic(`key_${i}`),   // 每个数字独立封面
+            vod_remarks: '' 
+        });
     }
-    items.push({ vod_id: '__UNLOCK_BACKSPACE', vod_name: '⌫ 删除', vod_pic: def_pic, vod_remarks: '' });
-    items.push({ vod_id: '__UNLOCK_CLEAR', vod_name: '🗑 清除', vod_pic: def_pic, vod_remarks: '' });
+    items.push({ 
+        vod_id: '__UNLOCK_BACKSPACE', 
+        vod_name: '⌫ 删除', 
+        vod_pic: getDynamicPic('backspace'), 
+        vod_remarks: '' 
+    });
+    items.push({ 
+        vod_id: '__UNLOCK_CLEAR', 
+        vod_name: '🗑 清除', 
+        vod_pic: getDynamicPic('clear'), 
+        vod_remarks: '' 
+    });
     return items;
 }
 
@@ -591,9 +614,9 @@ function category(tid, pg, filter, extend) {
         let videos = getKeyboardVideos();
         let statusItem = {
             vod_id: '__UNLOCK_STATUS_INIT_' + Date.now(),
-            vod_name: `🔐 请输入密码___`,
-            vod_pic: def_pic,
-            vod_remarks: '使用遥控器数字键输入当前时间（HHMM）'
+            vod_name: `🔐 请输入密码____`,
+            vod_pic: getDynamicPic('unlock_status'),
+            vod_remarks: '使用遥控器数字键输入当前时间（HHMM），将明文显示'
         };
         videos.unshift(statusItem);
         return JSON.stringify({ list: videos, page: 1, pagecount: 1, limit: videos.length, total: videos.length });
@@ -614,14 +637,14 @@ function category(tid, pg, filter, extend) {
       let collectionName = source.parseConfig.collectionName || (source.url.split('/').pop().replace(/\.(txt|m3u8?|json)$/i, '') + '合集');
       let vod_id = source.url + '###series';
       return JSON.stringify({
-        list: [{ vod_id, vod_name: collectionName, vod_pic: def_pic, vod_remarks: `📚 共${items.length}集` }],
+        list: [{ vod_id, vod_name: collectionName, vod_pic: getDynamicPic(vod_id), vod_remarks: `📚 共${items.length}集` }],
         page: 1, pagecount: 1, limit: 1, total: items.length
       });
     } else {
       let videos = items.map(item => ({
         vod_id: item.url + '###single',
         vod_name: item.title,
-        vod_pic: def_pic,
+        vod_pic: getDynamicPic(item.url),   // 使用 URL 作为种子
         vod_remarks: '特殊站点'
       }));
       return JSON.stringify({ list: videos, page: 1, pagecount: 1, limit: videos.length, total: videos.length });
@@ -638,7 +661,7 @@ function category(tid, pg, filter, extend) {
     let collectionName = source.parseConfig.collectionName || (source.url.split('/').pop().replace(/\.(txt|m3u8?|json)$/i, '') + '合集');
     let vod_id = source.url + '###series';
     return JSON.stringify({
-      list: [{ vod_id, vod_name: collectionName, vod_pic: def_pic, vod_remarks: `📚 共${items.length}集` }],
+      list: [{ vod_id, vod_name: collectionName, vod_pic: getDynamicPic(vod_id), vod_remarks: `📚 共${items.length}集` }],
       page: 1, pagecount: 1, limit: 1, total: items.length
     });
   }
@@ -650,7 +673,7 @@ function category(tid, pg, filter, extend) {
     let vname = it.split(/[,，]/)[0];
     let vtab = it.match(/#(.*?)#/)[0];
     let vod_id = source.url + '$' + vname + '###single';
-    _list.push({ vod_name: vname, vod_id, vod_pic: def_pic, vod_remarks: vtab });
+    _list.push({ vod_name: vname, vod_id, vod_pic: getDynamicPic(vod_id), vod_remarks: vtab });
   }
   return JSON.stringify({ page: 1, pagecount: 1, limit: _list.length, total: _list.length, list: _list });
 }
@@ -699,7 +722,7 @@ function detail(tid) {
     let vod = {
         vod_id: '__UNLOCK_SUCCESS_MULTI',
         vod_name: '🎉 解锁成功！请选择视频播放',
-        vod_pic: def_pic,
+        vod_pic: getDynamicPic('unlock_success'),
         type_name: "解锁合集",
         vod_play_from: "庆祝源",
         vod_play_url: playUrl,
@@ -707,13 +730,13 @@ function detail(tid) {
     };
     return JSON.stringify({ list: [vod] });
 } else {
-    // 密码错误处理（保持原有代码）
+    // 密码错误处理
     unlockBuffer = '';
     let videos = getKeyboardVideos();
     let statusItem = {
         vod_id: '__UNLOCK_STATUS_ERR_' + Date.now(),
         vod_name: `❌ 密码错误，请重试`,
-        vod_pic: def_pic,
+        vod_pic: getDynamicPic('unlock_error'),
         vod_remarks: '找管理员要密码 '
     };
     videos.unshift(statusItem);
@@ -723,12 +746,13 @@ function detail(tid) {
       }
     }
     let videos = getKeyboardVideos();
-    let display = '*'.repeat(unlockBuffer.length) + '_'.repeat(4 - unlockBuffer.length);
+    // 明文显示已输入的数字，未输入部分用下划线占位
+    let displayPlain = unlockBuffer + '_'.repeat(4 - unlockBuffer.length);
     let statusItem = {
       vod_id: '__UNLOCK_STATUS_' + unlockBuffer.length + '_' + Date.now(),
-      vod_name: `🔐 密码: ${display}`,
-      vod_pic: def_pic,
-      vod_remarks: '请输入4位数字'
+      vod_name: `🔐 密码: ${displayPlain}`,
+      vod_pic: getDynamicPic('unlock_status'),
+      vod_remarks: '请输入4位数字（显示明文）'
     };
     videos.unshift(statusItem);
     return JSON.stringify({ list: videos });
@@ -736,12 +760,12 @@ function detail(tid) {
   if (unlockMode && tid === '__UNLOCK_BACKSPACE') {
     if (unlockBuffer.length > 0) unlockBuffer = unlockBuffer.slice(0, -1);
     let videos = getKeyboardVideos();
-    let display = '*'.repeat(unlockBuffer.length) + '_'.repeat(4 - unlockBuffer.length);
+    let displayPlain = unlockBuffer + '_'.repeat(4 - unlockBuffer.length);
     let statusItem = {
       vod_id: '__UNLOCK_STATUS_' + unlockBuffer.length + '_' + Date.now(),
-      vod_name: `🔐 密码: ${display}`,
-      vod_pic: def_pic,
-      vod_remarks: '请输入4位数字'
+      vod_name: `🔐 密码: ${displayPlain}`,
+      vod_pic: getDynamicPic('unlock_status'),
+      vod_remarks: '请输入4位数字（显示明文）'
     };
     videos.unshift(statusItem);
     return JSON.stringify({ list: videos });
@@ -749,12 +773,12 @@ function detail(tid) {
   if (unlockMode && tid === '__UNLOCK_CLEAR') {
     unlockBuffer = '';
     let videos = getKeyboardVideos();
-    let display = '_'.repeat(4);
+    let displayPlain = '_'.repeat(4);
     let statusItem = {
       vod_id: '__UNLOCK_STATUS_CLEAR_' + Date.now(),
-      vod_name: `🔐 密码: ${display}`,
-      vod_pic: def_pic,
-      vod_remarks: '请输入4位数字'
+      vod_name: `🔐 密码: ${displayPlain}`,
+      vod_pic: getDynamicPic('unlock_status'),
+      vod_remarks: '请输入4位数字（显示明文）'
     };
     videos.unshift(statusItem);
     return JSON.stringify({ list: videos });
@@ -782,7 +806,7 @@ function detail(tid) {
     let playUrl = buildSeriesPlayUrl(items, source);
     let vodName = source.parseConfig.collectionName || (sourceUrl.split('/').pop().replace(/\.(txt|m3u8?|json)$/i, '') + '合集');
     let vod = {
-      vod_id: tid, vod_name: vodName, vod_pic: def_pic,
+      vod_id: tid, vod_name: vodName, vod_pic: getDynamicPic(tid),
       type_name: "连续剧", vod_play_from: source.name, vod_play_url: playUrl,
       vod_remarks: `共${items.length}集`
     };
@@ -800,7 +824,7 @@ function detail(tid) {
     let playUrl = buildSeriesPlayUrl(episodes, source);
     let vodName = parseConfig.collectionName || (sourceUrl.split('/').pop().replace(/\.(txt|m3u8?|json)$/i, '') + '合集');
     let vod = {
-      vod_id: tid, vod_name: vodName, vod_pic: def_pic,
+      vod_id: tid, vod_name: vodName, vod_pic: getDynamicPic(tid),
       type_name: "连续剧", vod_play_from: source.name, vod_play_url: playUrl,
       vod_remarks: `共${episodes.length}集`
     };
@@ -827,7 +851,7 @@ function detail(tid) {
     playFrom = source.name;
   }
   let vod = {
-    vod_id: tid, vod_name: source.name + '|' + tab, type_name: "直播列表", vod_pic: def_pic,
+    vod_id: tid, vod_name: source.name + '|' + tab, type_name: "直播列表", vod_pic: getDynamicPic(tid),
     vod_content: tid, vod_play_from: playFrom, vod_play_url: playUrl,
     vod_director: tips, vod_remarks: VERSION
   };
@@ -896,10 +920,11 @@ function search(wd, quick) {
     let items = parseList(content, src.parseConfig || {}, baseDir);
     let matched = items.filter(item => item.title.includes(wd));
     for (let m of matched) {
+      let vod_id = m.url + '###single';
       results.push({
-        vod_id: m.url + '###single',
+        vod_id: vod_id,
         vod_name: `[${src.name}] ${m.title}`,
-        vod_pic: def_pic,
+        vod_pic: getDynamicPic(vod_id),
         vod_remarks: '搜索命中'
       });
     }
