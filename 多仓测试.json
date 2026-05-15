@@ -62,7 +62,7 @@
     "name": "🟣0️⃣js 谷歌💱0️⃣",
     "type": 3,
     "api": "https://raw.githubusercontent.com/mannys888/frist/refs/heads/main/google.js",
-    "searchable": 0,
+    "searchable": 1,
     "quickSearch": 0,
     "filterable": 1,
     "ext": "https://raw.githubusercontent.com/mannys888/frist/refs/heads/main/谷歌搜索.json"
@@ -72,7 +72,7 @@
     "name": "🧚🏼‍♀️0️⃣js password💱0️⃣",
     "type": 3,
     "api": "https://raw.githubusercontent.com/mannys888/frist/refs/heads/main/password.js",
-    "searchable": 0,
+    "searchable": 1,
     "quickSearch": 0,
     "filterable": 1,
     "ext": "https://raw.githubusercontent.com/mannys888/frist/refs/heads/main/feimaolive(1).json"
