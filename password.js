@@ -1,4 +1,4 @@
-// ==================== 通用动态爬虫 v34（全能旗舰版） ====================
+// ==================== 通用动态爬虫 v34（全能旗舰版 + 超时跳过增强） ====================
 // 功能：
 //   - 普通线路（分组/单线路）& 合集模式（系列剧）
 //   - 文本/JSON/M3U/RSS 等多格式解析
@@ -7,6 +7,7 @@
 //   - 特殊站点处理器：加密、登录、动态加载（模拟/可替换真实逻辑）
 //   - 动态 Referer / Origin 自动适配
 //   - 缓存、重试、超时配置
+//   - 【新增】播放超时自动跳过：合集模式下自动生成主备地址，超时失败后切备源或下一集
 // ================================================================
 
 String.prototype.rstrip = function (chars) {
@@ -24,7 +25,7 @@ let defaultTimeout = 8000;
 let defaultRetry = 2;
 //let def_pic = 'https://avatars.githubusercontent.com/u/97389433?s=120&v=4';
 let def_pic = 'https://picsum.photos/200/300?random=1';
-const VERSION = 'universal v3.4 (special site)';
+const VERSION = 'universal v3.4 (skip timeout enhanced)';
 const tips = `\n${VERSION}`;
 const RKEY = 'universal_spider';
 
@@ -480,6 +481,10 @@ function init(ext) {
       if (__ext_config.global.defaultPic) def_pic = __ext_config.global.defaultPic;
       if (__ext_config.global.defaultTimeout) defaultTimeout = __ext_config.global.defaultTimeout;
       if (__ext_config.global.debug !== undefined) debugMode = __ext_config.global.debug;
+      // 新增：是否启用双地址备援（超时跳备用/下一集）
+      if (__ext_config.global.double_url_fallback === undefined) {
+        __ext_config.global.double_url_fallback = false; // 默认关闭，需手动开启
+      }
     }
   }
   // 🔻加载外部解锁视频列表（如果配置了）🔻
@@ -773,7 +778,8 @@ function detail(tid) {
     let ctx = { url: sourceUrl, parseConfig: source.parseConfig || {}, extra: { tid } };
     let items = customHandlers[source.handler](ctx);
     if (!items.length) return JSON.stringify({ list: [] });
-    let playUrl = items.map(ep => `${ep.title}$${ep.url}`).join('#');
+    // 【增强】双地址备援处理
+    let playUrl = buildSeriesPlayUrl(items, source);
     let vodName = source.parseConfig.collectionName || (sourceUrl.split('/').pop().replace(/\.(txt|m3u8?|json)$/i, '') + '合集');
     let vod = {
       vod_id: tid, vod_name: vodName, vod_pic: def_pic,
@@ -790,7 +796,8 @@ function detail(tid) {
     let parseConfig = source.parseConfig || {};
     let episodes = parseList(content, parseConfig, baseDir);
     if (!episodes.length) return JSON.stringify({ list: [] });
-    let playUrl = episodes.map(ep => `${ep.title}$${ep.url}`).join('#');
+    // 【增强】双地址备援处理
+    let playUrl = buildSeriesPlayUrl(episodes, source);
     let vodName = parseConfig.collectionName || (sourceUrl.split('/').pop().replace(/\.(txt|m3u8?|json)$/i, '') + '合集');
     let vod = {
       vod_id: tid, vod_name: vodName, vod_pic: def_pic,
@@ -825,6 +832,32 @@ function detail(tid) {
     vod_director: tips, vod_remarks: VERSION
   };
   return JSON.stringify({ list: [vod] });
+}
+
+/**
+ * 为系列剧生成播放URL，支持双地址备援（超时自动切备源，失败后播下一集）
+ * @param {Array} episodes - [{title, url}, ...]
+ * @param {object} source - 数据源配置
+ * @returns {string} 形如 "标题$地址#标题$地址"
+ */
+function buildSeriesPlayUrl(episodes, source) {
+  const fallbackEnabled = __ext_config.global?.double_url_fallback === true;
+  const parseApi = __ext_config.global?.parseUrl;
+  const useFallback = fallbackEnabled && parseApi && typeof parseApi === 'string' && parseApi.includes('{url}');
+  
+  if (!useFallback) {
+    // 原逻辑：直接单地址
+    return episodes.map(ep => `${ep.title}$${ep.url}`).join('#');
+  }
+  
+  // 生成主备地址： 解析后地址（首选） + 原始直连地址（备选）
+  const playItems = [];
+  for (let ep of episodes) {
+    const parsedUrl = parseApi.replace('{url}', encodeURIComponent(ep.url));
+    // 格式：标题$地址1#标题$地址2 （标题可相同，播放器会依次尝试）
+    playItems.push(`${ep.title}$${parsedUrl}#${ep.title}$${ep.url}`);
+  }
+  return playItems.join('#');
 }
 
 // 播放器优化：支持全局解析接口、自定义请求头
