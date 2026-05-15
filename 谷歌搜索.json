@@ -1,5 +1,16 @@
 {
-  "name": "🎵 Google 音乐搜索",
-  "url": "https://your-google-api?q={wd}",
-  "parseConfig": { "type": "json", "jsonPath": "items", "titleField": "title", "urlField": "previewUrl" }
+  "sources": [
+    {
+      "name": "音乐搜索",
+      "url": "https://itunes.apple.com/search?term={wd}&limit=20&entity=song",
+      "parseConfig": {
+        "type": "json",
+        "jsonPath": "results",
+        "titleField": "trackName",
+        "urlField": "previewUrl",
+        "picField": "artworkUrl100"
+      },
+      "timeout": 15000
+    }
+  ]
 }
