@@ -1,47 +1,34 @@
-/**
- * universal_spider_v29.js (基于 v27 成功版，为数据源请求增加默认头)
- * 特点：
- *   - ext 读取逻辑与 v27 完全相同（保证能读）
- *   - 请求直播源/TXT/JSON/M3U 时自动添加 User-Agent、Referer 等
- *   - 保留所有 join 逻辑 (# 和 $$$)
- */
+// ==================== 通用动态爬虫 v34（全能旗舰版 + 超时跳过增强 + 动态封面） ====================
+// 功能：
+//   - 普通线路（分组/单线路）& 合集模式（系列剧）
+//   - 文本/JSON/M3U/RSS 等多格式解析
+//   - 全局搜索（支持标题匹配）
+//   - 播放器增强（自定义请求头、Referer、Cookie、解析接口）
+//   - 特殊站点处理器：加密、登录、动态加载（模拟/可替换真实逻辑）
+//   - 动态 Referer / Origin 自动适配
+//   - 缓存、重试、超时配置
+//   - 【新增】播放超时自动跳过：合集模式下自动生成主备地址，超时失败后切备源或下一集
+//   - 【新增】卡片图片差异化（基于ID动态生成封面）
+//   - 【新增】密码输入明文显示
+// ================================================================
 
-// ========== 新增：默认请求头（仅用于数据源请求） ==========
-const DATA_DEFAULT_HEADERS = {
-  "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-  "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-  "Accept-Language": "zh-CN,zh;q=0.8,zh-TW;q=0.7,zh-HK;q=0.5,en-US;q=0.3,en;q=0.2",
-  "Connection": "keep-alive"
-};
-
-// 动态 Referer（根据 URL 域名）
-function getDynamicHeaders(url) {
-  let headers = {};
-  if (url.includes('cntv.cn') || url.includes('cctv.com')) {
-    headers['Referer'] = 'https://tv.cctv.com/';
-    headers['Origin'] = 'https://tv.cctv.com';
-  } else if (url.includes('bilibili.com')) {
-    headers['Referer'] = 'https://www.bilibili.com/';
-  } else {
-    let match = url.match(/^(https?:\/\/[^/]+)/);
-    if (match) headers['Referer'] = match[1] + '/';
-  }
-  return headers;
-}
-
-// ========== 以下为 v27 原版（未改动的部分） ==========
 String.prototype.rstrip = function (chars) {
   let regex = new RegExp(chars + "$");
   return this.replace(regex, "");
 };
 
-const request_timeout = 5000;
-const RKEY = 'universal_spider';
-const VERSION = 'universal v2.9 (增强数据源请求头)';
-const UA = 'Mozilla/5.0';
-//let def_pic = 'https://avatars.githubusercontent.com/u/97389433?s=120&v=4';
-let def_pic = 'https://picsum.photos/200/300?random=1';
+// ========== 全局配置 ==========
+let __ext_config = { sources: [], global: {} };
+let cache_data = {};
+let showMode = 'groups';        // groups / all
+let groupDict = {};
+let debugMode = true;
+let defaultTimeout = 8000;
+let defaultRetry = 2;
+let def_pic = 'https://picsum.photos/200/300?random=1';   // 后备默认图
+const VERSION = 'universal v3.4 (skip timeout + dynamic cover)';
 const tips = `\n${VERSION}`;
+const RKEY = 'universal_spider';
 
 // 生成动态图片（基于种子字符串，确保相同种子相同图片）
 function getDynamicPic(seed) {
@@ -50,19 +37,15 @@ function getDynamicPic(seed) {
   return `https://picsum.photos/seed/${encodeURIComponent(seed)}/200/300`;
 }
 
+// 1️⃣========== 🔻 密码锁核心 🔻==========
+
 // 远程拉取的视频列表（init 时预加载）
 let remoteUnlockVideos = null;
 
 // 外部视频列表（可从 ext 配置中加载）
 let externalUnlockVideos = null;
 
-let __ext_config = { sources: [], global: {} };
-let cache_data = {};
-let showMode = 'groups';
-let groupDict = {};
 
-
-// 1️⃣========== 🔻密码锁配置 🔻==========
 const UNLOCK_VALID_MINUTES = 10;      // 解锁有效分钟数，可改
 
 // 获取当前时间密码（HHMM）
@@ -108,296 +91,266 @@ function getUnlocked() {
     return true;
 }
 
-// 虚拟键盘数据
+// 虚拟键盘数据（每个数字按键使用不同的封面图片）
 function getKeyboardVideos() {
     let items = [];
     for (let i = 0; i <= 9; i++) {
-        items.push({ vod_id: `__UNLOCK_KEY__${i}`, vod_name: `${i}`, vod_pic: getDynamicPic(`key_${i}`), vod_remarks: '' });
+        items.push({ 
+            vod_id: `__UNLOCK_KEY__${i}`, 
+            vod_name: `${i}`, 
+            vod_pic: getDynamicPic(`key_${i}`),   // 每个数字独立封面
+            vod_remarks: '' 
+        });
     }
-    items.push({ vod_id: '__UNLOCK_BACKSPACE', vod_name: '⌫ 删除', vod_pic: getDynamicPic(`backspace`), vod_remarks: '' });
-    items.push({ vod_id: '__UNLOCK_CLEAR', vod_name: '🗑 清除', vod_pic: getDynamicPic(`clear`), vod_remarks: '' });
+    items.push({ 
+        vod_id: '__UNLOCK_BACKSPACE', 
+        vod_name: '⌫ 删除', 
+        vod_pic: getDynamicPic('backspace'), 
+        vod_remarks: '' 
+    });
+    items.push({ 
+        vod_id: '__UNLOCK_CLEAR', 
+        vod_name: '🗑 清除', 
+        vod_pic: getDynamicPic('clear'), 
+        vod_remarks: '' 
+    });
     return items;
 }
 
 let unlockBuffer = '';
 let unlockMode = false;
 
-
-
-/**2️⃣2️⃣2️⃣2️⃣
- * 超级通用解析器 - 一码行天下
- * 支持格式：JSON, M3U, RSS, TXT(自定义分隔符), 纯URL列表, 混合格式
- * @param {string} content - 原始文本
- * @param {object} opt - 配置参数（可选，全部有默认）
+/**
+ * 通用列表解析函数（支持 TXT / M3U / JSON / RSS / 自定义分隔符）
+ * @param {string} content - 原始文本内容
+ * @param {object} options - 可选配置
+ *   - type: 强制指定类型 ('txt', 'm3u', 'json', 'rss')，不指定则自动识别
+ *   - line_sep: TXT 模式的分隔符，默认 ','
+ *   - trim_title: 是否去除标题首尾空格，默认 true
+ *   - trim_url: 是否去除 URL 首尾空格，默认 true
+ *   - skip_comments: 是否跳过以 '#' 开头的行，默认 true
+ *   - skip_empty: 是否跳过空行，默认 true
+ *   - default_title: 当行内只有 URL 时使用的默认标题，默认 '直播流'
  * @returns {Array<{title: string, url: string}>}
  */
-function smartParseList(content, opt = {}) {
-    if (!content || typeof content !== 'string') return [];
-    
-    // 默认配置
-    const cfg = {
-        // 通用
-        defaultTitle: '媒体流',
-        trimTitle: true,
-        trimUrl: true,
-        skipEmptyLines: true,
-        skipCommentLines: true,      // 跳过 # 或 // 开头的行
-        commentChars: ['#', '//'],   // 注释标记
-        
-        // TXT 专用
-        lineSep: ',',                 // 分隔符，支持字符串或正则
-        allowSepSpaces: true,        // 是否允许分隔符前后有空格
-        
-        // JSON 专用
-        jsonPath: null,              // 如 'data.list' 或 'result.videos'
-        titleFields: ['title', 'name', '节目名', 'vod_name', 'episode', 'fulltitle'],
-        urlFields: ['url', 'link', 'play_url', 'src', 'href', 'm3u8', 'stream'],
-        
-        // M3U 专用
-        m3uUseGroupTitle: false,     // 是否在标题前加上分组名
-        
-        // RSS 专用
-        rssTitleTag: 'title',
-        rssLinkTag: 'link',
-        
-        // 自动识别开关
-        autoDetect: true,            // 自动根据内容判断格式
-        forceType: null,             // 强制指定类型: 'json', 'm3u', 'rss', 'txt'
-        
-        // 调试
-        debug: false
+function parseUniversalList(content, options = {}) {
+    const opts = {
+        line_sep: ',',
+        trim_title: true,
+        trim_url: true,
+        skip_comments: true,
+        skip_empty: true,
+        default_title: '直播流',
+        ...options
     };
-    
-    // 合并用户配置
-    Object.assign(cfg, opt);
-    
-    // 自动识别类型
-    let type = cfg.forceType;
-    if (cfg.autoDetect && !type) {
+
+    if (!content || typeof content !== 'string') return [];
+
+    // 自动识别格式（若未指定 type）
+    let type = opts.type;
+    if (!type) {
         const trimmed = content.trim();
-        if (/^[\s]*[\[\{]/i.test(trimmed)) type = 'json';
-        else if (trimmed.startsWith('#EXTM3U')) type = 'm3u';
-        else if (/<rss|<feed|<channel|<item/i.test(trimmed)) type = 'rss';
-        else type = 'txt';
+        if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+            type = 'json';
+        } else if (trimmed.startsWith('#EXTM3U')) {
+            type = 'm3u';
+        } else if (/<rss|<feed/i.test(trimmed)) {
+            type = 'rss';
+        } else {
+            type = 'txt';
+        }
     }
-    
-    if (cfg.debug) print(`[smartParse] 检测到类型: ${type}`);
-    
-    // ----- JSON 处理 -----
+
+    // 处理 JSON 格式
     if (type === 'json') {
         try {
-            let data = JSON.parse(content);
-            // 根据 jsonPath 提取数据
-            if (cfg.jsonPath) {
-                const parts = cfg.jsonPath.split('.');
-                for (let p of parts) data = data[p];
+            let json = JSON.parse(content);
+            let dataArr = json;
+            if (opts.dataPath) {
+                const parts = opts.dataPath.split('.');
+                for (let p of parts) dataArr = dataArr[p];
             }
-            // 确保是数组
-            let arr = Array.isArray(data) ? data : (data ? [data] : []);
-            const result = [];
-            const titleFields = cfg.titleFields.map(f => f.toLowerCase());
-            const urlFields = cfg.urlFields.map(f => f.toLowerCase());
-            
-            for (let item of arr) {
-                if (!item || typeof item !== 'object') continue;
-                let title = null, url = null;
-                // 尝试所有可能的大小写和字段名
-                const lowerItem = {};
-                for (let k in item) lowerItem[k.toLowerCase()] = item[k];
-                
-                for (let tf of titleFields) {
-                    if (lowerItem[tf]) { title = lowerItem[tf]; break; }
-                }
-                for (let uf of urlFields) {
-                    if (lowerItem[uf]) { url = lowerItem[uf]; break; }
-                }
-                if (title && url) {
-                    if (cfg.trimTitle) title = String(title).trim();
-                    if (cfg.trimUrl) url = String(url).trim();
-                    result.push({ title, url });
-                }
-            }
-            if (cfg.debug) print(`[smartParse] JSON解析到 ${result.length} 条`);
-            return result;
+            if (!Array.isArray(dataArr)) dataArr = dataArr || [];
+            return dataArr
+                .map(item => {
+                    let title = opts.titleField ? item[opts.titleField] : (item.title || item.name);
+                    let url = opts.urlField ? item[opts.urlField] : (item.url || item.link || item.play_url);
+                    if (title && url) return { title: String(title), url: String(url) };
+                    return null;
+                })
+                .filter(v => v);
         } catch(e) {
-            if (cfg.debug) print(`[smartParse] JSON解析失败: ${e.message}`);
-            // 降级尝试 TXT 解析
+            print("JSON 解析失败: " + e.message);
+            return [];
         }
     }
-    
-    // ----- M3U 处理 -----
+
+    // 处理 M3U 格式
     if (type === 'm3u') {
         const lines = content.split(/\r?\n/);
-        const result = [];
-        let currentTitle = '';
-        let currentGroup = '';
+        let items = [];
+        let currentTitle = "";
         for (let line of lines) {
             line = line.trim();
-            if (line.startsWith('#EXTINF:')) {
-                // 提取标题和组别
-                const groupMatch = line.match(/group-title="([^"]*)"/);
-                if (groupMatch) currentGroup = groupMatch[1];
-                const titleMatch = line.match(/#EXTINF:.*?,(.*)/);
-                if (titleMatch) currentTitle = titleMatch[1].trim();
-            } else if (line && !line.startsWith('#') && line.match(/^https?:\/\//i)) {
-                let title = currentTitle || cfg.defaultTitle;
-                if (cfg.m3uUseGroupTitle && currentGroup) title = `[${currentGroup}] ${title}`;
-                result.push({ title, url: line });
-                currentTitle = '';
-                currentGroup = '';
+            if (line.startsWith("#EXTINF:")) {
+                const match = line.match(/#EXTINF:.*?,(.*)/);
+                if (match) currentTitle = match[1].trim();
+            } else if (line && !line.startsWith("#") && line.match(/^https?:\/\//i)) {
+                items.push({ title: currentTitle || opts.default_title, url: line });
+                currentTitle = "";
             }
         }
-        if (cfg.debug) print(`[smartParse] M3U解析到 ${result.length} 条`);
-        return result;
+        return items;
     }
-    
-    // ----- RSS / XML 处理 -----
+
+    // 处理 RSS / XML 格式
     if (type === 'rss') {
         try {
-            // 简单正则提取
-            const titleReg = new RegExp(`<${cfg.rssTitleTag}>(.*?)</${cfg.rssTitleTag}>`, 'gi');
-            const linkReg = new RegExp(`<${cfg.rssLinkTag}>(.*?)</${cfg.rssLinkTag}>`, 'gi');
-            const titles = [...content.matchAll(titleReg)].map(m => m[1]);
-            const links = [...content.matchAll(linkReg)].map(m => m[1]);
-            const result = [];
+            const titleRe = /<title>(.*?)<\/title>/g;
+            const linkRe = /<link>(.*?)<\/link>/g;
+            const titles = [...content.matchAll(titleRe)].map(m => m[1]);
+            const links = [...content.matchAll(linkRe)].map(m => m[1]);
+            const items = [];
             for (let i = 0; i < Math.min(titles.length, links.length); i++) {
                 if (links[i].startsWith('http')) {
-                    result.push({ title: titles[i], url: links[i] });
+                    items.push({ title: titles[i], url: links[i] });
                 }
             }
-            if (cfg.debug) print(`[smartParse] RSS解析到 ${result.length} 条`);
-            return result;
+            return items;
         } catch(e) {
-            if (cfg.debug) print(`[smartParse] RSS解析失败: ${e.message}`);
-            // 降级 TXT
+            print("RSS 解析失败: " + e.message);
+            return [];
         }
     }
-    
-    // ----- TXT / 通用文本处理（最强大）-----
-    // 支持任意分隔符，自动处理空格，支持纯URL行
+
+    // 处理 TXT 格式（默认）
     const lines = content.split(/\r?\n/);
-    const result = [];
-    // 构建分隔符正则：允许前后空白
-    let sepRegex;
-    if (cfg.lineSep instanceof RegExp) {
-        sepRegex = new RegExp(`^(.+?)${cfg.lineSep.source}\\s*(https?://\\S+)`, 'i');
-    } else {
-        const escapedSep = cfg.lineSep.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        if (cfg.allowSepSpaces) {
-            sepRegex = new RegExp(`^(.+?)${escapedSep}\\s*(https?://\\S+)`, 'i');
-        } else {
-            sepRegex = new RegExp(`^(.+?)${escapedSep}(https?://\\S+)`, 'i');
-        }
-    }
+    const items = [];
+    // 构建正则：支持分隔符前后有空白字符
+    const sep = opts.line_sep.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); // 转义特殊字符
+    const regex = new RegExp(`^(.+?)${sep}\\s*(https?://\\S+)`, 'i');
     
     for (let rawLine of lines) {
-        let line = rawLine;
-        if (cfg.skipEmptyLines && line.trim() === '') continue;
-        // 跳过注释行
-        if (cfg.skipCommentLines) {
-            let isComment = false;
-            for (let cmt of cfg.commentChars) {
-                if (line.trim().startsWith(cmt)) { isComment = true; break; }
-            }
-            if (isComment) continue;
-        }
+        let line = rawLine.trim();
+        if (opts.skip_empty && line === '') continue;
+        if (opts.skip_comments && line.startsWith('#')) continue;
         
-        // 匹配 标题分隔符URL
-        let match = line.match(sepRegex);
+        // 尝试匹配 "标题分隔符URL" 格式
+        let match = line.match(regex);
         if (match) {
             let title = match[1];
             let url = match[2];
-            if (cfg.trimTitle) title = title.trim();
-            if (cfg.trimUrl) url = url.trim();
-            result.push({ title, url });
+            if (opts.trim_title) title = title.trim();
+            if (opts.trim_url) url = url.trim();
+            items.push({ title: title, url: url });
             continue;
         }
         
-        // 纯 URL 行（无标题）
+        // 如果整行就是 URL（没有标题）
         if (line.match(/^https?:\/\//i)) {
-            result.push({ title: cfg.defaultTitle, url: line.trim() });
-            continue;
+            let title = opts.default_title;
+            items.push({ title: title, url: line });
         }
-        
-        // 其他情况：忽略（可记录日志）
-        if (cfg.debug) print(`[smartParse] 跳过无法解析的行: ${line.substring(0, 50)}`);
     }
-    if (cfg.debug) print(`[smartParse] TXT解析到 ${result.length} 条`);
-    return result;
+    return items;
 }
 
 // =========🔺密码锁核心结束 🔺============
 
 
-function setItem(k, v) { local.set(RKEY, k, v); console.log(`设置 ${k} => ${v}`); }
-function getItem(k, v) { return local.get(RKEY, k) || v; }
-function clearItem(k) { local.delete(RKEY, k); }
-
+// ========== 辅助函数 ==========
 function print(any) {
-  any = any || '';
+  if (!debugMode) return;
   if (typeof any == 'object' && Object.keys(any).length > 0) {
-    try { any = JSON.stringify(any); console.log(any); } catch (e) { console.log(typeof any + ':' + any.length); }
-  } else if (typeof any == 'object') { console.log('null object'); } else { console.log(any); }
+    try { console.log(JSON.stringify(any)); } catch(e) { console.log(any); }
+  } else { console.log(any); }
 }
+function setItem(k, v) { local.set(RKEY, k, v); print(`设置 ${k} => ${v}`); }
+function getItem(k, v) { return local.get(RKEY, k) || v; }
 
-function getHome(url) {
-  if (!url) return '';
-  let tmp = url.split('//');
-  url = tmp[0] + '//' + tmp[1].split('/')[0];
-  try { url = decodeURIComponent(url); } catch (e) {}
-  return url;
-}
-
-// ========== 原始 httpRequest（用于 ext 请求，不带额外头，保证成功） ==========
-function httpRequest(url, options = {}) {
+// ========== 智能请求（带重试、缓存、自动 Referer） ==========
+function smartRequest(url, options = {}) {
   let method = options.method || 'GET';
-  let headers = { 'User-Agent': UA, ...(options.headers || {}) };
-  if (options.referer) headers['Referer'] = options.referer;
-  if (options.contentType) headers['Content-Type'] = options.contentType;
-  let reqOptions = { method, headers, timeout: options.timeout || request_timeout };
+  let headers = { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36', ...(options.headers || {}) };
+  // 动态 Referer
+  if (!headers['Referer']) {
+    let match = url.match(/^(https?:\/\/[^/]+)/);
+    if (match) headers['Referer'] = match[1] + '/';
+  }
+  if (options.cookie) headers['Cookie'] = options.cookie;
+  let reqOptions = { method, headers, timeout: options.timeout || defaultTimeout };
   if (options.body) {
     reqOptions.body = typeof options.body === 'string' ? options.body : JSON.stringify(options.body);
     if (!headers['Content-Type']) headers['Content-Type'] = 'application/json';
   }
-  try {
-    const res = req(url, reqOptions);
-    res.json = () => res && res.content ? JSON.parse(res.content) : null;
-    res.text = () => res && res.content ? res.content : '';
-    return res;
-  } catch (e) {
-    print(`请求失败 ${url}: ${e.message}`);
-    return { json: () => null, text: () => '', content: '' };
+  let retries = options.retry || defaultRetry;
+  for (let i = 0; i <= retries; i++) {
+    try {
+      let res = req(url, reqOptions);
+      res.json = () => res.content ? JSON.parse(res.content) : null;
+      res.text = () => res.content || '';
+      return res;
+    } catch(e) {
+      if (i === retries) throw e;
+      print(`请求失败，重试 ${i+1}/${retries}: ${url} - ${e.message}`);
+    }
   }
 }
 
-// ========== 新增：用于数据源的请求（自带默认请求头） ==========
-function httpRequestForData(url, options = {}) {
-  let method = options.method || 'GET';
-  let dynamicHeaders = getDynamicHeaders(url);
-  let headers = { ...DATA_DEFAULT_HEADERS, ...dynamicHeaders, ...(options.headers || {}) };
-  if (options.referer) headers['Referer'] = options.referer;
-  if (options.contentType) headers['Content-Type'] = options.contentType;
-  let reqOptions = { method, headers, timeout: options.timeout || request_timeout };
-  if (options.body) {
-    reqOptions.body = typeof options.body === 'string' ? options.body : JSON.stringify(options.body);
-    if (!headers['Content-Type']) headers['Content-Type'] = 'application/json';
+// ========== 数据源专用请求（自动处理缓存） ==========
+function fetchSource(url, sourceConfig = {}, noCache = false) {
+  if (!noCache && cache_data[url]) return cache_data[url];
+  let opts = {
+    method: sourceConfig.method || 'GET',
+    headers: { ...(sourceConfig.headers || {}) },
+    body: sourceConfig.body,
+    timeout: sourceConfig.timeout,
+    cookie: sourceConfig.cookie || getItem('site_cookie'),
+    retry: sourceConfig.retry
+  };
+  let resp = smartRequest(url, opts);
+  let content = resp.text();
+  // 自动识别 M3U 并转换
+  if (!sourceConfig.type && content.includes('#EXTM3U')) {
+    content = convertM3uToNormal(content);
   }
-  try {
-    const res = req(url, reqOptions);
-    res.json = () => res && res.content ? JSON.parse(res.content) : null;
-    res.text = () => res && res.content ? res.content : '';
-    return res;
-  } catch (e) {
-    print(`数据源请求失败 ${url}: ${e.message}`);
-    return { json: () => null, text: () => '', content: '' };
-  }
+  if (!noCache) cache_data[url] = content;
+  return content;
 }
 
-// ========== 以下函数与 v27 完全一致，仅修改 fetchSource 使用新请求函数 ==========
-function parseSource(content, sourceConfig, baseUrl) {
+// ========== 列表解析（支持 txt/json/m3u/rss） ==========
+function parseList(content, parseConfig, baseUrl) {
   let items = [];
-  let type = sourceConfig.type || 'text';
-  if (type === 'm3u') {
+  let type = parseConfig.type || 'text';
+  if (type === 'json') {
+    try {
+      let json = JSON.parse(content);
+      let dataArr = json;
+      if (parseConfig.jsonPath) {
+        let parts = parseConfig.jsonPath.split('.');
+        for (let p of parts) dataArr = dataArr[p];
+      }
+      if (!Array.isArray(dataArr)) dataArr = dataArr || [];
+      for (let item of dataArr) {
+        let title = parseConfig.titleField ? item[parseConfig.titleField] : (item.title || item.name);
+        let url = parseConfig.urlField ? item[parseConfig.urlField] : (item.url || item.link || item.play_url);
+        if (title && url) items.push({ title, url });
+      }
+    } catch(e) { print("JSON解析错误: " + e.message); }
+  } 
+  else if (type === 'rss') {
+    try {
+      let xml = content;
+      let titleRe = /<title>(.*?)<\/title>/g;
+      let linkRe = /<link>(.*?)<\/link>/g;
+      let titles = [...xml.matchAll(titleRe)].map(m => m[1]);
+      let links = [...xml.matchAll(linkRe)].map(m => m[1]);
+      for (let i = 0; i < Math.min(titles.length, links.length); i++) {
+        if (links[i].startsWith('http')) items.push({ title: titles[i], url: links[i] });
+      }
+    } catch(e) { print("RSS解析失败"); }
+  }
+  else if (type === 'm3u') {
     let lines = content.split(/\r?\n/);
     let currentTitle = "";
     for (let line of lines) {
@@ -405,39 +358,17 @@ function parseSource(content, sourceConfig, baseUrl) {
       if (line.startsWith("#EXTINF:")) {
         let match = line.match(/#EXTINF:.*?,(.*)/);
         if (match) currentTitle = match[1].trim();
-      } else if (line && !line.startsWith("#")) {
-        if (line.match(/^https?:\/\//i)) {
-          items.push({ title: currentTitle || "直播流", url: line });
-          currentTitle = "";
-        }
+      } else if (line && !line.startsWith("#") && line.match(/^https?:\/\//i)) {
+        items.push({ title: currentTitle || "直播流", url: line });
+        currentTitle = "";
       }
     }
-    return items;
-  } 
-  else if (type === 'json') {
-    try {
-      let json = JSON.parse(content);
-      let dataArr = json;
-      if (sourceConfig.json_path) {
-        let parts = sourceConfig.json_path.split('.');
-        for (let p of parts) dataArr = dataArr[p];
-      }
-      if (!Array.isArray(dataArr)) dataArr = dataArr || [];
-      for (let item of dataArr) {
-        let title = sourceConfig.title_field ? item[sourceConfig.title_field] : (item.title || item.name);
-        let url = sourceConfig.url_field ? item[sourceConfig.url_field] : (item.url || item.play_url);
-        if (title && url) items.push({ title, url });
-      }
-    } catch(e) { print("JSON解析失败: " + e.message); }
-    return items;
   }
   else {
+    let sep = parseConfig.line_sep || ',';
+    let regex = new RegExp(`^(.+?)${sep}(https?://\\S+)`);
+    //let regex = new RegExp(`^(.+?)${sep}\\s*(https?://\\S+)`);
     let lines = content.split(/\r?\n/);
-    let sep = sourceConfig.line_sep || ',';
-    let escapedSep = sep.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-let regex = new RegExp(`^(.+?)${escapedSep}\\s*(https?://\\S+)`, 'i');
-   
-    //let regex = new RegExp(`^(.+?)${sep}(https?://\\S+)`);
     for (let line of lines) {
       line = line.trim();
       if (!line || line.startsWith('#')) continue;
@@ -445,40 +376,22 @@ let regex = new RegExp(`^(.+?)${escapedSep}\\s*(https?://\\S+)`, 'i');
       if (match) {
         items.push({ title: match[1].trim(), url: match[2].trim() });
       } else if (line.match(/^https?:\/\//i)) {
-        items.push({ title: "直播流", url: line });
+        items.push({ title: "媒体文件", url: line });
       }
     }
-    return items;
   }
+  return items;
 }
 
-// 修改：fetchSource 使用 httpRequestForData，而不是原来的 httpRequest
-function fetchSource(url, sourceConfig) {
-  if (cache_data[url]) return cache_data[url];
-  let options = {
-    method: sourceConfig.method || 'GET',
-    headers: sourceConfig.headers || {},
-    body: sourceConfig.body,
-    contentType: sourceConfig.contentType,
-    timeout: sourceConfig.timeout
-  };
-  let resp = httpRequestForData(url, options);
-  let content = resp.text();
-  if (!sourceConfig.type && content.includes('#EXTM3U')) {
-    content = convertM3uToNormal(content);
-  }
-  cache_data[url] = content;
-  return content;
-}
-
+// M3U 转普通列表（用于分组）
 function convertM3uToNormal(m3u) {
   try {
     const lines = m3u.split('\n');
     let result = '', TV = '', flag = '#m3u#', currentGroupTitle = '';
     for (let line of lines) {
       if (line.startsWith('#EXTINF:')) {
-        const groupTitle = line.split('"')[1].trim();
-        TV = line.split('"')[2].substring(1);
+        const groupTitle = line.split('"')[1]?.trim() || '';
+        TV = line.split('"')[2]?.substring(1) || '';
         if (currentGroupTitle !== groupTitle) {
           currentGroupTitle = groupTitle;
           result += `\n${currentGroupTitle},${flag}\n`;
@@ -492,6 +405,7 @@ function convertM3uToNormal(m3u) {
   } catch(e) { return m3u; }
 }
 
+// 分组工具
 function splitArray(arr, parse) {
   parse = parse && typeof parse == 'function' ? parse : '';
   if (!arr.length) return [];
@@ -499,25 +413,19 @@ function splitArray(arr, parse) {
   for (let i = 1; i < arr.length; i++) {
     let index = -1;
     for (let j = 0; j < result.length; j++) {
-      if (parse && result[j].map(parse).includes(parse(arr[i]))) {
-        index = j;
-      } else if ((!parse) && result[j].includes(arr[i])) {
-        index = j;
-      }
+      if (parse && result[j].map(parse).includes(parse(arr[i]))) index = j;
+      else if ((!parse) && result[j].includes(arr[i])) index = j;
     }
     if (index >= result.length - 1) {
       result.push([]);
-      result[result.length - 1].push(arr[i]);
-    } else {
-      result[index + 1].push(arr[i]);
-    }
+      result[result.length-1].push(arr[i]);
+    } else result[index+1].push(arr[i]);
   }
   return result;
 }
-
 function gen_group_dict(arr, parse) {
   let dict = {};
-  arr.forEach((it) => {
+  arr.forEach(it => {
     let k = it.split(',')[0];
     if (parse && typeof parse === 'function') k = parse(k);
     if (!dict[k]) dict[k] = [it];
@@ -526,105 +434,83 @@ function gen_group_dict(arr, parse) {
   return dict;
 }
 
-function parseSeriesEpisodes(content, baseUrl, seriesConfig) {
-  if (seriesConfig && seriesConfig.parseConfig) {
-    return parseSource(content, seriesConfig.parseConfig, baseUrl);
+// ========== 特殊站点处理器 ==========
+const customHandlers = {
+  // 示例：加密站点（需实现真实解密）
+  encryptedSite: function(ctx) {
+    let { url, parseConfig } = ctx;
+    let encryptedContent = fetchSource(url, parseConfig);
+    // TODO: 替换为真实的解密函数
+    let decryptedContent = myDecrypt(encryptedContent, parseConfig.key || 'defaultKey');
+    let items = parseList(decryptedContent, parseConfig, url);
+    return items;
+  },
+  // 示例：需要登录的站点
+  loginRequired: function(ctx) {
+    let { url, parseConfig } = ctx;
+    // 1. 登录获取 Cookie
+    let loginUrl = parseConfig.loginUrl;
+    let loginBody = parseConfig.loginBody;
+    let loginResp = smartRequest(loginUrl, { method: 'POST', body: loginBody });
+    let cookie = loginResp.headers['set-cookie'];
+    if (cookie) setItem('site_cookie', cookie);
+    // 2. 携带 Cookie 请求目标数据
+    let opts = { headers: { 'Cookie': getItem('site_cookie') } };
+    let content = fetchSource(url, { ...parseConfig, ...opts });
+    let items = parseList(content, parseConfig, url);
+    return items;
+  },
+  // 示例：动态加载（需部署无头浏览器服务）
+  dynamicContent: function(ctx) {
+    let { url, parseConfig } = ctx;
+    let browserService = parseConfig.browserService || 'http://localhost:3000/render';
+    let resp = smartRequest(browserService, { method: 'POST', body: JSON.stringify({ url }) });
+    let renderedHtml = resp.text();
+    let items = parseList(renderedHtml, parseConfig, url);
+    return items;
   }
-  let trimmed = content.trim();
-  if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
-    try {
-      let json = JSON.parse(trimmed);
-      let episodes = json.episodes || json.list || json.data || json.items || (Array.isArray(json) ? json : []);
-      let items = [];
-      for (let ep of episodes) {
-        let title = ep.title || ep.name || ep.episode || "第" + (ep.index || '?') + "集";
-        let url = ep.url || ep.link || ep.src || ep.play_url;
-        if (title && url) items.push({ title, url });
-      }
-      if (items.length) return items;
-    } catch(e) {}
+};
+
+// 模拟解密函数（实际使用需替换为真实解密算法）
+function myDecrypt(encrypted, key) {
+  // 示例：简单的 XOR 解密（仅为演示）
+  let result = '';
+  for (let i = 0; i < encrypted.length; i++) {
+    result += String.fromCharCode(encrypted.charCodeAt(i) ^ key.charCodeAt(i % key.length));
   }
-  if (content.includes("#EXTM3U")) {
-    return parseSource(content, { type: "m3u" }, baseUrl);
-  }
-  return parseSource(content, { separators: [',', '|', '$', '\t'] }, baseUrl);
+  return result;
 }
 
-function handleVodSource(vodConfig, extraParams) {
-  if (!vodConfig || !vodConfig.listApi) return null;
-  let infoData = null;
-  if (vodConfig.infoApi) {
-    let infoUrl = vodConfig.infoApi;
-    for (let [k, v] of Object.entries(extraParams)) {
-      infoUrl = infoUrl.replace(new RegExp(`\\{${k}\\}`, 'g'), encodeURIComponent(v));
-    }
-    let infoOpts = {
-      method: vodConfig.infoMethod || 'GET',
-      headers: vodConfig.infoHeaders || {},
-      body: vodConfig.infoBody,
-      contentType: vodConfig.infoContentType
-    };
-    let resp = httpRequestForData(infoUrl, infoOpts);
-    infoData = resp.json();
-  }
-  let listUrl = vodConfig.listApi;
-  let replaceMap = { ...extraParams, ...(infoData || {}) };
-  for (let [k, v] of Object.entries(replaceMap)) {
-    listUrl = listUrl.replace(new RegExp(`\\{${k}\\}`, 'g'), encodeURIComponent(v));
-  }
-  let listOpts = {
-    method: vodConfig.listMethod || 'GET',
-    headers: vodConfig.listHeaders || {},
-    body: vodConfig.listBody,
-    contentType: vodConfig.listContentType
-  };
-  let resp = httpRequestForData(listUrl, listOpts);
-  let listJson = resp.json();
-  if (!listJson) return null;
-  let parseConf = vodConfig.listParse || { type: 'json', dataPath: 'data.list', titleField: 'title', urlField: 'guid' };
-  let items = parseSource(listJson, parseConf, '');
-  if (!items.length) return null;
-  let videoList = items.map(item => `${item.title}$${item.url}`);
-  let playUrl = videoList.join('#');
-  let playFrom = vodConfig.playFrom || '播放源';
-  return { playUrl, playFrom, infoData };
-}
-
-// ========== ext 配置解析（完全保留 v27 成功逻辑，使用原始 httpRequest） ==========
+// ========== 外部接口 ==========
 function init(ext) {
-
- // 恢复解锁状态（会自动检查是否超时）
+   // 【新增】恢复解锁状态（自动处理超时）
     unlocked = getUnlocked();
     print(`解锁状态: ${unlocked ? '已解锁' : '未解锁'}`);
-
-  console.log("当前版本号:" + VERSION);
+    
   let configData = null;
-  if (typeof ext == 'object') {
-    configData = ext;
-    print('ext:object');
-  } else if (typeof ext == 'string') {
+  if (typeof ext === 'object') configData = ext;
+  else if (typeof ext === 'string') {
     if (ext.startsWith('http')) {
-      let data_url = ext.split(';')[0];
-      print(data_url);
-      configData = httpRequest(data_url, { json: true }).json();
+      let resp = smartRequest(ext);
+      configData = resp.json();
     } else {
-      try { configData = JSON.parse(ext); } catch(e) { configData = null; }
+      try { configData = JSON.parse(ext); } catch(e) {}
     }
   }
-  if (Array.isArray(configData) && configData.length > 0 && configData[0].name && configData[0].url) {
-    __ext_config.sources = configData;
-  } else if (configData && configData.sources) {
-    __ext_config = configData;
-  } else {
-    __ext_config.sources = [];
+  if (configData) {
+    if (Array.isArray(configData) && configData[0]?.name && configData[0]?.url) __ext_config.sources = configData;
+    else if (configData.sources) __ext_config = configData;
+    if (__ext_config.global) {
+      if (__ext_config.global.defaultPic) def_pic = __ext_config.global.defaultPic;
+      if (__ext_config.global.defaultTimeout) defaultTimeout = __ext_config.global.defaultTimeout;
+      if (__ext_config.global.debug !== undefined) debugMode = __ext_config.global.debug;
+      // 新增：是否启用双地址备援（超时跳备用/下一集）
+      if (__ext_config.global.double_url_fallback === undefined) {
+        __ext_config.global.double_url_fallback = false; // 默认关闭，需手动开启
+      }
+    }
   }
-  if (configData && configData.global) {
-    __ext_config.global = configData.global;
-    if (__ext_config.global.defaultPic) def_pic = __ext_config.global.defaultPic;
-    if (__ext_config.global.defaultTimeout) request_timeout = __ext_config.global.defaultTimeout;
-  }
-
-  // 🔻加载外部解锁视频列表（如果配置了）
+  // 🔻加载外部解锁视频列表（如果配置了）🔻
     showMode = getItem('showMode', 'groups');
     groupDict = JSON.parse(getItem('groupDict', '{}'));
 
@@ -638,149 +524,163 @@ function init(ext) {
 
     // 【新增】预加载远程解锁视频列表（推荐将远程地址放在 ext 的 global.unlockVideosUrl 中）
     // 【修改】预加载远程解锁视频列表（支持 JSON 数组 或 TXT 逗号分隔格式）
-    let remoteUrl = (__ext_config.global && __ext_config.global.unlockVideosUrl) 
-                    ? __ext_config.global.unlockVideosUrl 
-                    : "https://raw.githubusercontent.com/mannys888/frist/refs/heads/main/迦南诗歌.txt";  // 默认地址
+let remoteUrl = (__ext_config.global && __ext_config.global.unlockVideosUrl) 
+                ? __ext_config.global.unlockVideosUrl 
+                : "https://raw.githubusercontent.com/mannys888/frist/refs/heads/main/迦南诗歌.txt";  // 默认地址
+try {
+    print("正在预加载远程视频列表: " + remoteUrl);
+    let resp = smartRequest(remoteUrl, { timeout: 3000 });
+    let content = resp.text();
+    
+    let videoItems = [];  // 临时存储 {title, url}
+    
+    // 1. 尝试作为 JSON 数组解析（兼容原逻辑）
     try {
-        print("正在预加载远程视频列表: " + remoteUrl);
-        let resp = httpRequest(remoteUrl, { timeout: 3000 });
-        let content = resp.text();
-        
-        let videoItems = [];
-        
-        // 1. 尝试作为 JSON 数组解析
-        try {
-            let json = JSON.parse(content);
-            if (Array.isArray(json) && json.length > 0 && json[0].title && json[0].url) {
+        let json = JSON.parse(content);
+        if (Array.isArray(json) && json.length > 0) {
+            // 检测第一个元素是否有 title 和 url
+            if (json[0].title && json[0].url) {
                 videoItems = json;
                 print("远程列表解析成功 (JSON 数组格式)");
-            } else if (Array.isArray(json)) {
-                print("JSON 数组缺少 title/url 字段，尝试 TXT 格式");
-            }
-        } catch(e) { /* 不是 JSON，继续尝试 TXT */ }
-        
-        // 2. 若 JSON 无效，尝试作为 TXT 逗号分隔格式解析（利用已有的 parseSource 函数）
-        if (videoItems.length === 0) {
-            print("尝试作为 TXT 逗号分隔格式解析...");
-            // 注意：parseSource 函数需要 type 为 'text' 且 line_sep 为 ','
-            //let items = smartParseList(content, { type: 'text', line_sep: ',' }, remoteUrl);
-            let items = smartParseList(content, { lineSep: ',' });
-            if (items.length > 0) {
-                videoItems = items.map(item => ({ title: item.title, url: item.url }));
-                print("TXT 解析成功，共 " + videoItems.length + " 个视频");
             } else {
-                print("TXT 解析未获取到有效数据");
+                print("JSON 数组缺少 title/url 字段，尝试其他格式");
             }
         }
-        
-        if (videoItems.length > 0) {
-            remoteUnlockVideos = videoItems.filter(item => item && item.title && item.url);
-            print("预加载成功，共 " + remoteUnlockVideos.length + " 个视频");
+    } catch(e) { /* 不是 JSON，继续 */ }
+    
+    // 2. 若 JSON 解析失败或无有效数据，尝试作为 TXT 逗号分隔格式解析
+    if (videoItems.length === 0) {
+        print("尝试作为 TXT 逗号分隔格式解析...");
+        // 使用 parseList 函数，分隔符为逗号（默认）
+        let items = parseUniversalList(content, { line_sep: ',' }, remoteUrl);
+        if (items.length > 0) {
+            videoItems = items.map(item => ({ title: item.title, url: item.url }));
+            print("TXT 解析成功，共 " + videoItems.length + " 个视频");
         } else {
-            print("远程数据格式无效，无法解析");
-            remoteUnlockVideos = null;
+            print("TXT 解析未获取到有效数据");
         }
-    } catch(e) {
-        print("预加载远程视频列表失败: " + e.message);
+    }
+    
+    if (videoItems.length > 0) {
+        remoteUnlockVideos = videoItems.filter(item => item && item.title && item.url);
+        print("预加载成功，共 " + remoteUnlockVideos.length + " 个视频");
+    } else {
+        print("远程数据格式无效，无法解析");
         remoteUnlockVideos = null;
     }
-
-    print('init执行完毕，共 ' + __ext_config.sources.length + ' 个源');
+} catch(e) {
+    print("预加载远程视频列表失败: " + e.message);
+    remoteUnlockVideos = null;
 }
 
-
+   //🔺加载外部解锁视频列表（如果配置了）🔺
+  
+  
+  print(`加载 ${__ext_config.sources.length} 个分类`);
+}
 
 function home(filter) {
-    
-
-// 被动刷新有效期（在首页调用时检查是否超时）
+  // 被动检查超时（每次访问首页时刷新有效期）
     if (unlocked) {
-        let storedTime = parseInt(getItem('global_unlock_time','0'));
-        if (storedTime && (Date.now()-storedTime) > UNLOCK_VALID_MINUTES*60*1000) {
+        let storedTime = parseInt(getItem('global_unlock_time', '0'));
+        if (storedTime && (Date.now() - storedTime) > (UNLOCK_VALID_MINUTES * 60 * 1000)) {
             setUnlocked(false);
             unlocked = false;
         }
     }
-
-    // 未解锁 → 只显示一个解锁分类
+    
+    // 🚪 未解锁 -> 只返回解锁分类
     if (!unlocked) {
-        let unlockClass = {
-            type_id: '__UNLOCK__',
-            type_name: '🔒 点击解锁',
-            icon: '🔒'
-        };
+        let unlockClass = { type_id: '__UNLOCK__', type_name: '🔒 点击解锁', icon: '🔒' };
         return JSON.stringify({ class: [unlockClass], filters: {} });
     }
-
-  let classes = __ext_config.sources.map(it => ({
-    type_id: it.name,
-    type_name: it.name,
-  }));
-  let filters = [
-    { 'key': 'show', 'name': '播放展示', 'value': [{ 'n': '多线路分组', 'v': 'groups' }, { 'n': '单线路', 'v': 'all' }] }
-  ];
-  let filter_dict = {};
-  classes.forEach(it => { filter_dict[it.type_id] = filters; });
-  return JSON.stringify({ 'class': classes, 'filters': filter_dict });
+    
+    // ✅ 已解锁 -> 正常返回所有数据源分类
+  
+  let classes = __ext_config.sources.map(s => ({ type_id: s.name, type_name: s.name }));
+  let filters = [{ key: 'show', name: '播放展示', value: [{ n: '多线路分组', v: 'groups' }, { n: '单线路', v: 'all' }] }];
+  let filterDict = {};
+  classes.forEach(c => { filterDict[c.type_id] = filters; });
+  return JSON.stringify({ class: classes, filters: filterDict });
 }
-
-function homeVod(params) {
-  return JSON.stringify({ list: [] });
-}
+function homeVod() { return JSON.stringify({ list: [] }); }
 
 function category(tid, pg, filter, extend) {
-    
-
-// ========== 处理解锁分类 ==========
+  
+  // ========== 处理解锁分类 ==========
     if (!unlocked && tid === '__UNLOCK__') {
         unlockMode = true;
         unlockBuffer = '';
         let videos = getKeyboardVideos();
-        // 在顶部加一个状态条
-        videos.unshift({
-            vod_id: '__UNLOCK_STATUS_INIT',
-            vod_name: '🔐 请输入4位',
-            vod_pic: def_pic,
-            vod_remarks: '找管理员要0101'
-        });
-        return JSON.stringify({
-            list: videos,
-            page: 1, pagecount: 1,
-            limit: videos.length,
-            total: videos.length
-        });
+        let statusItem = {
+            vod_id: '__UNLOCK_STATUS_INIT_' + Date.now(),
+            vod_name: `🔐 请输入密码____`,
+            vod_pic: getDynamicPic('unlock_status'),
+            vod_remarks: '使用遥控器数字键输入当前时间（HHMM），将明文显示'
+        };
+        videos.unshift(statusItem);
+        return JSON.stringify({ list: videos, page: 1, pagecount: 1, limit: videos.length, total: videos.length });
     }
-
   let fl = filter ? extend : {};
-  if (fl.show) {
-    showMode = fl.show;
-    setItem('showMode', showMode);
-  }
+  if (fl.show) { showMode = fl.show; setItem('showMode', showMode); }
   if (parseInt(pg) > 1) return JSON.stringify({ list: [] });
   let source = __ext_config.sources.find(s => s.name === tid);
   if (!source) return JSON.stringify({ list: [] });
+
+  // 特殊站点处理器优先
+  if (source.handler && customHandlers[source.handler]) {
+    let ctx = { url: source.url, parseConfig: source.parseConfig || {}, extra: { tid, pg, filter, extend } };
+    let items = customHandlers[source.handler](ctx);
+    let isSeries = source.parseConfig?.mode === 'series';
+    if (isSeries) {
+      if (!items.length) return JSON.stringify({ list: [] });
+      let collectionName = source.parseConfig.collectionName || (source.url.split('/').pop().replace(/\.(txt|m3u8?|json)$/i, '') + '合集');
+      let vod_id = source.url + '###series';
+      return JSON.stringify({
+        list: [{ vod_id, vod_name: collectionName, vod_pic: getDynamicPic(vod_id), vod_remarks: `📚 共${items.length}集` }],
+        page: 1, pagecount: 1, limit: 1, total: items.length
+      });
+    } else {
+      let videos = items.map(item => ({
+        vod_id: item.url + '###single',
+        vod_name: item.title,
+        vod_pic: getDynamicPic(item.url),   // 使用 URL 作为种子
+        vod_remarks: '特殊站点'
+      }));
+      return JSON.stringify({ list: videos, page: 1, pagecount: 1, limit: videos.length, total: videos.length });
+    }
+  }
+
+  // 普通模式（使用 # 分组）
+  let isSeries = source.parseConfig?.mode === 'series';
+  if (isSeries) {
+    let content = fetchSource(source.url, source);
+    let baseDir = source.url.substring(0, source.url.lastIndexOf('/')+1);
+    let items = parseList(content, source.parseConfig || {}, baseDir);
+    if (!items.length) return JSON.stringify({ list: [] });
+    let collectionName = source.parseConfig.collectionName || (source.url.split('/').pop().replace(/\.(txt|m3u8?|json)$/i, '') + '合集');
+    let vod_id = source.url + '###series';
+    return JSON.stringify({
+      list: [{ vod_id, vod_name: collectionName, vod_pic: getDynamicPic(vod_id), vod_remarks: `📚 共${items.length}集` }],
+      page: 1, pagecount: 1, limit: 1, total: items.length
+    });
+  }
+
   let html = fetchSource(source.url, source);
   let arr = html.match(/.*?[,，]#[\s\S].*?#/g) || [];
   let _list = [];
   for (let it of arr) {
     let vname = it.split(/[,，]/)[0];
     let vtab = it.match(/#(.*?)#/)[0];
-    let modeSuffix = (source.parseConfig && source.parseConfig.mode === 'series') ? 'series' : 'single';
-    let vod_id = source.url + '$' + vname + '###' + modeSuffix;
-    _list.push({
-      vod_name: vname,
-      vod_id: vod_id,
-      vod_pic: def_pic,
-      vod_remarks: vtab,
-    });
+    let vod_id = source.url + '$' + vname + '###single';
+    _list.push({ vod_name: vname, vod_id, vod_pic: getDynamicPic(vod_id), vod_remarks: vtab });
   }
-  return JSON.stringify({
-    page: 1, pagecount: 1, limit: _list.length, total: _list.length, list: _list,
-  });
+  return JSON.stringify({ page: 1, pagecount: 1, limit: _list.length, total: _list.length, list: _list });
 }
 
 function detail(tid) {
-    
+  
+   // ---------解锁模式下的按键处理 ----------
 
  // 处理虚拟键盘按键
   if (unlockMode && tid.startsWith('__UNLOCK_KEY__')) {
@@ -822,7 +722,7 @@ function detail(tid) {
     let vod = {
         vod_id: '__UNLOCK_SUCCESS_MULTI',
         vod_name: '🎉 解锁成功！请选择视频播放',
-        vod_pic: def_pic,
+        vod_pic: getDynamicPic('unlock_success'),
         type_name: "解锁合集",
         vod_play_from: "庆祝源",
         vod_play_url: playUrl,
@@ -830,13 +730,13 @@ function detail(tid) {
     };
     return JSON.stringify({ list: [vod] });
 } else {
-    // 密码错误处理（保持原有代码）
+    // 密码错误处理
     unlockBuffer = '';
     let videos = getKeyboardVideos();
     let statusItem = {
         vod_id: '__UNLOCK_STATUS_ERR_' + Date.now(),
         vod_name: `❌ 密码错误，请重试`,
-        vod_pic: def_pic,
+        vod_pic: getDynamicPic('unlock_error'),
         vod_remarks: '找管理员要密码 '
     };
     videos.unshift(statusItem);
@@ -846,12 +746,13 @@ function detail(tid) {
       }
     }
     let videos = getKeyboardVideos();
-    let display = '*'.repeat(unlockBuffer.length) + '_'.repeat(4 - unlockBuffer.length);
+    // 明文显示已输入的数字，未输入部分用下划线占位
+    let displayPlain = unlockBuffer + '_'.repeat(4 - unlockBuffer.length);
     let statusItem = {
       vod_id: '__UNLOCK_STATUS_' + unlockBuffer.length + '_' + Date.now(),
-      vod_name: `🔐 密码: ${display}`,
-      vod_pic: def_pic,
-      vod_remarks: '请输入4位数字'
+      vod_name: `🔐 密码: ${displayPlain}`,
+      vod_pic: getDynamicPic('unlock_status'),
+      vod_remarks: '请输入4位数字（显示明文）'
     };
     videos.unshift(statusItem);
     return JSON.stringify({ list: videos });
@@ -859,12 +760,12 @@ function detail(tid) {
   if (unlockMode && tid === '__UNLOCK_BACKSPACE') {
     if (unlockBuffer.length > 0) unlockBuffer = unlockBuffer.slice(0, -1);
     let videos = getKeyboardVideos();
-    let display = '*'.repeat(unlockBuffer.length) + '_'.repeat(4 - unlockBuffer.length);
+    let displayPlain = unlockBuffer + '_'.repeat(4 - unlockBuffer.length);
     let statusItem = {
       vod_id: '__UNLOCK_STATUS_' + unlockBuffer.length + '_' + Date.now(),
-      vod_name: `🔐 密码: ${display}`,
-      vod_pic: def_pic,
-      vod_remarks: '请输入4位数字'
+      vod_name: `🔐 密码: ${displayPlain}`,
+      vod_pic: getDynamicPic('unlock_status'),
+      vod_remarks: '请输入4位数字（显示明文）'
     };
     videos.unshift(statusItem);
     return JSON.stringify({ list: videos });
@@ -872,12 +773,12 @@ function detail(tid) {
   if (unlockMode && tid === '__UNLOCK_CLEAR') {
     unlockBuffer = '';
     let videos = getKeyboardVideos();
-    let display = '_'.repeat(4);
+    let displayPlain = '_'.repeat(4);
     let statusItem = {
       vod_id: '__UNLOCK_STATUS_CLEAR_' + Date.now(),
-      vod_name: `🔐 密码: ${display}`,
-      vod_pic: def_pic,
-      vod_remarks: '请输入4位数字'
+      vod_name: `🔐 密码: ${displayPlain}`,
+      vod_pic: getDynamicPic('unlock_status'),
+      vod_remarks: '请输入4位数字（显示明文）'
     };
     videos.unshift(statusItem);
     return JSON.stringify({ list: videos });
@@ -885,6 +786,9 @@ function detail(tid) {
   if (unlocked) unlockMode = false;
 
 
+    
+    // ---------- 正常 detail 解析（播放列表/剧集）----------
+  
   let parts = tid.split('###');
   let mode = parts.length > 1 ? parts[1] : 'single';
   let left = parts[0];
@@ -892,93 +796,99 @@ function detail(tid) {
   let tab = left.split('$')[1];
   let source = __ext_config.sources.find(s => s.url === sourceUrl);
   if (!source) return JSON.stringify({ list: [] });
-  
-  if (tid.includes('#search#')) {
-    let vod_name = tab.replace('#search#', '');
-    let vod_play_from = '来自搜索:' + sourceUrl;
-    let vod_play_url = groupDict[sourceUrl].map(x => x.replace(',', '$')).join('#');
-    return JSON.stringify({
-      list: [{
-        vod_id: tid, vod_name: '搜索:' + vod_name, type_name: "直播列表", vod_pic: def_pic,
-        vod_content: tid, vod_play_from: vod_play_from, vod_play_url: vod_play_url,
-        vod_director: tips, vod_remarks: VERSION,
-      }]
-    });
-  }
-  
-  if (mode === 'series') {
-    let seriesUrl = sourceUrl;
-    let seriesConfig = __ext_config.series || {};
-    let content = fetchSource(seriesUrl, source);
-    let baseDir = seriesUrl.substring(0, seriesUrl.lastIndexOf('/') + 1);
-    let episodes = parseSeriesEpisodes(content, baseDir, seriesConfig);
-    if (!episodes.length) return JSON.stringify({ list: [] });
-    let videoList = episodes.map(ep => `${ep.title}$${ep.url}`);
-    let playUrl = videoList.join('#');
-    let seriesTitle = seriesConfig.title || source.name;
+
+  // 特殊站点处理器（合集模式）
+  if (source.handler && customHandlers[source.handler] && mode === 'series') {
+    let ctx = { url: sourceUrl, parseConfig: source.parseConfig || {}, extra: { tid } };
+    let items = customHandlers[source.handler](ctx);
+    if (!items.length) return JSON.stringify({ list: [] });
+    // 【增强】双地址备援处理
+    let playUrl = buildSeriesPlayUrl(items, source);
+    let vodName = source.parseConfig.collectionName || (sourceUrl.split('/').pop().replace(/\.(txt|m3u8?|json)$/i, '') + '合集');
     let vod = {
-      vod_id: tid,
-      vod_name: seriesTitle + '|' + tab,
-      vod_pic: def_pic,
-      type_name: "连续剧",
-      vod_play_from: seriesConfig.playFrom || source.name,
-      vod_play_url: playUrl,
-      vod_director: tips,
-      vod_remarks: VERSION,
+      vod_id: tid, vod_name: vodName, vod_pic: getDynamicPic(tid),
+      type_name: "连续剧", vod_play_from: source.name, vod_play_url: playUrl,
+      vod_remarks: `共${items.length}集`
     };
     return JSON.stringify({ list: [vod] });
   }
-  
+
+  // 普通合集模式
+  if (mode === 'series') {
+    let content = fetchSource(sourceUrl, source);
+    let baseDir = sourceUrl.substring(0, sourceUrl.lastIndexOf('/')+1);
+    let parseConfig = source.parseConfig || {};
+    let episodes = parseList(content, parseConfig, baseDir);
+    if (!episodes.length) return JSON.stringify({ list: [] });
+    // 【增强】双地址备援处理
+    let playUrl = buildSeriesPlayUrl(episodes, source);
+    let vodName = parseConfig.collectionName || (sourceUrl.split('/').pop().replace(/\.(txt|m3u8?|json)$/i, '') + '合集');
+    let vod = {
+      vod_id: tid, vod_name: vodName, vod_pic: getDynamicPic(tid),
+      type_name: "连续剧", vod_play_from: source.name, vod_play_url: playUrl,
+      vod_remarks: `共${episodes.length}集`
+    };
+    return JSON.stringify({ list: [vod] });
+  }
+
+  // 普通模式（分组/单线路）
   let html = fetchSource(sourceUrl, source);
-  let a = new RegExp(`.*?${tab.replace('(', '\\(').replace(')', '\\)')}[,，]#[\\s\\S].*?#`);
-  let b = html.match(a);
-  if (!b) return JSON.stringify({ list: [] });
-  let c = html.split(b[0])[1];
-  if (c.match(/.*?[,，]#[\s\S].*?#/)) {
-    let d = c.match(/.*?[,，]#[\s\S].*?#/)[0];
-    c = c.split(d)[0];
-  }
-  let lines = c.trim().split('\n');
-  let _list = [];
-  for (let line of lines) {
-    if (line.trim()) {
-      let t = line.trim().split(',')[0];
-      let u = line.trim().split(',')[1];
-      _list.push(t + '$' + u);
-    }
-  }
-  let vod_name = source.name;
-  let vod_play_url, vod_play_from;
+  let regex = new RegExp(`.*?${tab.replace('(', '\\(').replace(')', '\\)')}[,，]#[\\s\\S].*?#`);
+  let match = html.match(regex);
+  if (!match) return JSON.stringify({ list: [] });
+  let rest = html.split(match[0])[1];
+  if (rest.match(/.*?[,，]#[\s\S].*?#/)) rest = rest.split(rest.match(/.*?[,，]#[\s\S].*?#/)[0])[0];
+  let lines = rest.trim().split('\n').filter(l => l.trim());
+  let items = lines.map(l => { let [t, u] = l.split(','); return t + '$' + u; });
+  let playUrl, playFrom;
   if (showMode === 'groups') {
-    let groups = splitArray(_list, x => x.split('$')[0]);
-    let tabs = [];
-    for (let i = 0; i < groups.length; i++) {
-      if (i === 0) tabs.push(vod_name + '1');
-      else tabs.push(` ${i + 1} `);
-    }
-    vod_play_url = groups.map(it => it.join('#')).join('$$$');
-    vod_play_from = tabs.join('$$$');
+    let groups = splitArray(items, x => x.split('$')[0]);
+    let tabs = groups.map((_,i) => i===0 ? source.name+'1' : ` ${i+1} `);
+    playUrl = groups.map(g => g.join('#')).join('$$$');
+    playFrom = tabs.join('$$$');
   } else {
-    vod_play_url = _list.join('#');
-    vod_play_from = vod_name;
+    playUrl = items.join('#');
+    playFrom = source.name;
   }
   let vod = {
-    vod_id: tid,
-    vod_name: vod_name + '|' + tab,
-    type_name: "直播列表",
-    vod_pic: def_pic,
-    vod_content: tid,
-    vod_play_from: vod_play_from,
-    vod_play_url: vod_play_url,
-    vod_director: tips,
-    vod_remarks: VERSION,
+    vod_id: tid, vod_name: source.name + '|' + tab, type_name: "直播列表", vod_pic: getDynamicPic(tid),
+    vod_content: tid, vod_play_from: playFrom, vod_play_url: playUrl,
+    vod_director: tips, vod_remarks: VERSION
   };
   return JSON.stringify({ list: [vod] });
 }
 
-function play(flag, id, flags) {
-    // ========== 密码锁检查：确保只有解锁状态下才能播放 ==========
-    // 调用 getUnlocked() 会重新验证有效期（超时自动锁定）
+/**
+ * 为系列剧生成播放URL，支持双地址备援（超时自动切备源，失败后播下一集）
+ * @param {Array} episodes - [{title, url}, ...]
+ * @param {object} source - 数据源配置
+ * @returns {string} 形如 "标题$地址#标题$地址"
+ */
+function buildSeriesPlayUrl(episodes, source) {
+  const fallbackEnabled = __ext_config.global?.double_url_fallback === true;
+  const parseApi = __ext_config.global?.parseUrl;
+  const useFallback = fallbackEnabled && parseApi && typeof parseApi === 'string' && parseApi.includes('{url}');
+  
+  if (!useFallback) {
+    // 原逻辑：直接单地址
+    return episodes.map(ep => `${ep.title}$${ep.url}`).join('#');
+  }
+  
+  // 生成主备地址： 解析后地址（首选） + 原始直连地址（备选）
+  const playItems = [];
+  for (let ep of episodes) {
+    const parsedUrl = parseApi.replace('{url}', encodeURIComponent(ep.url));
+    // 格式：标题$地址1#标题$地址2 （标题可相同，播放器会依次尝试）
+    playItems.push(`${ep.title}$${parsedUrl}#${ep.title}$${ep.url}`);
+  }
+  return playItems.join('#');
+}
+
+// 播放器优化：支持全局解析接口、自定义请求头
+function play(flag, id, vipFlags) {
+    
+
+// 调用 getUnlocked() 会重新验证有效期（超时自动锁定）
     if (!getUnlocked()) {
         print("播放被拒绝：密码锁已过期或未解锁，请重新解锁后再试");
         // 返回一个提示视频（可替换为您自己的提醒视频地址）
@@ -986,35 +896,40 @@ function play(flag, id, flags) {
         // 注意：此提示视频内容建议是“请返回首页重新解锁”的短暂黑屏或文字提示
         return JSON.stringify({ parse: 1, playUrl: '', url: tipVideo });
     }
-    // ========== 原有的播放逻辑（不变） ==========
-    // 对于常见直播源格式，强制解析（parse=0）；否则根据是否m3u8判断
-    let isLiveSource = /\.(m3u|txt|json|m3u8)$/i.test(id);
-    let parse = isLiveSource ? 0 : (/m3u8/.test(id) ? 0 : 1);
-    return JSON.stringify({ parse: parse, playUrl: '', url: id });
+
+  let parse = 0;
+  let finalUrl = id;
+  if (__ext_config.global && __ext_config.global.parseUrl) {
+    let parseApi = __ext_config.global.parseUrl;
+    let parseUrl = parseApi.replace('{url}', encodeURIComponent(id));
+    let resp = smartRequest(parseUrl);
+    let json = resp.json();
+    if (json && json.url) finalUrl = json.url;
+    parse = json && json.parse === 1 ? 1 : 0;
+  }
+  let autoParse = /m3u8|ts|flv/i.test(finalUrl) ? 0 : 1;
+  return JSON.stringify({ parse: autoParse, playUrl: '', url: finalUrl });
 }
 
+// 全局搜索
 function search(wd, quick) {
-  if (__ext_config.sources.length === 0) return JSON.stringify({ list: [] });
-  let allLines = [];
+  let results = [];
   for (let src of __ext_config.sources) {
-    let html = fetchSource(src.url, src);
-    let lines = html.split('\n').filter(it => it.trim() && it.includes(',') && it.split(',')[1].trim().startsWith('http'));
-    allLines.push(...lines);
+    let content = fetchSource(src.url, src);
+    let baseDir = src.url.substring(0, src.url.lastIndexOf('/')+1);
+    let items = parseList(content, src.parseConfig || {}, baseDir);
+    let matched = items.filter(item => item.title.includes(wd));
+    for (let m of matched) {
+      let vod_id = m.url + '###single';
+      results.push({
+        vod_id: vod_id,
+        vod_name: `[${src.name}] ${m.title}`,
+        vod_pic: getDynamicPic(vod_id),
+        vod_remarks: '搜索命中'
+      });
+    }
   }
-  let plays = Array.from(new Set(allLines));
-  plays = plays.filter(it => it.includes(wd));
-  let new_group = gen_group_dict(plays);
-  groupDict = Object.assign(groupDict, new_group);
-  setItem('groupDict', JSON.stringify(groupDict));
-  let _list = [];
-  Object.keys(groupDict).forEach((it) => {
-    _list.push({
-      vod_name: it,
-      vod_id: it + '$' + wd + '#search#',
-      vod_pic: def_pic,
-    });
-  });
-  return JSON.stringify({ list: _list });
+  return JSON.stringify({ list: results });
 }
 
 export default { init, home, homeVod, category, detail, play, search };
