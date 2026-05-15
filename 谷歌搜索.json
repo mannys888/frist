@@ -1,7 +1,7 @@
 {
   "sources": [
     {
-      "name": "音乐搜索",
+      "name": "音乐搜索_测试",
       "url": "https://itunes.apple.com/search?term={wd}&limit=20&entity=song",
       "parseConfig": {
         "type": "json",
