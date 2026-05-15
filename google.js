@@ -1,16 +1,6 @@
-// ==================== 通用动态爬虫 v34（全能旗舰版 + 音乐搜索修复） ====================
-// 功能：
-//   - 普通线路（分组/单线路）& 合集模式（系列剧）
-//   - 文本/JSON/M3U/RSS 等多格式解析
-//   - 全局搜索（支持标题匹配 + 独立音乐搜索）
-//   - 播放器增强（自定义请求头、Referer、Cookie、解析接口）
-//   - 特殊站点处理器：加密、登录、动态加载
-//   - 动态 Referer / Origin 自动适配
-//   - 缓存、重试、超时配置
-//   - 播放超时自动跳过（双地址备援）
-//   - 卡片图片差异化
-//   - 密码锁（明文输入，10分钟有效）
-//   - 内置 iTunes 音乐搜索（按搜索键使用）
+// ==================== 通用动态爬虫 v34（全能旗舰版 + 音乐搜索 + 分类友好提示） ====================
+// 功能：支持普通线路/合集、多格式解析、全局搜索（含音乐）、播放器增强、密码锁、动态封面等
+// 特别：若点击的源URL包含{wd}（动态搜索源），会显示提示卡片，引导使用搜索功能
 // ================================================================
 
 String.prototype.rstrip = function (chars) {
@@ -27,7 +17,7 @@ let debugMode = true;
 let defaultTimeout = 8000;
 let defaultRetry = 2;
 let def_pic = 'https://picsum.photos/200/300?random=1';
-const VERSION = 'universal v3.4 (music search fixed)';
+const VERSION = 'universal v3.4 (final)';
 const tips = `\n${VERSION}`;
 const RKEY = 'universal_spider';
 
@@ -320,12 +310,10 @@ function init(ext) {
         }
     }
     
-    // 注意：不再自动添加音乐搜索源到分类列表，避免误点击
-    // 音乐搜索将直接在 search 函数中实现
+    // 如果没有任何数据源，添加一个默认提示源（避免首页空分类）
     if (!__ext_config.sources || __ext_config.sources.length === 0) {
-        print("没有配置任何数据源，请通过 ext 提供 sources（例如视频直播源）");
-        // 为了演示，可以加一个空源，否则 home 会没有分类
-        __ext_config.sources = [];  // 允许空，home 会显示无分类
+        __ext_config.sources = [];
+        print("警告：没有配置任何数据源，请通过 ext 提供 sources");
     }
     
     showMode = getItem('showMode', 'groups');
@@ -390,6 +378,7 @@ function home(filter) {
 
 function homeVod() { return JSON.stringify({ list: [] }); }
 
+// 核心修改：category 函数，处理包含 {wd} 的动态搜索源
 function category(tid, pg, filter, extend) {
     if (!unlocked && tid === '__UNLOCK__') {
         unlockMode = true;
@@ -410,6 +399,7 @@ function category(tid, pg, filter, extend) {
     let source = __ext_config.sources.find(s => s.name === tid);
     if (!source) return JSON.stringify({ list: [] });
     
+    // 特殊站点处理器
     if (source.handler && customHandlers[source.handler]) {
         let ctx = { url: source.url, parseConfig: source.parseConfig || {}, extra: { tid, pg, filter, extend } };
         let items = customHandlers[source.handler](ctx);
@@ -431,6 +421,18 @@ function category(tid, pg, filter, extend) {
             }));
             return JSON.stringify({ list: videos, page: 1, pagecount: 1, limit: videos.length, total: videos.length });
         }
+    }
+    
+    // 关键：处理动态搜索源（URL包含{wd}）
+    if (source.url && source.url.includes('{wd}')) {
+        // 动态搜索源不应作为普通分类，返回提示卡片
+        let tipsCard = {
+            vod_id: 'search_tips_' + Date.now(),
+            vod_name: '🔍 请使用搜索功能',
+            vod_pic: getDynamicPic('search_tips'),
+            vod_remarks: '按遥控器搜索键，输入歌名或关键词'
+        };
+        return JSON.stringify({ list: [tipsCard], page: 1, pagecount: 1, limit: 1, total: 1 });
     }
     
     let isSeries = source.parseConfig?.mode === 'series';
@@ -459,9 +461,9 @@ function category(tid, pg, filter, extend) {
     return JSON.stringify({ page: 1, pagecount: 1, limit: _list.length, total: _list.length, list: _list });
 }
 
-// 完整的 detail 函数（含解锁键盘处理，请确保与之前修复版一致）
+// detail 函数（密码解锁 + 正常播放列表）
 function detail(tid) {
-    // 解锁键盘处理
+    // 解锁键盘处理（完整版，请确保与之前一样）
     if (unlockMode && tid.startsWith('__UNLOCK_KEY__')) {
         let digit = tid.replace('__UNLOCK_KEY__', '');
         if (digit >= '0' && digit <= '9') {
@@ -527,7 +529,7 @@ function detail(tid) {
     }
     if (unlocked) unlockMode = false;
     
-    // 正常 detail 解析（视频/直播）
+    // 正常 detail 解析
     let parts = tid.split('###');
     let mode = parts.length > 1 ? parts[1] : 'single';
     let left = parts[0];
@@ -535,10 +537,17 @@ function detail(tid) {
     let tab = left.split('$')[1];
     let source = __ext_config.sources.find(s => s.url === sourceUrl);
     if (!source) return JSON.stringify({ list: [] });
-    // 合集模式处理（略，与原版相同，这里简化，实际请保留完整）
+    
     if (source.handler && customHandlers[source.handler] && mode === 'series') {
-        // ... 省略，实际需保留
+        let ctx = { url: sourceUrl, parseConfig: source.parseConfig || {}, extra: { tid } };
+        let items = customHandlers[source.handler](ctx);
+        if (!items.length) return JSON.stringify({ list: [] });
+        let playUrl = buildSeriesPlayUrl(items, source);
+        let vodName = source.parseConfig.collectionName || (sourceUrl.split('/').pop().replace(/\.(txt|m3u8?|json)$/i, '') + '合集');
+        let vod = { vod_id: tid, vod_name: vodName, vod_pic: getDynamicPic(tid), type_name: "连续剧", vod_play_from: source.name, vod_play_url: playUrl, vod_remarks: `共${items.length}集` };
+        return JSON.stringify({ list: [vod] });
     }
+    
     if (mode === 'series') {
         let content = fetchSource(sourceUrl, source);
         let baseDir = sourceUrl.substring(0, sourceUrl.lastIndexOf('/')+1);
@@ -549,7 +558,7 @@ function detail(tid) {
         let vod = { vod_id: tid, vod_name: vodName, vod_pic: getDynamicPic(tid), type_name: "连续剧", vod_play_from: source.name, vod_play_url: playUrl, vod_remarks: `共${episodes.length}集` };
         return JSON.stringify({ list: [vod] });
     }
-    // 普通模式
+    
     let html = fetchSource(sourceUrl, source);
     let regex = new RegExp(`.*?${tab.replace('(', '\\(').replace(')', '\\)')}[,，]#[\\s\\S].*?#`);
     let match = html.match(regex);
@@ -605,11 +614,11 @@ function play(flag, id, vipFlags) {
     return JSON.stringify({ parse: autoParse, playUrl: '', url: finalUrl });
 }
 
-// 核心：搜索函数（独立音乐搜索 + 原有数据源搜索）
+// 全局搜索（独立实现音乐搜索 + 其他数据源搜索）
 function search(wd, quick) {
     let results = [];
     
-    // 1. 使用 iTunes API 搜索歌曲（独立实现，不依赖分类配置）
+    // 1. iTunes 音乐搜索（独立）
     try {
         let apiUrl = `https://itunes.apple.com/search?term=${encodeURIComponent(wd)}&limit=30&entity=song`;
         print(`搜索歌曲: ${apiUrl}`);
@@ -634,7 +643,7 @@ function search(wd, quick) {
         print(`iTunes 搜索失败: ${e.message}`);
     }
     
-    // 2. 处理其他配置的数据源（视频/直播等）
+    // 2. 处理其他数据源（包含 {wd} 的源会正确替换）
     for (let src of __ext_config.sources) {
         let isSearchSource = src.url && src.url.includes('{wd}');
         let content;
@@ -681,8 +690,8 @@ function search(wd, quick) {
     return JSON.stringify({ list: results });
 }
 
+// 辅助解析函数
 function parseUniversalList(content, options = {}) {
-    // 简化实现，用于远程解锁列表
     const opts = { line_sep: ',', ...options };
     if (!content) return [];
     let items = [];
