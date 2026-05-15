@@ -152,9 +152,9 @@ function smartRequest(url, options = {}) {
 }
 
 // 数据源专用请求（支持URL模板替换）
+
 function fetchSource(url, sourceConfig = {}, noCache = false, extraParams = {}) {
   let finalUrl = url;
-  // 支持 {wd} 替换（用于搜索）
   if (extraParams.wd && finalUrl.includes('{wd}')) {
     finalUrl = finalUrl.replace(/\{wd\}/g, encodeURIComponent(extraParams.wd));
   }
@@ -164,10 +164,12 @@ function fetchSource(url, sourceConfig = {}, noCache = false, extraParams = {}) 
     method: sourceConfig.method || 'GET',
     headers: { ...(sourceConfig.headers || {}) },
     body: sourceConfig.body,
-    timeout: sourceConfig.timeout,
+    timeout: sourceConfig.timeout || defaultTimeout,  // 使用源的自定义超时
     cookie: sourceConfig.cookie || getItem('site_cookie'),
     retry: sourceConfig.retry
   };
+
+
   let resp = smartRequest(finalUrl, opts);
   let content = resp.text();
   if (!sourceConfig.type && content.includes('#EXTM3U')) {
@@ -348,21 +350,37 @@ function init(ext) {
     }
     
     // 如果没有配置任何数据源，则添加默认的音乐搜索源（iTunes）
-    if (!__ext_config.sources || __ext_config.sources.length === 0) {
-        __ext_config.sources = [
-            {
-                name: "🎵 音乐搜索",
-                url: "https://itunes.apple.com/search?term={wd}&limit=30&entity=song",
-                parseConfig: {
-                    type: "json",
-                    jsonPath: "results",
-                    titleField: "trackName",
-                    urlField: "previewUrl"
-                }
-            }
-        ];
-        print("已添加默认音乐搜索源（iTunes）");
-    }
+   // 如果没有配置任何数据源，则添加默认的音乐搜索源（iTunes + 备用）
+if (!__ext_config.sources || __ext_config.sources.length === 0) {
+    __ext_config.sources = [
+        {
+            name: "🎵 iTunes 音乐搜索",
+            url: "https://itunes.apple.com/search?term={wd}&limit=20&entity=song",
+            parseConfig: {
+                type: "json",
+                jsonPath: "results",
+                titleField: "trackName",
+                urlField: "previewUrl",
+                picField: "artworkUrl100"
+            },
+            timeout: 15000  // 增加超时到15秒
+        },
+        {
+            name: "🎵 备用音乐源（SoundCloud）",
+            url: "https://api-v2.soundcloud.com/search/tracks?q={wd}&limit=10&client_id=YOUR_CLIENT_ID",
+            parseConfig: {
+                type: "json",
+                jsonPath: "collection",
+                titleField: "title",
+                urlField: "permalink_url",
+                picField: "artwork_url"
+            },
+            timeout: 15000,
+            disabled: true   // 需要申请 client_id 并改为 false 才能使用
+        }
+    ];
+    print("已添加默认音乐搜索源（iTunes，超时15秒）");
+}
     
     showMode = getItem('showMode', 'groups');
     groupDict = JSON.parse(getItem('groupDict', '{}'));
@@ -702,28 +720,50 @@ function play(flag, id, vipFlags) {
 }
 
 // 全局搜索（支持歌曲搜索）
+
 function search(wd, quick) {
     let results = [];
     for (let src of __ext_config.sources) {
-        // 如果 url 包含 {wd}，则为动态搜索源，需要替换关键词
+        // 跳过被禁用的源
+        if (src.disabled === true) continue;
+        
         let isSearchSource = src.url && src.url.includes('{wd}');
         let content;
-        if (isSearchSource) {
-            content = fetchSource(src.url, src, true, { wd: wd });
-        } else {
-            content = fetchSource(src.url, src);
+        try {
+            if (isSearchSource) {
+                print(`正在搜索：${wd}，使用源：${src.name}`);
+                content = fetchSource(src.url, src, true, { wd: wd });
+            } else {
+                content = fetchSource(src.url, src);
+            }
+        } catch(e) {
+            print(`请求源 ${src.name} 失败：${e.message}`);
+            continue;
         }
+        
+        if (!content || content.trim() === '') {
+            print(`源 ${src.name} 返回空内容`);
+            continue;
+        }
+        
         let baseDir = src.url.substring(0, src.url.lastIndexOf('/')+1);
         let items = parseList(content, src.parseConfig || {}, baseDir);
-        // 对普通静态源，进行标题过滤；对搜索源，所有结果都返回
-        let matched = isSearchSource ? items : items.filter(item => item.title.includes(wd));
+        
+        if (!items || items.length === 0) {
+            print(`源 ${src.name} 解析后无结果`);
+            continue;
+        }
+        
+        let matched = isSearchSource ? items : items.filter(item => item.title && item.title.includes(wd));
+        print(`源 ${src.name} 匹配到 ${matched.length} 条结果`);
+        
         for (let m of matched) {
             let vod_id = m.url + '###single';
-            // 尝试从 iTunes 结果中获取封面，若无则动态生成
+            // 优先使用源配置的封面字段，若无则动态生成
             let pic = def_pic;
-            if (src.parseConfig?.picField && m.pic) {
-                pic = m.pic;
-            } else if (src.name === "🎵 音乐搜索" && m.artworkUrl100) {
+            if (src.parseConfig?.picField && m[src.parseConfig.picField]) {
+                pic = m[src.parseConfig.picField];
+            } else if (m.artworkUrl100) {
                 pic = m.artworkUrl100;
             } else {
                 pic = getDynamicPic(vod_id);
@@ -732,10 +772,22 @@ function search(wd, quick) {
                 vod_id: vod_id,
                 vod_name: `[${src.name}] ${m.title}`,
                 vod_pic: pic,
-                vod_remarks: isSearchSource ? (m.artistName || '歌曲') : '搜索命中'
+                vod_remarks: m.artistName || (isSearchSource ? '歌曲' : '搜索命中')
             });
         }
     }
+    
+    if (results.length === 0) {
+        print(`未找到任何与“${wd}”相关的结果`);
+        // 可选：返回一个提示卡片
+        results.push({
+            vod_id: 'no_result',
+            vod_name: '❌ 未找到相关歌曲，请检查网络或更换关键词',
+            vod_pic: getDynamicPic('no_result'),
+            vod_remarks: '可尝试英文歌名或减少关键词'
+        });
+    }
+    
     return JSON.stringify({ list: results });
 }
 
