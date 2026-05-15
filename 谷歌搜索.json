@@ -1,0 +1,5 @@
+{
+  "name": "🎵 Google 音乐搜索",
+  "url": "https://your-google-api?q={wd}",
+  "parseConfig": { "type": "json", "jsonPath": "items", "titleField": "title", "urlField": "previewUrl" }
+}
