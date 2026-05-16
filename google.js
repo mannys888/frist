@@ -1,16 +1,6 @@
 // ==================== 全能万能搜索爬虫 v5.0（支持多引擎搜索） ====================
-// 功能：
-//   - 普通线路（分组/单线路）& 合集模式（系列剧）
-//   - 文本/JSON/M3U/RSS 等多格式解析
-//   - 播放器增强（自定义请求头、Referer、Cookie、解析接口）
-//   - 特殊站点处理器（加密、登录、动态加载）
-//   - 动态 Referer / Origin 自动适配
-//   - 缓存、重试、超时配置
-//   - 播放超时自动跳过（双地址备援）
-//   - 卡片图片差异化（基于ID动态生成）
-//   - 密码锁（明文输入，10分钟有效）
-//   - 搜索分类内置键盘输入
-//   - 全能搜索：支持多引擎（可配置 iTunes、Google、Bing、YouTube 等）
+// 功能：视频/音乐搜索、多引擎支持、密码锁、动态封面、分类键盘等
+// 配置：外部 JSON 中可添加 searchEngines 数组，若不提供则默认使用 iTunes
 // ================================================================
 
 String.prototype.rstrip = function (chars) {
@@ -27,7 +17,7 @@ let debugMode = true;
 let defaultTimeout = 8000;
 let defaultRetry = 2;
 let def_pic = 'https://picsum.photos/200/300?random=1';
-const VERSION = 'universal v5.0 (multi-engine search)';
+const VERSION = 'universal v5.0 (multi-engine)';
 const tips = `\n${VERSION}`;
 const RKEY = 'universal_spider';
 
@@ -337,12 +327,11 @@ function init(ext) {
                 __ext_config.global.double_url_fallback = false;
             }
         }
-        // 加载搜索引擎配置
-        if (configData.searchEngines && Array.isArray(configData.searchEngines)) {
+        // 加载搜索引擎配置，若没有则默认使用 iTunes
+        if (configData.searchEngines && Array.isArray(configData.searchEngines) && configData.searchEngines.length > 0) {
             __ext_config.searchEngines = configData.searchEngines;
             print(`加载了 ${__ext_config.searchEngines.length} 个搜索引擎`);
         } else {
-            // 默认搜索引擎（iTunes 音乐）
             __ext_config.searchEngines = [{
                 name: "iTunes Music",
                 url: "https://itunes.apple.com/search?term={wd}&limit=30&entity=song",
@@ -355,14 +344,27 @@ function init(ext) {
                     pic: "artworkUrl100"
                 }
             }];
-            print("未配置搜索引擎，使用默认 iTunes");
+            print("未配置 searchEngines，使用默认 iTunes 搜索引擎");
         }
+    } else {
+        // 完全无配置时，也设置默认搜索引擎
+        __ext_config.searchEngines = [{
+            name: "iTunes Music",
+            url: "https://itunes.apple.com/search?term={wd}&limit=30&entity=song",
+            parse: {
+                type: "json",
+                path: "results",
+                title: "trackName",
+                artist: "artistName",
+                url: "previewUrl",
+                pic: "artworkUrl100"
+            }
+        }];
     }
     
-    if (!__ext_config.sources || __ext_config.sources.length === 0) {
-        __ext_config.sources = [];
-        print("警告：没有配置任何数据源，请通过 ext 提供 sources");
-    }
+    // 确保 sources 存在（至少为空数组，避免 home 报错）
+    if (!__ext_config.sources) __ext_config.sources = [];
+    print(`加载 ${__ext_config.sources.length} 个分类`);
     
     showMode = getItem('showMode', 'groups');
     groupDict = JSON.parse(getItem('groupDict', '{}'));
@@ -401,8 +403,6 @@ function init(ext) {
         print("预加载远程视频列表失败: " + e.message);
         remoteUnlockVideos = null;
     }
-    
-    print(`加载 ${__ext_config.sources.length} 个分类`);
 }
 
 function home(filter) {
@@ -661,7 +661,7 @@ function detail(tid) {
             }
             searchInputMode = false;
             let keyword = searchBuffer.trim();
-            // 使用多引擎搜索（与全局搜索逻辑一致）
+            // 使用多引擎搜索
             let results = performMultiEngineSearch(keyword);
             return JSON.stringify({ list: results });
         }
