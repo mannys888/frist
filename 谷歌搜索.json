@@ -1,8 +1,13 @@
 {
-  "sources": [{
-      "name": "示例直播源",
-      "url": "https://example.com/live.txt",
-      "parseConfig": { "type": "txt", "line_sep": "," }
+  "sources": [  {
+      "name": "🎵①音乐搜索",
+      "url": "https://itunes.apple.com/search?term={wd}&limit=30&entity=song",
+      "parseConfig": {
+        "type": "json",
+        "jsonPath": "results",
+        "titleField": "trackName",
+        "urlField": "previewUrl"
+      }
     }],   // 您原有的视频源
   "searchEngines": [
     {
