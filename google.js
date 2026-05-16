@@ -1,6 +1,6 @@
-// ==================== 通用动态爬虫 v34（全能旗舰版 + 音乐搜索播放修复） ====================
+// ==================== 通用动态爬虫 v34（全能旗舰版 + 音乐直链播放最终修复） ====================
 // 功能：普通线路/合集、多格式解析、全局搜索、播放器增强、密码锁、
-//       动态封面、超时备援、搜索分类内置键盘输入、音乐直链播放。
+//       动态封面、超时备援、搜索分类内置键盘输入、音乐直链播放（修复）。
 // ================================================================
 
 String.prototype.rstrip = function (chars) {
@@ -486,6 +486,7 @@ function detail(tid) {
     if (tid.startsWith('__MUSIC__')) {
         let encodedUrl = tid.substring('__MUSIC__'.length);
         let url = decodeURIComponent(encodedUrl);
+        print("播放音乐直链: " + url);
         let vod = {
             vod_id: tid,
             vod_name: '音乐播放',
