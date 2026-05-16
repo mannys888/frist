@@ -1,37 +1,26 @@
 {
   "sources": [
     {
-      "name": "反📺直播源",
+      "name": "163📺直播源",
       "url": "https://raw.githubusercontent.com/mannys888/frist/refs/heads/main/迦南诗歌.txt",
       "parseConfig": { "type": "txt", "line_sep": "," }
     }
   ],
   "searchEngines": [
     {
-      "name": "🎵 完整歌曲(JioSaavn)",
-      "url": "https://jiosaavn-api.vercel.app/search/songs?query={wd}&limit=20",
-      "headers": { "User-Agent": "Mozilla/5.0" },
-      "parse": {
-        "path": "data.results",
+    "name": "🎵 网易云音乐",
+    "url": "http://music.163.com/api/search/get/web?s={wd}&type=1&limit=20",
+    "headers": { "User-Agent": "Mozilla/5.0" },
+    "parse": {
+        "path": "result.songs",
         "title": "name",
-        "artist": "primaryArtists",
-        "url": "downloadUrl.3.link",
-        "pic": "image.2.link"
-      },
-      "resolve": false
+        "artist": "artists.0.name",
+        "url": "id",
+        "pic": "album.picUrl"
     },
-    {
-      "name": "🎵 试听(iTunes)",
-      "url": "https://itunes.apple.com/search?term={wd}&limit=10&entity=musicTrack",
-      "parse": {
-        "path": "results",
-        "title": "trackName",
-        "artist": "artistName",
-        "url": "previewUrl",
-        "pic": "artworkUrl100"
-      },
-      "resolve": false
-    }
+    "resolve": false,
+    "comment": "直接调用网易云官方搜索接口"
+   }
   ],
   "global": {
     "debug": true,
