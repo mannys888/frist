@@ -1,7 +1,7 @@
 {
   "sources": [
     {
-      "name": "📺 直播源",
+      "name": "反📺直播源",
       "url": "https://raw.githubusercontent.com/mannys888/frist/refs/heads/main/迦南诗歌.txt",
       "parseConfig": { "type": "txt", "line_sep": "," }
     }
@@ -9,7 +9,7 @@
   "searchEngines": [
     {
       "name": "🎵 完整歌曲(JioSaavn)",
-      "url": "https://saavn.me/search/songs?query={wd}&limit=20",
+      "url": "https://jiosaavn-api.vercel.app/search/songs?query={wd}&limit=20",
       "headers": { "User-Agent": "Mozilla/5.0" },
       "parse": {
         "path": "data.results",
