@@ -3,14 +3,19 @@
     {
       "name": "📺 直播源",
       "url": "https://raw.githubusercontent.com/mannys888/frist/refs/heads/main/迦南诗歌.txt",
-      "parseConfig": { "type": "txt", "line_sep": "," }
+      "parseConfig": {
+        "type": "txt",
+        "line_sep": ","
+      }
     }
   ],
   "searchEngines": [
     {
       "name": "SearXNG 视频",
       "url": "https://searx.be/search?q={wd}&categories=videos&format=json",
-      "headers": { "User-Agent": "Mozilla/5.0" },
+      "headers": {
+        "User-Agent": "Mozilla/5.0"
+      },
       "parse": {
         "path": "results",
         "title": "title",
