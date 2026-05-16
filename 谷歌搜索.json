@@ -8,24 +8,33 @@
   ],
   "searchEngines": [
     {
-      "name": "🔍 奇妙搜(阿里网盘)",
-      "url": "https://www.magicalsearch.top/api/pshou/getData?type=阿里网盘&word={wd}",
-      "headers": {
-        "User-Agent": "Mozilla/5.0",
-        "Referer": "https://www.magicalsearch.top/"
-      },
+      "name": "iTunes 音乐(30秒)",
+      "url": "https://itunes.apple.com/search?term={wd}&limit=20&entity=musicTrack",
       "parse": {
-        "path": "data",
-        "title": "title",
-        "url": "link",
-        "pic": "pic"
+        "path": "results",
+        "title": "trackName",
+        "artist": "artistName",
+        "url": "previewUrl",
+        "pic": "artworkUrl100"
       },
-      "resolve": true
+      "resolve": false
+    },
+    {
+      "name": "JioSaavn 完整歌曲",
+      "url": "https://jiosaavn-api.vercel.app/search/songs?query={wd}&limit=20",
+      "headers": { "User-Agent": "Mozilla/5.0" },
+      "parse": {
+        "path": "data.results",
+        "title": "name",
+        "artist": "primaryArtists",
+        "url": "downloadUrl.0.link",
+        "pic": "image.2.link"
+      },
+      "resolve": false
     }
   ],
   "global": {
     "debug": true,
-    "defaultTimeout": 15000,
-    "parseUrl": "https://真实解析接口.com/parse?url={url}"
+    "defaultTimeout": 15000
   }
 }
