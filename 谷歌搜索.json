@@ -7,19 +7,24 @@
     }
   ],
   "searchEngines": [
-    {
-    "name": "🎵 QQ音乐",
-    "url": "https://www.hhlqilongzhu.cn/api/music.php?msg={wd}&n=20",
-    "headers": {"User-Agent": "Mozilla/5.0"},
-    "parse": {
-        "path": "",
-        "title": "title",
-        "artist": "author",
-        "url": "url",
-        "pic": "pic"
-    },
-    "resolve": true
-   },
+   {
+  "name": "🎵 酷我完整版",
+  "url": "http://www.kuwo.cn/api/www/search/searchMusicBykeyWord?key={wd}&pn=1&rn=20",
+  "headers": {
+    "User-Agent": "Mozilla/5.0",
+    "Referer": "http://www.kuwo.cn/",
+    "Cookie": "kw_token=5T9P3B"
+  },
+  "parse": {
+    "path": "data.list",
+    "title": "name",
+    "artist": "artist",
+    "url": "rid",
+    "pic": "pic"
+  },
+  "urlTemplate": "http://antiserver.kuwo.cn/anti.s?format=mp3&rid={url}&type=convert_url",
+  "resolve": false
+},
     {
     "name": "🎵 网易云音乐",
     "url": "http://music.163.com/api/search/get/web?s={wd}&type=1&limit=20",
