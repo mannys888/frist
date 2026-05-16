@@ -1,6 +1,6 @@
-// ==================== 通用动态爬虫 v34（全能旗舰版 + 搜索键盘） ====================
+// ==================== 通用动态爬虫 v34（全能旗舰版 + 音乐搜索播放修复） ====================
 // 功能：普通线路/合集、多格式解析、全局搜索、播放器增强、密码锁、
-//       动态封面、超时备援、**搜索分类内置键盘输入**。
+//       动态封面、超时备援、搜索分类内置键盘输入、音乐直链播放。
 // ================================================================
 
 String.prototype.rstrip = function (chars) {
@@ -17,11 +17,10 @@ let debugMode = true;
 let defaultTimeout = 8000;
 let defaultRetry = 2;
 let def_pic = 'https://picsum.photos/200/300?random=1';
-const VERSION = 'universal v3.4 (search keyboard)';
+const VERSION = 'universal v3.4 (music play fixed)';
 const tips = `\n${VERSION}`;
 const RKEY = 'universal_spider';
 
-// 动态图片生成
 function getDynamicPic(seed) {
   if (!seed) return def_pic;
   return `https://picsum.photos/seed/${encodeURIComponent(seed)}/200/300`;
@@ -69,7 +68,6 @@ function getUnlocked() {
     return true;
 }
 
-// 密码锁专用键盘（数字）
 function getPasswordKeyboard() {
     let items = [];
     for (let i = 0; i <= 9; i++) {
@@ -82,24 +80,20 @@ function getPasswordKeyboard() {
 let unlockBuffer = '';
 let unlockMode = false;
 
-// ========== 搜索键盘核心（用于动态搜索源） ==========
-let searchInputMode = false;      // 是否处于搜索输入模式
-let searchBuffer = '';            // 当前输入的搜索词
-let currentSearchSource = null;   // 当前正在使用的搜索源配置
+// ========== 搜索键盘核心 ==========
+let searchInputMode = false;
+let searchBuffer = '';
+let currentSearchSource = null;
 
-// 生成搜索键盘（字母 + 数字 + 控制键）
 function getSearchKeyboard() {
     let items = [];
-    // 字母 A-Z (部分，可根据需要增加更多)
     let letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
     for (let l of letters) {
         items.push({ vod_id: `__SEARCH_LETTER__${l}`, vod_name: l, vod_pic: getDynamicPic(`letter_${l}`), vod_remarks: '' });
     }
-    // 数字 0-9
     for (let i = 0; i <= 9; i++) {
         items.push({ vod_id: `__SEARCH_DIGIT__${i}`, vod_name: `${i}`, vod_pic: getDynamicPic(`digit_${i}`), vod_remarks: '' });
     }
-    // 控制键
     items.push({ vod_id: '__SEARCH_BACKSPACE', vod_name: '⌫ 删除', vod_pic: getDynamicPic('search_backspace'), vod_remarks: '' });
     items.push({ vod_id: '__SEARCH_CLEAR', vod_name: '🗑 清空', vod_pic: getDynamicPic('search_clear'), vod_remarks: '' });
     items.push({ vod_id: '__SEARCH_SUBMIT', vod_name: '🔍 搜索', vod_pic: getDynamicPic('search_submit'), vod_remarks: '确认搜索' });
@@ -403,7 +397,6 @@ function home(filter) {
 function homeVod() { return JSON.stringify({ list: [] }); }
 
 function category(tid, pg, filter, extend) {
-    // 密码锁界面
     if (!unlocked && tid === '__UNLOCK__') {
         unlockMode = true;
         unlockBuffer = '';
@@ -424,7 +417,6 @@ function category(tid, pg, filter, extend) {
     let source = __ext_config.sources.find(s => s.name === tid);
     if (!source) return JSON.stringify({ list: [] });
     
-    // 特殊站点处理器
     if (source.handler && customHandlers[source.handler]) {
         let ctx = { url: source.url, parseConfig: source.parseConfig || {}, extra: { tid, pg, filter, extend } };
         let items = customHandlers[source.handler](ctx);
@@ -448,7 +440,6 @@ function category(tid, pg, filter, extend) {
         }
     }
     
-    // 关键：处理动态搜索源（URL包含{wd}）=> 显示搜索键盘界面
     if (source.url && source.url.includes('{wd}')) {
         searchInputMode = true;
         searchBuffer = '';
@@ -464,7 +455,6 @@ function category(tid, pg, filter, extend) {
         return JSON.stringify({ list: keyboard, page: 1, pagecount: 1, limit: keyboard.length, total: keyboard.length });
     }
     
-    // 普通非搜索源（视频/直播）
     let isSeries = source.parseConfig?.mode === 'series';
     if (isSeries) {
         let content = fetchSource(source.url, source);
@@ -492,7 +482,23 @@ function category(tid, pg, filter, extend) {
 }
 
 function detail(tid) {
-    // 处理密码锁键盘（数字）
+    // ========== 优先处理音乐直链 ==========
+    if (tid.startsWith('__MUSIC__')) {
+        let encodedUrl = tid.substring('__MUSIC__'.length);
+        let url = decodeURIComponent(encodedUrl);
+        let vod = {
+            vod_id: tid,
+            vod_name: '音乐播放',
+            vod_pic: def_pic,
+            type_name: "音乐",
+            vod_play_from: "直链",
+            vod_play_url: url,
+            vod_remarks: '点击播放'
+        };
+        return JSON.stringify({ list: [vod] });
+    }
+    
+    // ========== 密码锁键盘处理 ==========
     if (unlockMode && tid.startsWith('__PWD_KEY__')) {
         let digit = tid.replace('__PWD_KEY__', '');
         if (digit >= '0' && digit <= '9') {
@@ -558,9 +564,8 @@ function detail(tid) {
     }
     if (unlocked) unlockMode = false;
     
-    // 处理搜索键盘输入
+    // ========== 搜索键盘输入处理 ==========
     if (searchInputMode) {
-        // 字母
         if (tid.startsWith('__SEARCH_LETTER__')) {
             let letter = tid.replace('__SEARCH_LETTER__', '');
             searchBuffer += letter;
@@ -574,7 +579,6 @@ function detail(tid) {
             keyboard.unshift(statusItem);
             return JSON.stringify({ list: keyboard });
         }
-        // 数字
         if (tid.startsWith('__SEARCH_DIGIT__')) {
             let digit = tid.replace('__SEARCH_DIGIT__', '');
             searchBuffer += digit;
@@ -588,7 +592,6 @@ function detail(tid) {
             keyboard.unshift(statusItem);
             return JSON.stringify({ list: keyboard });
         }
-        // 删除
         if (tid === '__SEARCH_BACKSPACE') {
             if (searchBuffer.length > 0) searchBuffer = searchBuffer.slice(0, -1);
             let keyboard = getSearchKeyboard();
@@ -601,7 +604,6 @@ function detail(tid) {
             keyboard.unshift(statusItem);
             return JSON.stringify({ list: keyboard });
         }
-        // 清空
         if (tid === '__SEARCH_CLEAR') {
             searchBuffer = '';
             let keyboard = getSearchKeyboard();
@@ -614,10 +616,8 @@ function detail(tid) {
             keyboard.unshift(statusItem);
             return JSON.stringify({ list: keyboard });
         }
-        // 提交搜索
         if (tid === '__SEARCH_SUBMIT') {
             if (searchBuffer.trim() === '') {
-                // 未输入任何内容，返回提示
                 let keyboard = getSearchKeyboard();
                 let statusItem = {
                     vod_id: '__SEARCH_STATUS_EMPTY_' + Date.now(),
@@ -628,10 +628,8 @@ function detail(tid) {
                 keyboard.unshift(statusItem);
                 return JSON.stringify({ list: keyboard });
             }
-            // 执行搜索
-            searchInputMode = false; // 退出输入模式
+            searchInputMode = false;
             let keyword = searchBuffer.trim();
-            // 使用当前搜索源配置发起请求
             let finalUrl = currentSearchSource.url.replace('{wd}', encodeURIComponent(keyword));
             print(`搜索URL: ${finalUrl}`);
             let resp = smartRequest(finalUrl, { timeout: 15000 });
@@ -644,8 +642,9 @@ function detail(tid) {
                     let picField = currentSearchSource.parseConfig?.picField || 'artworkUrl100';
                     let videoUrl = item[urlField];
                     if (videoUrl) {
+                        let encodedUrl = encodeURIComponent(videoUrl);
                         results.push({
-                            vod_id: videoUrl + '###single',
+                            vod_id: '__MUSIC__' + encodedUrl,
                             vod_name: `${item[titleField]} - ${item.artistName || ''}`,
                             vod_pic: item[picField] || getDynamicPic(item[titleField]),
                             vod_remarks: '🎵 搜索结果'
@@ -665,7 +664,7 @@ function detail(tid) {
         }
     }
     
-    // 正常 detail 解析（视频/直播）
+    // ========== 普通视频/直播详情解析 ==========
     let parts = tid.split('###');
     let mode = parts.length > 1 ? parts[1] : 'single';
     let left = parts[0];
@@ -674,7 +673,6 @@ function detail(tid) {
     let source = __ext_config.sources.find(s => s.url === sourceUrl);
     if (!source) return JSON.stringify({ list: [] });
     
-    // 合集模式处理
     if (source.handler && customHandlers[source.handler] && mode === 'series') {
         let ctx = { url: sourceUrl, parseConfig: source.parseConfig || {}, extra: { tid } };
         let items = customHandlers[source.handler](ctx);
@@ -696,7 +694,6 @@ function detail(tid) {
         return JSON.stringify({ list: [vod] });
     }
     
-    // 普通模式（分组/单线路）
     let html = fetchSource(sourceUrl, source);
     let regex = new RegExp(`.*?${tab.replace('(', '\\(').replace(')', '\\)')}[,，]#[\\s\\S].*?#`);
     let match = html.match(regex);
@@ -752,10 +749,9 @@ function play(flag, id, vipFlags) {
     return JSON.stringify({ parse: autoParse, playUrl: '', url: finalUrl });
 }
 
-// 全局搜索（独立iTunes搜索 + 其他数据源搜索）
 function search(wd, quick) {
     let results = [];
-    // 1. iTunes 音乐搜索（独立）
+    // iTunes 音乐搜索
     try {
         let apiUrl = `https://itunes.apple.com/search?term=${encodeURIComponent(wd)}&limit=30&entity=song`;
         print(`搜索歌曲: ${apiUrl}`);
@@ -764,8 +760,9 @@ function search(wd, quick) {
         if (json && json.results && json.results.length > 0) {
             for (let item of json.results) {
                 if (item.previewUrl) {
+                    let encodedUrl = encodeURIComponent(item.previewUrl);
                     results.push({
-                        vod_id: item.previewUrl + '###single',
+                        vod_id: '__MUSIC__' + encodedUrl,
                         vod_name: `${item.trackName} - ${item.artistName}`,
                         vod_pic: item.artworkUrl100 || getDynamicPic(item.trackName),
                         vod_remarks: '🎵 30秒试听'
@@ -779,7 +776,7 @@ function search(wd, quick) {
     } catch(e) {
         print(`iTunes 搜索失败: ${e.message}`);
     }
-    // 2. 处理其他配置的数据源
+    // 其他数据源搜索
     for (let src of __ext_config.sources) {
         let isSearchSource = src.url && src.url.includes('{wd}');
         let content;
