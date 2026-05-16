@@ -4,20 +4,20 @@
       "name": "📺 直播源",
       "url": "https://raw.githubusercontent.com/mannys888/frist/refs/heads/main/迦南诗歌.txt",
       "parseConfig": { "type": "txt", "line_sep": "," }
-    },
-    {
-      "name": "🎵 音乐搜索（键盘输入）",
-      "url": "https://itunes.apple.com/search?term={wd}&limit=30&entity=song",
-      "parseConfig": { "type": "json", "jsonPath": "results", "titleField": "trackName", "urlField": "previewUrl" }
     }
   ],
   "searchEngines": [
     {
-      "name": "SearXNG 视频",
-      "url": "https://searx.be/search?q={wd}&categories=videos&format=json",
-      "headers": { "User-Agent": "Mozilla/5.0" },
-      "parse": { "path": "results", "title": "title", "url": "url", "pic": "thumbnail_src" },
-      "resolve": true
+      "name": "iTunes 音乐",
+      "url": "https://itunes.apple.com/search?term={wd}&limit=20&entity=song",
+      "parse": {
+        "path": "results",
+        "title": "trackName",
+        "artist": "artistName",
+        "url": "previewUrl",
+        "pic": "artworkUrl100"
+      },
+      "resolve": false
     }
   ],
   "global": {
