@@ -1,6 +1,7 @@
 {
-  "sources": [  {
-      "name": "🎵①音乐搜索",
+  "sources": [
+    {
+      "name": "🎵 音乐搜索",
       "url": "https://itunes.apple.com/search?term={wd}&limit=30&entity=song",
       "parseConfig": {
         "type": "json",
@@ -8,10 +9,19 @@
         "titleField": "trackName",
         "urlField": "previewUrl"
       }
-    }],   // 您原有的视频源
+    },
+    {
+      "name": "📺 测试直播源",
+      "url": "https://raw.githubusercontent.com/mannys888/frist/refs/heads/main/迦南诗歌.txt",
+      "parseConfig": {
+        "type": "txt",
+        "line_sep": ","
+      }
+    }
+  ],
   "searchEngines": [
     {
-      "name": "iTunes音乐30妙",
+      "name": "iTunes 音乐",
       "url": "https://itunes.apple.com/search?term={wd}&limit=30&entity=song",
       "parse": {
         "type": "json",
@@ -20,27 +30,6 @@
         "artist": "artistName",
         "url": "previewUrl",
         "pic": "artworkUrl100"
-      }
-    },
-    {
-      "name": "Google 自定义搜索",
-      "url": "https://www.googleapis.com/customsearch/v1?key=你的API密钥&cx=你的搜索引擎ID&q={wd}",
-      "parse": {
-        "type": "json",
-        "path": "items",
-        "title": "title",
-        "url": "link",
-        "pic": "pagemap.cse_image.0.src"
-      }
-    },
-    {
-      "name": "Bing 搜索",
-      "url": "https://api.bing.microsoft.com/v7.0/search?q={wd}&count=20&mkt=zh-CN",
-      "parse": {
-        "type": "json",
-        "path": "webPages.value",
-        "title": "name",
-        "url": "url"
       }
     }
   ]
