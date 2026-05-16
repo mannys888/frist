@@ -764,73 +764,63 @@ function play(flag, id, vipFlags) {
 
 function search(wd, quick) {
     let results = [];
-    // ========== iTunes 音乐搜索（修复版） ==========
-    try {
-        let apiUrl = `https://itunes.apple.com/search?term=${encodeURIComponent(wd)}&limit=30&entity=song`;
-        print(`搜索歌曲: ${apiUrl}`);
-        let resp = smartRequest(apiUrl, { timeout: 15000 });
-        let json = resp.json();
-        if (json && json.results && json.results.length > 0) {
-            for (let item of json.results) {
-                if (item.previewUrl) {
-                    let encodedUrl = encodeURIComponent(item.previewUrl);
-                    results.push({
-                        vod_id: '__MUSIC__' + encodedUrl,
-                        vod_name: `${item.trackName} - ${item.artistName}`,
-                        vod_pic: item.artworkUrl100 || getDynamicPic(item.trackName),
-                        vod_remarks: '🎵 30秒试听'
-                    });
+    // 从配置中获取搜索引擎列表，若未配置则使用默认 iTunes
+    let engines = (__ext_config.searchEngines && __ext_config.searchEngines.length) 
+                  ? __ext_config.searchEngines 
+                  : [{
+                        name: "iTunes",
+                        url: "https://itunes.apple.com/search?term={wd}&limit=30&entity=song",
+                        parse: { 
+                            type: "json", 
+                            path: "results", 
+                            title: "trackName", 
+                            artist: "artistName", 
+                            url: "previewUrl", 
+                            pic: "artworkUrl100" 
+                        }
+                    }];
+    
+    for (let engine of engines) {
+        try {
+            let apiUrl = engine.url.replace(/\{wd\}/g, encodeURIComponent(wd));
+            print(`使用引擎 ${engine.name}: ${apiUrl}`);
+            let resp = smartRequest(apiUrl, { timeout: 15000 });
+            let json = resp.json();
+            let data = json;
+            // 按照配置的 path 提取数据数组
+            if (engine.parse.path) {
+                let parts = engine.parse.path.split('.');
+                for (let p of parts) data = data[p];
+            }
+            if (data && Array.isArray(data)) {
+                for (let item of data) {
+                    let title = item[engine.parse.title] || '';
+                    let url = item[engine.parse.url] || '';
+                    let artist = engine.parse.artist ? (item[engine.parse.artist] || '') : '';
+                    let pic = engine.parse.pic ? (item[engine.parse.pic] || '') : '';
+                    if (title && url) {
+                        let encodedUrl = encodeURIComponent(url);
+                        results.push({
+                            vod_id: '__MUSIC__' + encodedUrl,
+                            vod_name: artist ? `${title} - ${artist}` : title,
+                            vod_pic: pic || getDynamicPic(title),
+                            vod_remarks: `🎵 ${engine.name} 搜索结果`
+                        });
+                    }
                 }
             }
-            print(`iTunes 找到 ${results.length} 首歌曲`);
-        } else {
-            print("iTunes 未找到相关歌曲");
-        }
-    } catch(e) {
-        print(`iTunes 搜索失败: ${e.message}`);
-    }
-    
-    // ========== 其他数据源搜索（视频/直播等） ==========
-    for (let src of __ext_config.sources) {
-        let isSearchSource = src.url && src.url.includes('{wd}');
-        let content;
-        try {
-            if (isSearchSource) {
-                content = fetchSource(src.url, src, true, { wd: wd });
-            } else {
-                content = fetchSource(src.url, src);
-            }
+            print(`${engine.name} 找到 ${results.length} 条结果`);
         } catch(e) {
-            print(`请求源 ${src.name} 失败: ${e.message}`);
-            continue;
-        }
-        if (!content) continue;
-        let baseDir = src.url.substring(0, src.url.lastIndexOf('/')+1);
-        let items = parseList(content, src.parseConfig || {}, baseDir);
-        let matched = isSearchSource ? items : items.filter(item => item.title && item.title.includes(wd));
-        for (let m of matched) {
-            let vod_id = m.url + '###single';
-            let pic = def_pic;
-            if (src.parseConfig?.picField && m[src.parseConfig.picField]) {
-                pic = m[src.parseConfig.picField];
-            } else {
-                pic = getDynamicPic(vod_id);
-            }
-            results.push({
-                vod_id: vod_id,
-                vod_name: `[${src.name}] ${m.title}`,
-                vod_pic: pic,
-                vod_remarks: '搜索命中'
-            });
+            print(`引擎 ${engine.name} 搜索失败: ${e.message}`);
         }
     }
     
     if (results.length === 0) {
         results.push({
             vod_id: 'no_result',
-            vod_name: `❌ 未找到“${wd}”相关结果，请尝试英文关键词`,
+            vod_name: `❌ 未找到“${wd}”相关结果`,
             vod_pic: getDynamicPic('no_result'),
-            vod_remarks: '例如: Lemon Tree'
+            vod_remarks: '请尝试其他关键词'
         });
     }
     return JSON.stringify({ list: results });
