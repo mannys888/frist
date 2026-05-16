@@ -328,55 +328,57 @@ function resolveWebPageToPlayUrl(pageUrl) {
 
 function performMultiEngineSearch(keyword) {
     let allResults = [];
-    let engines = __ext_config.searchEngines;
-    if (!engines || engines.length === 0) {
-        engines = [{
-            name: "iTunes Music",
-            url: "https://itunes.apple.com/search?term={wd}&limit=30&entity=song",
-            parse: { path: "results", title: "trackName", artist: "artistName", url: "previewUrl", pic: "artworkUrl100" },
-            resolve: false
-        }];
+    // 打印接收到的关键词，用于调试
+    print("搜索关键词: " + keyword);
+    
+    // 确保 keyword 不为空
+    if (!keyword || keyword.trim() === "") {
+        allResults.push({
+            vod_id: 'no_result',
+            vod_name: '请输入有效的搜索词',
+            vod_pic: def_pic,
+            vod_remarks: '关键词不能为空'
+        });
+        return allResults;
     }
-    for (let engine of engines) {
-        try {
-            let apiUrl = engine.url.replace(/\{wd\}/g, encodeURIComponent(keyword));
-            print(`使用引擎 ${engine.name}: ${apiUrl}`);
-            let reqOptions = { timeout: 15000 };
-            if (engine.headers) reqOptions.headers = engine.headers;
-            if (engine.cookie) reqOptions.cookie = engine.cookie;
-            let resp = smartRequest(apiUrl, reqOptions);
-            let json = resp.json();
-            let data = json;
-            if (engine.parse.path) {
-                let parts = engine.parse.path.split('.');
-                for (let p of parts) { if (data && data[p] !== undefined) data = data[p]; else { data = null; break; } }
-            }
-            if (data && Array.isArray(data)) {
-                for (let item of data) {
-                    let title = engine.parse.title ? item[engine.parse.title] : '';
-                    let url = engine.parse.url ? item[engine.parse.url] : '';
-                    let artist = engine.parse.artist ? (item[engine.parse.artist] || '') : '';
-                    let pic = engine.parse.pic ? (item[engine.parse.pic] || '') : '';
-                    if (title && url) {
-                        let finalUrl = (engine.resolve === true) ? resolveWebPageToPlayUrl(url) : url;
-                        let encodedUrl = encodeURIComponent(finalUrl);
-                        allResults.push({
-                            vod_id: '__MUSIC__' + encodedUrl,
-                            vod_name: artist ? `${title} - ${artist}` : title,
-                            vod_pic: pic || getDynamicPic(title),
-                            vod_remarks: `🎬 ${engine.name}`
-                        });
-                    }
+    
+    let apiUrl = `https://itunes.apple.com/search?term=${encodeURIComponent(keyword)}&limit=20&entity=musicTrack`;
+    print("请求URL: " + apiUrl);
+    
+    try {
+        let resp = smartRequest(apiUrl, { timeout: 15000 });
+        let json = resp.json();
+        if (json && json.results) {
+            for (let item of json.results) {
+                if (item.previewUrl) {
+                    let encodedUrl = encodeURIComponent(item.previewUrl);
+                    allResults.push({
+                        vod_id: '__MUSIC__' + encodedUrl,
+                        vod_name: `${item.trackName} - ${item.artistName}`,
+                        vod_pic: item.artworkUrl100 || def_pic,
+                        vod_remarks: '🎵 30秒试听'
+                    });
                 }
-                print(`${engine.name} 找到 ${allResults.length} 条结果`);
-            } else { print(`${engine.name} 返回数据格式异常`); }
-        } catch(e) { print(`引擎 ${engine.name} 搜索失败: ${e.message}，已跳过`); continue; }
+            }
+            print(`iTunes 找到 ${allResults.length} 首歌曲`);
+        } else {
+            print("iTunes 未返回结果");
+        }
+    } catch(e) {
+        print("iTunes搜索失败: " + e.message);
     }
+    
     if (allResults.length === 0) {
-        allResults.push({ vod_id: 'no_result', vod_name: `❌ 未找到“${keyword}”相关结果`, vod_pic: getDynamicPic('no_result'), vod_remarks: '请尝试其他关键词或检查网络' });
+        allResults.push({
+            vod_id: 'no_result',
+            vod_name: `❌ 未找到“${keyword}”相关歌曲`,
+            vod_pic: def_pic,
+            vod_remarks: '请尝试其他关键词'
+        });
     }
     return allResults;
 }
+
 
 // ========== 外部接口 ==========
 function init(ext) {
