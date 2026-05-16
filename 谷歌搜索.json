@@ -1,33 +1,39 @@
 {
   "sources": [
     {
-      "name": "📺直播源🟣",
+      "name": "✅📺直播源🟣",
       "url": "https://raw.githubusercontent.com/mannys888/frist/refs/heads/main/迦南诗歌.txt",
       "parseConfig": { "type": "txt", "line_sep": "," }
     }
   ],
   "searchEngines": [
     {
-      "name": "酷狗完整版",
-      "url": "http://mobilecdn.kugou.com/api/v3/search/song?format=json&keyword={wd}&page=1&pagesize=20",
-      "headers": { "User-Agent": "Mozilla/5.0" },
-      "parse": { "path": "data.info", "title": "songname", "artist": "singername", "url": "url", "pic": "imgurl" },
-      "resolve": false
+    "name": "🎵 QQ音乐",
+    "url": "https://www.hhlqilongzhu.cn/api/music.php?msg={wd}&n=20",
+    "headers": {"User-Agent": "Mozilla/5.0"},
+    "parse": {
+        "path": "",
+        "title": "title",
+        "artist": "author",
+        "url": "url",
+        "pic": "pic"
     },
+    "resolve": true
+   },
     {
-      "name": "网易云(需urlTemplate)",
-      "url": "http://music.163.com/api/search/get/web?s={wd}&type=1&limit=20",
-      "headers": { "User-Agent": "Mozilla/5.0" },
-      "parse": { "path": "result.songs", "title": "name", "artist": "artists.0.name", "url": "id", "pic": "album.picUrl" },
-      "urlTemplate": "https://music.163.com/song/media/outer/url?id={url}.mp3",
-      "resolve": false
+    "name": "🎵 网易云音乐",
+    "url": "http://music.163.com/api/search/get/web?s={wd}&type=1&limit=20",
+    "headers": {"User-Agent": "Mozilla/5.0"},
+    "parse": {
+        "path": "result.songs",
+        "title": "name",
+        "artist": "artists.0.name",
+        "url": "id",
+        "pic": "album.picUrl"
     },
-    {
-      "name": "iTunes 30秒",
-      "url": "https://itunes.apple.com/search?term={wd}&limit=20&entity=musicTrack",
-      "parse": { "path": "results", "title": "trackName", "artist": "artistName", "url": "previewUrl", "pic": "artworkUrl100" },
-      "resolve": false
-    }
+    "urlTemplate": "https://music.163.com/song/media/outer/url?id={url}.mp3",
+    "resolve": false
+   }
   ],
   "global": {
     "debug": true,
