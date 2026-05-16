@@ -1,27 +1,26 @@
 {
   "sources": [
-    {
-      "name": "📺 直播源",
-      "url": "https://raw.githubusercontent.com/mannys888/frist/refs/heads/main/迦南诗歌.txt",
-      "parseConfig": { "type": "txt", "line_sep": "," }
-    }
+    // 您原有的直播源保持不变
   ],
   "searchEngines": [
     {
-         "name": "SearXNG 全网搜",
-         "url": "https://searx.be/search?q={wd}&format=json",
-         "headers": { "User-Agent": "Mozilla/5.0" },
-         "parse": {
-           "path": "results",
-           "title": "title",
-           "url": "url",
-           "pic": "thumbnail_src"
-         },
-         "resolve": true
-       }
+      "name": "🔍 奇妙搜(阿里网盘)",
+      "url": "https://www.magicalsearch.top/api/pshou/getData?type=阿里网盘&word={wd}",
+      "headers": {
+        "User-Agent": "Mozilla/5.0",
+        "Referer": "https://www.magicalsearch.top/"
+      },
+      "parse": {
+        "path": "data",           // 假设数据在 data 字段内
+        "title": "title",         // 标题字段
+        "url": "link",            // 链接字段（可能是网盘链接或播放链接）
+        "pic": "pic"              // 图片字段（可选）
+      },
+      "resolve": true             // 如果是网盘链接，需要解析；如果是直接播放链接，设为 false
+    }
   ],
   "global": {
     "debug": true,
-    "defaultTimeout": 15000
+    "parseUrl": "https://你的解析接口/parse?url={url}"   // 如果 resolve=true，需要解析接口
   }
 }
