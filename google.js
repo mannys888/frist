@@ -323,6 +323,8 @@ function resolveWebPageToPlayUrl(pageUrl) {
 }
 
 // ========== 核心：多引擎搜索（自动跳过失效引擎） ==========
+
+// ========== 核心：多引擎搜索（支持独立 Cookie/Headers） ==========
 function performMultiEngineSearch(keyword) {
     let allResults = [];
     let engines = __ext_config.searchEngines;
@@ -345,7 +347,11 @@ function performMultiEngineSearch(keyword) {
         try {
             let apiUrl = engine.url.replace(/\{wd\}/g, encodeURIComponent(keyword));
             print(`使用引擎 ${engine.name}: ${apiUrl}`);
-            let resp = smartRequest(apiUrl, { timeout: 15000 });
+            // 构建请求选项，合并引擎自己的 headers 和 cookie
+            let reqOptions = { timeout: 15000 };
+            if (engine.headers) reqOptions.headers = engine.headers;
+            if (engine.cookie) reqOptions.cookie = engine.cookie;
+            let resp = smartRequest(apiUrl, reqOptions);
             let json = resp.json();
             let data = json;
             if (engine.parse.path) {
@@ -378,7 +384,7 @@ function performMultiEngineSearch(keyword) {
             }
         } catch(e) {
             print(`引擎 ${engine.name} 搜索失败: ${e.message}，已跳过`);
-            continue;  // 跳过此引擎，继续下一个
+            continue;
         }
     }
     if (allResults.length === 0) {
