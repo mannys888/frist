@@ -11,25 +11,11 @@
       }
     },
     {
-      "name": "📺 测试直播源",
-      "url": "https://raw.githubusercontent.com/mannys888/frist/refs/heads/main/迦南诗歌.txt",
+      "name": "您的直播源",
+      "url": "http://您的直播源地址.txt",
       "parseConfig": {
         "type": "txt",
         "line_sep": ","
-      }
-    }
-  ],
-  "searchEngines": [
-    {
-      "name": "iTunes 音乐",
-      "url": "https://itunes.apple.com/search?term={wd}&limit=30&entity=song",
-      "parse": {
-        "type": "json",
-        "path": "results",
-        "title": "trackName",
-        "artist": "artistName",
-        "url": "previewUrl",
-        "pic": "artworkUrl100"
       }
     }
   ]
