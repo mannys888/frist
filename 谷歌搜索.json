@@ -12,7 +12,7 @@
     },
     {
       "name": "您的直播源",
-      "url": "http://您的直播源地址.txt",
+      "url": "https://raw.githubusercontent.com/mannys888/frist/refs/heads/main/迦南诗歌.txt",
       "parseConfig": {
         "type": "txt",
         "line_sep": ","
