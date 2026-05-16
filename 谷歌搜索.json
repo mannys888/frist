@@ -1,14 +1,17 @@
 {
   "sources": [
-    {
-      "name": "🎵 音乐搜索",
-      "url": "https://itunes.apple.com/search?term={wd}&limit=30&entity=song",
-      "parseConfig": {
+     {
+      "name": "YouTube 搜索",
+      "url": "https://apify.com/portfolio/youtube-search-api?query={wd}",
+      "headers": {"User-Agent": "Mozilla/5.0"},
+      "parse": {
         "type": "json",
-        "jsonPath": "results",
-        "titleField": "trackName",
-        "urlField": "previewUrl"
-      }
+        "path": "items",
+        "title": "title",
+        "url": "url",
+        "pic": "thumbnail"
+      },
+      "resolve": true
     },
     {
       "name": "📺 直播源",
@@ -34,17 +37,19 @@
       },
       "resolve": false
     },
-    {
-      "name": "iTunes 音乐",
-      "url": "https://itunes.apple.com/search?term={wd}&limit=30&entity=song",
-      "parse": {
-        "type": "json",
-        "path": "results",
-        "title": "trackName",
-        "artist": "artistName",
-        "url": "previewUrl",
-        "pic": "artworkUrl100"
-      },
+   {
+    "name": "SearXNG 视频",
+    "url": "https://your-searxng-instance.com/search?q={wd}&categories=videos&format=json",
+    "headers": {"User-Agent": "Mozilla/5.0"},
+    "parse": {
+      "type": "json",
+      "path": "results",
+      "title": "title",
+      "url": "url",
+      "pic": "thumbnail_src"
+    },
+    "resolve": true
+  },
       "resolve": false
     }
   ],
@@ -52,4 +57,7 @@
     "debug": true,
     "defaultTimeout": 15000
   }
-}
+} 
+
+
+
