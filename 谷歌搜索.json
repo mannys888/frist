@@ -11,12 +11,63 @@
       }
     },
     {
-      "name": "您的直播源",
+      "name": "📺 我的直播源",
       "url": "https://raw.githubusercontent.com/mannys888/frist/refs/heads/main/迦南诗歌.txt",
       "parseConfig": {
         "type": "txt",
         "line_sep": ","
       }
+    },
+    {
+      "name": "📺 备用直播源",
+      "url": "https://example.com/live.m3u",
+      "parseConfig": {
+        "type": "m3u"
+      }
     }
-  ]
+  ],
+  "searchEngines": [
+    {
+      "name": "iTunes 音乐",
+      "url": "https://itunes.apple.com/search?term={wd}&limit=30&entity=song",
+      "parse": {
+        "type": "json",
+        "path": "results",
+        "title": "trackName",
+        "artist": "artistName",
+        "url": "previewUrl",
+        "pic": "artworkUrl100"
+      },
+      "resolve": false
+    },
+    {
+      "name": "Google 视频",
+      "url": "https://www.googleapis.com/customsearch/v1?key=你的API密钥&cx=你的搜索引擎ID&q={wd}&searchType=video",
+      "parse": {
+        "type": "json",
+        "path": "items",
+        "title": "title",
+        "url": "link",
+        "pic": "pagemap.cse_thumbnail.0.src"
+      },
+      "resolve": true
+    },
+    {
+      "name": "Bing 视频",
+      "url": "https://api.bing.microsoft.com/v7.0/videos/search?q={wd}&count=20&mkt=en-US",
+      "parse": {
+        "type": "json",
+        "path": "value",
+        "title": "name",
+        "url": "contentUrl",
+        "pic": "thumbnailUrl"
+      },
+      "resolve": false
+    }
+  ],
+  "global": {
+    "debug": true,
+    "defaultTimeout": 15000,
+    "parseUrl": "https://your-parser.com/parse?url={url}"
+  }
 }
