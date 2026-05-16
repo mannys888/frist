@@ -18,19 +18,6 @@
         "pic": "artworkUrl100"
       },
       "resolve": false
-    },
-    {
-      "name": "JioSaavn 完整歌曲",
-      "url": "https://jiosaavn-api.vercel.app/search/songs?query={wd}&limit=20",
-      "headers": { "User-Agent": "Mozilla/5.0" },
-      "parse": {
-        "path": "data.results",
-        "title": "name",
-        "artist": "primaryArtists",
-        "url": "downloadUrl.0.link",
-        "pic": "image.2.link"
-      },
-      "resolve": false
     }
   ],
   "global": {
