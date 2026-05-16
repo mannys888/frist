@@ -1,5 +1,5 @@
-// ==================== 全能搜索爬虫 v6.0（多引擎 + 直播源 + 密码锁） ====================
-// 支持：直播源/合集、多格式解析、多搜索引擎（Google/Bing/YouTube/iTunes等）
+// ==================== 全能搜索爬虫 v7.0（完全配置驱动，无硬编码） ====================
+// 支持：直播源/合集、多格式解析、多搜索引擎（完全由 ext 中的 searchEngines 决定）
 // 特性：自动跳过失效引擎、密码锁、动态封面、分类键盘、遥控器搜索
 // ================================================================
 
@@ -14,10 +14,10 @@ let cache_data = {};
 let showMode = 'groups';
 let groupDict = {};
 let debugMode = true;
-let defaultTimeout = 10000;      // 增加超时到10秒
+let defaultTimeout = 10000;
 let defaultRetry = 2;
 let def_pic = 'https://picsum.photos/200/300?random=1';
-const VERSION = 'universal v6.0 (robust)';
+const VERSION = 'universal v7.0 (config-driven)';
 const tips = `\n${VERSION}`;
 const RKEY = 'universal_spider';
 
@@ -319,66 +319,82 @@ function resolveWebPageToPlayUrl(pageUrl) {
             if (json && json.playUrl) return json.playUrl;
         } catch(e) { print(`解析接口调用失败: ${e.message}`); }
     }
-    return pageUrl; // 返回原链接，可能无法播放
+    return pageUrl;
 }
 
-// ========== 核心：多引擎搜索（自动跳过失效引擎） ==========
-
-// ========== 核心：多引擎搜索（支持独立 Cookie/Headers） ==========
-
+// ========== 核心：多引擎搜索（完全配置驱动，无硬编码） ==========
 function performMultiEngineSearch(keyword) {
     let allResults = [];
-    // 打印接收到的关键词，用于调试
-    print("搜索关键词: " + keyword);
-    
-    // 确保 keyword 不为空
-    if (!keyword || keyword.trim() === "") {
+    let engines = __ext_config.searchEngines;
+    if (!engines || engines.length === 0) {
         allResults.push({
             vod_id: 'no_result',
-            vod_name: '请输入有效的搜索词',
+            vod_name: '❌ 未配置任何搜索引擎',
             vod_pic: def_pic,
-            vod_remarks: '关键词不能为空'
+            vod_remarks: '请在 ext 中配置 searchEngines'
         });
         return allResults;
     }
-    
-    let apiUrl = `https://itunes.apple.com/search?term=${encodeURIComponent(keyword)}&limit=20&entity=musicTrack`;
-    print("请求URL: " + apiUrl);
-    
-    try {
-        let resp = smartRequest(apiUrl, { timeout: 15000 });
-        let json = resp.json();
-        if (json && json.results) {
-            for (let item of json.results) {
-                if (item.previewUrl) {
-                    let encodedUrl = encodeURIComponent(item.previewUrl);
-                    allResults.push({
-                        vod_id: '__MUSIC__' + encodedUrl,
-                        vod_name: `${item.trackName} - ${item.artistName}`,
-                        vod_pic: item.artworkUrl100 || def_pic,
-                        vod_remarks: '🎵 30秒试听'
-                    });
+    for (let engine of engines) {
+        try {
+            let apiUrl = engine.url.replace(/\{wd\}/g, encodeURIComponent(keyword));
+            print(`使用引擎 ${engine.name}: ${apiUrl}`);
+            let reqOptions = { timeout: 15000 };
+            if (engine.headers) reqOptions.headers = engine.headers;
+            if (engine.cookie) reqOptions.cookie = engine.cookie;
+            let resp = smartRequest(apiUrl, reqOptions);
+            let json = resp.json();
+            let data = json;
+            if (engine.parse.path) {
+                let parts = engine.parse.path.split('.');
+                for (let p of parts) {
+                    if (data && data[p] !== undefined) data = data[p];
+                    else { data = null; break; }
                 }
             }
-            print(`iTunes 找到 ${allResults.length} 首歌曲`);
-        } else {
-            print("iTunes 未返回结果");
+            if (data && Array.isArray(data)) {
+                for (let item of data) {
+                    let title = engine.parse.title ? item[engine.parse.title] : '';
+                    let rawUrl = engine.parse.url ? item[engine.parse.url] : '';
+                    let artist = engine.parse.artist ? (item[engine.parse.artist] || '') : '';
+                    let pic = engine.parse.pic ? (item[engine.parse.pic] || '') : '';
+                    if (title && rawUrl) {
+                        let finalUrl = rawUrl;
+                        // 支持 urlTemplate（例如网易云ID转播放链接）
+                        if (engine.urlTemplate) {
+                            finalUrl = engine.urlTemplate.replace(/\{url\}/g, encodeURIComponent(rawUrl));
+                        }
+                        if (engine.resolve === true) {
+                            finalUrl = resolveWebPageToPlayUrl(finalUrl);
+                        }
+                        let encodedUrl = encodeURIComponent(finalUrl);
+                        allResults.push({
+                            vod_id: '__MUSIC__' + encodedUrl,
+                            vod_name: artist ? `${title} - ${artist}` : title,
+                            vod_pic: pic || getDynamicPic(title),
+                            vod_remarks: `🎬 ${engine.name}`
+                        });
+                    }
+                }
+                print(`${engine.name} 找到 ${allResults.length} 条结果`);
+            } else {
+                print(`${engine.name} 返回数据格式异常`);
+            }
+        } catch(e) {
+            print(`引擎 ${engine.name} 搜索失败: ${e.message}，已跳过`);
+            continue;
         }
-    } catch(e) {
-        print("iTunes搜索失败: " + e.message);
     }
-    
     if (allResults.length === 0) {
         allResults.push({
             vod_id: 'no_result',
-            vod_name: `❌ 未找到“${keyword}”相关歌曲`,
-            vod_pic: def_pic,
-            vod_remarks: '请尝试其他关键词'
+            vod_name: `❌ 未找到“${keyword}”相关结果`,
+            vod_pic: getDynamicPic('no_result'),
+            vod_remarks: '请尝试其他关键词或检查网络'
         });
     }
     return allResults;
 }
-
 
 // ========== 外部接口 ==========
 function init(ext) {
@@ -408,39 +424,17 @@ function init(ext) {
                 __ext_config.global.double_url_fallback = false;
             }
         }
-        if (configData.searchEngines && Array.isArray(configData.searchEngines) && configData.searchEngines.length > 0) {
+        // 加载搜索引擎配置，不再添加任何默认引擎
+        if (configData.searchEngines && Array.isArray(configData.searchEngines)) {
             __ext_config.searchEngines = configData.searchEngines;
             print(`加载了 ${__ext_config.searchEngines.length} 个搜索引擎`);
         } else {
-            __ext_config.searchEngines = [{
-                name: "iTunes Music",
-                url: "https://itunes.apple.com/search?term={wd}&limit=30&entity=song",
-                parse: {
-                    type: "json",
-                    path: "results",
-                    title: "trackName",
-                    artist: "artistName",
-                    url: "previewUrl",
-                    pic: "artworkUrl100"
-                },
-                resolve: false
-            }];
-            print("未配置 searchEngines，使用默认 iTunes 搜索引擎");
+            __ext_config.searchEngines = [];
+            print("警告：未配置 searchEngines，搜索将返回提示卡片");
         }
     } else {
-        __ext_config.searchEngines = [{
-            name: "iTunes Music",
-            url: "https://itunes.apple.com/search?term={wd}&limit=30&entity=song",
-            parse: {
-                type: "json",
-                path: "results",
-                title: "trackName",
-                artist: "artistName",
-                url: "previewUrl",
-                pic: "artworkUrl100"
-            },
-            resolve: false
-        }];
+        __ext_config.searchEngines = [];
+        print("警告：未配置 ext，搜索将返回提示卡片");
     }
     
     if (!__ext_config.sources) __ext_config.sources = [];
