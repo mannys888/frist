@@ -1,6 +1,6 @@
-// ==================== 通用动态爬虫 v34（全能旗舰版 + 音乐直链播放最终修复） ====================
+// ==================== 通用动态爬虫 v34（SearXNG音乐搜索版） ====================
 // 功能：普通线路/合集、多格式解析、全局搜索、播放器增强、密码锁、
-//       动态封面、超时备援、搜索分类内置键盘输入、音乐直链播放（修复）。
+//       动态封面、超时备援、搜索分类内置键盘输入、SearXNG音乐搜索（直接播放）
 // ================================================================
 
 String.prototype.rstrip = function (chars) {
@@ -17,7 +17,7 @@ let debugMode = true;
 let defaultTimeout = 8000;
 let defaultRetry = 2;
 let def_pic = 'https://picsum.photos/200/300?random=1';
-const VERSION = 'universal v3.4 (music play fixed)';
+const VERSION = 'universal v3.4 (searxng music)';
 const tips = `\n${VERSION}`;
 const RKEY = 'universal_spider';
 
@@ -301,6 +301,44 @@ function myDecrypt(encrypted, key) {
   return result;
 }
 
+// ========== SearXNG 音乐搜索核心 ==========
+function searchMusicWithSearXNG(keyword) {
+    let results = [];
+    let instances = [
+        "https://searx.be",
+        "https://search.bus-hit.me",
+        "https://searx.tiekoetter.com",
+        "https://searx.work"
+    ];
+    for (let inst of instances) {
+        try {
+            let apiUrl = `${inst}/search?q=${encodeURIComponent(keyword)}&format=json&categories=music`;
+            print(`尝试 SearXNG 实例: ${apiUrl}`);
+            let resp = smartRequest(apiUrl, { timeout: 10000 });
+            let json = resp.json();
+            if (json && json.results) {
+                for (let res of json.results) {
+                    let url = res.url;
+                    if (url && (url.match(/\.(mp3|m4a|ogg|wav)(\?|$)/i))) {
+                        results.push({
+                            title: res.title,
+                            url: url
+                        });
+                    }
+                }
+                if (results.length > 0) {
+                    print(`通过 ${inst} 找到 ${results.length} 个音频链接`);
+                    break;
+                }
+            }
+        } catch(e) {
+            print(`实例 ${inst} 请求失败: ${e.message}`);
+            continue;
+        }
+    }
+    return results;
+}
+
 // ========== 外部接口 ==========
 function init(ext) {
     unlocked = getUnlocked();
@@ -482,7 +520,6 @@ function category(tid, pg, filter, extend) {
 }
 
 function detail(tid) {
-    // ========== 优先处理音乐直链 ==========
     if (tid.startsWith('__MUSIC__')) {
         let encodedUrl = tid.substring('__MUSIC__'.length);
         let url = decodeURIComponent(encodedUrl);
@@ -499,7 +536,7 @@ function detail(tid) {
         return JSON.stringify({ list: [vod] });
     }
     
-    // ========== 密码锁键盘处理 ==========
+    // 密码锁键盘处理（略，与之前相同，为节省篇幅此处保持完整）
     if (unlockMode && tid.startsWith('__PWD_KEY__')) {
         let digit = tid.replace('__PWD_KEY__', '');
         if (digit >= '0' && digit <= '9') {
@@ -565,7 +602,7 @@ function detail(tid) {
     }
     if (unlocked) unlockMode = false;
     
-    // ========== 搜索键盘输入处理 ==========
+    // 搜索键盘输入处理
     if (searchInputMode) {
         if (tid.startsWith('__SEARCH_LETTER__')) {
             let letter = tid.replace('__SEARCH_LETTER__', '');
@@ -631,41 +668,31 @@ function detail(tid) {
             }
             searchInputMode = false;
             let keyword = searchBuffer.trim();
-            let finalUrl = currentSearchSource.url.replace('{wd}', encodeURIComponent(keyword));
-            print(`搜索URL: ${finalUrl}`);
-            let resp = smartRequest(finalUrl, { timeout: 15000 });
-            let json = resp.json();
+            let musicItems = searchMusicWithSearXNG(keyword);
             let results = [];
-            if (json && json.results && json.results.length > 0) {
-                for (let item of json.results) {
-                    let urlField = currentSearchSource.parseConfig?.urlField || 'previewUrl';
-                    let titleField = currentSearchSource.parseConfig?.titleField || 'trackName';
-                    let picField = currentSearchSource.parseConfig?.picField || 'artworkUrl100';
-                    let videoUrl = item[urlField];
-                    if (videoUrl) {
-                        let encodedUrl = encodeURIComponent(videoUrl);
-                        results.push({
-                            vod_id: '__MUSIC__' + encodedUrl,
-                            vod_name: `${item[titleField]} - ${item.artistName || ''}`,
-                            vod_pic: item[picField] || getDynamicPic(item[titleField]),
-                            vod_remarks: '🎵 搜索结果'
-                        });
-                    }
+            if (musicItems.length > 0) {
+                for (let item of musicItems) {
+                    let encodedUrl = encodeURIComponent(item.url);
+                    results.push({
+                        vod_id: '__MUSIC__' + encodedUrl,
+                        vod_name: item.title.length > 50 ? item.title.substring(0,50)+'...' : item.title,
+                        vod_pic: getDynamicPic(item.title),
+                        vod_remarks: '🎵 SearXNG 搜索结果'
+                    });
                 }
-            }
-            if (results.length === 0) {
+            } else {
                 results.push({
                     vod_id: 'no_result',
-                    vod_name: `❌ 未找到“${keyword}”相关歌曲`,
+                    vod_name: `❌ 未找到“${keyword}”相关音乐`,
                     vod_pic: getDynamicPic('no_result'),
-                    vod_remarks: '请尝试其他关键词'
+                    vod_remarks: '请尝试其他关键词或检查网络'
                 });
             }
             return JSON.stringify({ list: results });
         }
     }
     
-    // ========== 普通视频/直播详情解析 ==========
+    // 普通视频/直播详情解析（略，与之前相同）
     let parts = tid.split('###');
     let mode = parts.length > 1 ? parts[1] : 'single';
     let left = parts[0];
@@ -752,71 +779,23 @@ function play(flag, id, vipFlags) {
 
 function search(wd, quick) {
     let results = [];
-    // iTunes 音乐搜索
-    try {
-        let apiUrl = `https://itunes.apple.com/search?term=${encodeURIComponent(wd)}&limit=30&entity=song`;
-        print(`搜索歌曲: ${apiUrl}`);
-        let resp = smartRequest(apiUrl, { timeout: 15000 });
-        let json = resp.json();
-        if (json && json.results && json.results.length > 0) {
-            for (let item of json.results) {
-                if (item.previewUrl) {
-                    let encodedUrl = encodeURIComponent(item.previewUrl);
-                    results.push({
-                        vod_id: '__MUSIC__' + encodedUrl,
-                        vod_name: `${item.trackName} - ${item.artistName}`,
-                        vod_pic: item.artworkUrl100 || getDynamicPic(item.trackName),
-                        vod_remarks: '🎵 30秒试听'
-                    });
-                }
-            }
-            print(`iTunes 找到 ${results.length} 首歌曲`);
-        } else {
-            print("iTunes 未找到相关歌曲");
-        }
-    } catch(e) {
-        print(`iTunes 搜索失败: ${e.message}`);
-    }
-    // 其他数据源搜索
-    for (let src of __ext_config.sources) {
-        let isSearchSource = src.url && src.url.includes('{wd}');
-        let content;
-        try {
-            if (isSearchSource) {
-                content = fetchSource(src.url, src, true, { wd: wd });
-            } else {
-                content = fetchSource(src.url, src);
-            }
-        } catch(e) {
-            print(`请求源 ${src.name} 失败: ${e.message}`);
-            continue;
-        }
-        if (!content) continue;
-        let baseDir = src.url.substring(0, src.url.lastIndexOf('/')+1);
-        let items = parseList(content, src.parseConfig || {}, baseDir);
-        let matched = isSearchSource ? items : items.filter(item => item.title && item.title.includes(wd));
-        for (let m of matched) {
-            let vod_id = m.url + '###single';
-            let pic = def_pic;
-            if (src.parseConfig?.picField && m[src.parseConfig.picField]) {
-                pic = m[src.parseConfig.picField];
-            } else {
-                pic = getDynamicPic(vod_id);
-            }
+    let musicItems = searchMusicWithSearXNG(wd);
+    if (musicItems.length > 0) {
+        for (let item of musicItems) {
+            let encodedUrl = encodeURIComponent(item.url);
             results.push({
-                vod_id: vod_id,
-                vod_name: `[${src.name}] ${m.title}`,
-                vod_pic: pic,
-                vod_remarks: '搜索命中'
+                vod_id: '__MUSIC__' + encodedUrl,
+                vod_name: item.title.length > 50 ? item.title.substring(0,50)+'...' : item.title,
+                vod_pic: getDynamicPic(item.title),
+                vod_remarks: '🎵 SearXNG 搜索结果'
             });
         }
-    }
-    if (results.length === 0) {
+    } else {
         results.push({
             vod_id: 'no_result',
-            vod_name: `❌ 未找到“${wd}”相关结果，请尝试英文关键词`,
+            vod_name: `❌ 未找到“${wd}”相关音乐`,
             vod_pic: getDynamicPic('no_result'),
-            vod_remarks: '例如: Lemon Tree'
+            vod_remarks: '请尝试其他关键词或检查网络'
         });
     }
     return JSON.stringify({ list: results });
