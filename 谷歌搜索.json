@@ -18,9 +18,7 @@
            "pic": "thumbnail_src"
          },
          "resolve": true
-       },
-      "resolve": false
-    }
+       }
   ],
   "global": {
     "debug": true,
