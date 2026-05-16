@@ -8,16 +8,21 @@
   ],
   "searchEngines": [
     {
-      "name": "SearXNG 视频",
-      "url": "https://search.whatever.social/search?q={wd}&categories=videos&format=json",
+      "name": "🎵 JioSaavn 完整歌曲",
+      "url": "https://saavn.me/search/songs?query={wd}&limit=30",
       "headers": { "User-Agent": "Mozilla/5.0" },
-      "parse": { "path": "results", "title": "title", "url": "url", "pic": "thumbnail_src" },
-      "resolve": true
+      "parse": {
+        "path": "data.results",
+        "title": "name",
+        "artist": "primaryArtists",
+        "url": "downloadUrl.4.link",
+        "pic": "image.2.link"
+      },
+      "resolve": false
     }
   ],
   "global": {
     "debug": true,
-    "defaultTimeout": 15000,
-    "parseUrl": "https://jx.kmplayer.com/parse?url={url}"
+    "defaultTimeout": 15000
   }
 }
