@@ -8,16 +8,17 @@
   ],
   "searchEngines": [
     {
-      "name": "🎵 JioSaavn 完整歌曲",
-      "url": "https://saavn.me/search/songs?query={wd}&limit=30",
-      "headers": { "User-Agent": "Mozilla/5.0" },
-      "parse": {
-        "path": "data.results",
-        "title": "name",
-        "artist": "primaryArtists",
-        "url": "downloadUrl.3.link",
-        "pic": "image.2.link"
-      },
+         "name": "SearXNG 全网搜",
+         "url": "https://searx.be/search?q={wd}&format=json",
+         "headers": { "User-Agent": "Mozilla/5.0" },
+         "parse": {
+           "path": "results",
+           "title": "title",
+           "url": "url",
+           "pic": "thumbnail_src"
+         },
+         "resolve": true
+       },
       "resolve": false
     }
   ],
