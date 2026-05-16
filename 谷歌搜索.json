@@ -1,6 +1,23 @@
 {
   "sources": [
-    // 您原有的直播源保持不变
+{
+      "name": "YouTube 搜索",
+      "url": "https://apify.com/portfolio/youtube-search-api?query={wd}",
+      "headers": {"User-Agent": "Mozilla/5.0"},
+      "parse": {
+        "type": "json",
+        "path": "items",
+        "title": "title",
+        "url": "url",
+        "pic": "thumbnail"
+      },
+      "resolve": true
+    },
+    {
+      "name": "📺 直播源",
+      "url": "https://raw.githubusercontent.com/mannys888/frist/refs/heads/main/迦南诗歌.txt",
+      "parseConfig": { "type": "txt", "line_sep": "," }
+    }
   ],
   "searchEngines": [
     {
