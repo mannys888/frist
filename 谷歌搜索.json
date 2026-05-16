@@ -49,7 +49,20 @@
       "pic": "thumbnail_src"
     },
     "resolve": true
-  }
+  },
+  {
+    "name": "SearXNG 视频",
+    "url": "https://<公共实例地址>/search?q={wd}&categories=videos&format=json",
+    "headers": { "User-Agent": "Mozilla/5.0" },
+    "parse": {
+        "type": "json",
+        "path": "results",
+        "title": "title",
+        "url": "url",
+        "pic": "thumbnail_src"
+    },
+    "resolve": true
+}
   ],
   "global": {
     "debug": true,
