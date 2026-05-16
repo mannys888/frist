@@ -1,5 +1,9 @@
 {
-  "sources": [...],   // 您原有的视频源
+  "sources": [{
+      "name": "示例直播源",
+      "url": "https://example.com/live.txt",
+      "parseConfig": { "type": "txt", "line_sep": "," }
+    }],   // 您原有的视频源
   "searchEngines": [
     {
       "name": "iTunes音乐30妙",
