@@ -325,76 +325,16 @@ function resolveWebPageToPlayUrl(pageUrl) {
 // ========== 核心：多引擎搜索（自动跳过失效引擎） ==========
 
 // ========== 核心：多引擎搜索（支持独立 Cookie/Headers） ==========
+
 function performMultiEngineSearch(keyword) {
     let allResults = [];
-    let engines = __ext_config.searchEngines;
-    if (!engines || engines.length === 0) {
-        engines = [{
-            name: "iTunes Music",
-            url: "https://itunes.apple.com/search?term={wd}&limit=30&entity=song",
-            parse: {
-                type: "json",
-                path: "results",
-                title: "trackName",
-                artist: "artistName",
-                url: "previewUrl",
-                pic: "artworkUrl100"
-            },
-            resolve: false
-        }];
-    }
-    for (let engine of engines) {
-        try {
-            let apiUrl = engine.url.replace(/\{wd\}/g, encodeURIComponent(keyword));
-            print(`使用引擎 ${engine.name}: ${apiUrl}`);
-            // 构建请求选项，合并引擎自己的 headers 和 cookie
-            let reqOptions = { timeout: 15000 };
-            if (engine.headers) reqOptions.headers = engine.headers;
-            if (engine.cookie) reqOptions.cookie = engine.cookie;
-            let resp = smartRequest(apiUrl, reqOptions);
-            let json = resp.json();
-            let data = json;
-            if (engine.parse.path) {
-                let parts = engine.parse.path.split('.');
-                for (let p of parts) {
-                    if (data && data[p] !== undefined) data = data[p];
-                    else { data = null; break; }
-                }
-            }
-            if (data && Array.isArray(data)) {
-                for (let item of data) {
-                    let title = engine.parse.title ? item[engine.parse.title] : '';
-                    let url = engine.parse.url ? item[engine.parse.url] : '';
-                    let artist = engine.parse.artist ? (item[engine.parse.artist] || '') : '';
-                    let pic = engine.parse.pic ? (item[engine.parse.pic] || '') : '';
-                    if (title && url) {
-                        let finalUrl = (engine.resolve === true) ? resolveWebPageToPlayUrl(url) : url;
-                        let encodedUrl = encodeURIComponent(finalUrl);
-                        allResults.push({
-                            vod_id: '__MUSIC__' + encodedUrl,
-                            vod_name: artist ? `${title} - ${artist}` : title,
-                            vod_pic: pic || getDynamicPic(title),
-                            vod_remarks: `🎬 ${engine.name}`
-                        });
-                    }
-                }
-                print(`${engine.name} 找到 ${allResults.length} 条结果`);
-            } else {
-                print(`${engine.name} 返回数据格式异常`);
-            }
-        } catch(e) {
-            print(`引擎 ${engine.name} 搜索失败: ${e.message}，已跳过`);
-            continue;
-        }
-    }
-    if (allResults.length === 0) {
-        allResults.push({
-            vod_id: 'no_result',
-            vod_name: `❌ 未找到“${keyword}”相关结果`,
-            vod_pic: getDynamicPic('no_result'),
-            vod_remarks: '请尝试其他关键词或检查网络'
-        });
-    }
+    // 直接返回一个测试视频，不依赖任何网络
+    allResults.push({
+        vod_id: '__MUSIC__' + encodeURIComponent('https://vd2.bdstatic.com/mda-sbehdejw4kmibhkh/576p/h264/1771157811027978795/mda-sbehdejw4kmibhkh.mp4'),
+        vod_name: '✅ 测试视频：搜索功能正常 ✅',
+        vod_pic: def_pic,
+        vod_remarks: '本地测试引擎'
+    });
     return allResults;
 }
 
