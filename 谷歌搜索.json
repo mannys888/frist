@@ -1,7 +1,7 @@
 {
   "sources": [
     {
-      "name": "📺 直播源",
+      "name": "📺1直播源",
       "url": "https://raw.githubusercontent.com/mannys888/frist/refs/heads/main/迦南诗歌.txt",
       "parseConfig": {
         "type": "txt",
