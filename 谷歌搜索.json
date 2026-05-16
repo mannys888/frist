@@ -17,9 +17,8 @@
       "name": "📺 直播源",
       "url": "https://raw.githubusercontent.com/mannys888/frist/refs/heads/main/迦南诗歌.txt",
       "parseConfig": { "type": "txt", "line_sep": "," }
-    }
-  ],
-  "searchEngines": [
+    },
+
     {
       "name": "需要Cookie的引擎",
       "url": "https://example.com/api/search?q={wd}",
@@ -37,21 +36,8 @@
       },
       "resolve": false
     },
-   {
-    "name": "SearXNG 视频",
-    "url": "https://your-searxng-instance.com/search?q={wd}&categories=videos&format=json",
-    "headers": {"User-Agent": "Mozilla/5.0"},
-    "parse": {
-      "type": "json",
-      "path": "results",
-      "title": "title",
-      "url": "url",
-      "pic": "thumbnail_src"
-    },
-    "resolve": true
-  },
-  {
-    "name": "SearXNG 视频",
+    {
+    "name": "SearXNG 视频1",
     "url": "https://<公共实例地址>/search?q={wd}&categories=videos&format=json",
     "headers": { "User-Agent": "Mozilla/5.0" },
     "parse": {
@@ -62,7 +48,20 @@
         "pic": "thumbnail_src"
     },
     "resolve": true
-}
+},
+   {
+    "name": "SearXNG 视频2",
+    "url": "https://your-searxng-instance.com/search?q={wd}&categories=videos&format=json",
+    "headers": {"User-Agent": "Mozilla/5.0"},
+    "parse": {
+      "type": "json",
+      "path": "results",
+      "title": "title",
+      "url": "url",
+      "pic": "thumbnail_src"
+    },
+    "resolve": true
+  }
   ],
   "global": {
     "debug": true,
