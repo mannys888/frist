@@ -4,24 +4,42 @@
       "name": "📺 直播源",
       "url": "https://raw.githubusercontent.com/mannys888/frist/refs/heads/main/迦南诗歌.txt",
       "parseConfig": { "type": "txt", "line_sep": "," }
+    },
+    {
+      "name": "🎵 iTunes 搜索（键盘输入）",
+      "url": "https://itunes.apple.com/search?term={wd}&limit=30&entity=song",
+      "parseConfig": { "type": "json", "jsonPath": "results", "titleField": "trackName", "urlField": "previewUrl" }
     }
   ],
   "searchEngines": [
     {
+      "name": "SearXNG 视频",
+      "url": "https://search.whatever.social/search?q={wd}&categories=videos&format=json",
+      "headers": { "User-Agent": "Mozilla/5.0" },
+      "parse": { "path": "results", "title": "title", "url": "url", "pic": "thumbnail_src" },
+      "resolve": true,
+      "comment": "方案A：公共 SearXNG 实例，如不稳定可更换为 search.freemedia.xyz 等"
+    },
+    {
+      "name": "Invidious 视频",
+      "url": "https://invidious.snopyta.org/api/v1/search?q={wd}&type=video",
+      "headers": { "User-Agent": "Mozilla/5.0" },
+      "parse": { "path": "", "title": "title", "url": "videoId", "pic": "videoThumbnails.0.url" },
+      "resolve": true,
+      "comment": "方案B：免费 Invidious 实例，返回 YouTube 视频ID，需解析接口转换为播放链接"
+    },
+    {
       "name": "iTunes 音乐",
       "url": "https://itunes.apple.com/search?term={wd}&limit=20&entity=song",
-      "parse": {
-        "path": "results",
-        "title": "trackName",
-        "artist": "artistName",
-        "url": "previewUrl",
-        "pic": "artworkUrl100"
-      },
-      "resolve": false
+      "parse": { "path": "results", "title": "trackName", "artist": "artistName", "url": "previewUrl", "pic": "artworkUrl100" },
+      "resolve": false,
+      "comment": "方案C：30秒试听，无需解析"
     }
   ],
   "global": {
     "debug": true,
-    "defaultTimeout": 15000
+    "defaultTimeout": 15000,
+    "parseUrl": "https://your-parser.com/parse?url={url}",
+    "comment": "parseUrl 用于将网页链接或视频ID转换为可播放地址，请替换为真实解析接口（如 https://jx.xxx.com/?url=）"
   }
 }
