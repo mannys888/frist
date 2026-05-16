@@ -1,26 +1,25 @@
 {
   "sources": [
     {
-      "name": "163📺直播源",
+      "name": "📺 直播源",
       "url": "https://raw.githubusercontent.com/mannys888/frist/refs/heads/main/迦南诗歌.txt",
       "parseConfig": { "type": "txt", "line_sep": "," }
     }
   ],
   "searchEngines": [
     {
-    "name": "🎵 网易云音乐",
-    "url": "http://music.163.com/api/search/get/web?s={wd}&type=1&limit=20",
-    "headers": { "User-Agent": "Mozilla/5.0" },
-    "parse": {
-        "path": "result.songs",
-        "title": "name",
-        "artist": "artists.0.name",
-        "url": "id",
-        "pic": "album.picUrl"
-    },
-    "resolve": false,
-    "comment": "直接调用网易云官方搜索接口"
-   }
+      "name": "🎵 酷狗完整版",
+      "url": "http://mobilecdn.kugou.com/api/v3/search/song?format=json&keyword={wd}&page=1&pagesize=20",
+      "headers": { "User-Agent": "Mozilla/5.0" },
+      "parse": {
+        "path": "data.info",
+        "title": "songname",
+        "artist": "singername",
+        "url": "url",
+        "pic": "imgurl"
+      },
+      "resolve": false
+    }
   ],
   "global": {
     "debug": true,
