@@ -1,5 +1,6 @@
-// ==================== 全能万能搜索爬虫 v5.1（修复分类键盘搜索） ====================
-// 基于 v5.0 修复：分类键盘搜索与遥控器搜索使用相同的引擎，确保能获取数据
+// ==================== 全能搜索爬虫 v6.0（多引擎 + 直播源 + 密码锁） ====================
+// 支持：直播源/合集、多格式解析、多搜索引擎（Google/Bing/YouTube/iTunes等）
+// 特性：自动跳过失效引擎、密码锁、动态封面、分类键盘、遥控器搜索
 // ================================================================
 
 String.prototype.rstrip = function (chars) {
@@ -13,10 +14,10 @@ let cache_data = {};
 let showMode = 'groups';
 let groupDict = {};
 let debugMode = true;
-let defaultTimeout = 8000;
+let defaultTimeout = 10000;      // 增加超时到10秒
 let defaultRetry = 2;
 let def_pic = 'https://picsum.photos/200/300?random=1';
-const VERSION = 'universal v5.1 (keyboard fix)';
+const VERSION = 'universal v6.0 (robust)';
 const tips = `\n${VERSION}`;
 const RKEY = 'universal_spider';
 
@@ -265,30 +266,36 @@ function splitArray(arr, parse) {
 const customHandlers = {
   encryptedSite: function(ctx) {
     let { url, parseConfig } = ctx;
-    let encryptedContent = fetchSource(url, parseConfig);
-    let decryptedContent = myDecrypt(encryptedContent, parseConfig.key || 'defaultKey');
-    let items = parseList(decryptedContent, parseConfig, url);
-    return items;
+    try {
+      let encryptedContent = fetchSource(url, parseConfig);
+      let decryptedContent = myDecrypt(encryptedContent, parseConfig.key || 'defaultKey');
+      let items = parseList(decryptedContent, parseConfig, url);
+      return items;
+    } catch(e) { print("加密站点处理失败:"+e); return []; }
   },
   loginRequired: function(ctx) {
     let { url, parseConfig } = ctx;
-    let loginUrl = parseConfig.loginUrl;
-    let loginBody = parseConfig.loginBody;
-    let loginResp = smartRequest(loginUrl, { method: 'POST', body: loginBody });
-    let cookie = loginResp.headers['set-cookie'];
-    if (cookie) setItem('site_cookie', cookie);
-    let opts = { headers: { 'Cookie': getItem('site_cookie') } };
-    let content = fetchSource(url, { ...parseConfig, ...opts });
-    let items = parseList(content, parseConfig, url);
-    return items;
+    try {
+      let loginUrl = parseConfig.loginUrl;
+      let loginBody = parseConfig.loginBody;
+      let loginResp = smartRequest(loginUrl, { method: 'POST', body: loginBody });
+      let cookie = loginResp.headers['set-cookie'];
+      if (cookie) setItem('site_cookie', cookie);
+      let opts = { headers: { 'Cookie': getItem('site_cookie') } };
+      let content = fetchSource(url, { ...parseConfig, ...opts });
+      let items = parseList(content, parseConfig, url);
+      return items;
+    } catch(e) { print("登录站点处理失败:"+e); return []; }
   },
   dynamicContent: function(ctx) {
     let { url, parseConfig } = ctx;
-    let browserService = parseConfig.browserService || 'http://localhost:3000/render';
-    let resp = smartRequest(browserService, { method: 'POST', body: JSON.stringify({ url }) });
-    let renderedHtml = resp.text();
-    let items = parseList(renderedHtml, parseConfig, url);
-    return items;
+    try {
+      let browserService = parseConfig.browserService || 'http://localhost:3000/render';
+      let resp = smartRequest(browserService, { method: 'POST', body: JSON.stringify({ url }) });
+      let renderedHtml = resp.text();
+      let items = parseList(renderedHtml, parseConfig, url);
+      return items;
+    } catch(e) { print("动态内容处理失败:"+e); return []; }
   }
 };
 
@@ -300,7 +307,22 @@ function myDecrypt(encrypted, key) {
   return result;
 }
 
-// ========== 核心：多引擎搜索函数（增强健壮性） ==========
+// ========== 网页链接解析（如果配置了解析接口） ==========
+function resolveWebPageToPlayUrl(pageUrl) {
+    let parseApi = __ext_config.global && __ext_config.global.parseUrl;
+    if (parseApi && parseApi.includes('{url}')) {
+        let apiUrl = parseApi.replace(/\{url\}/g, encodeURIComponent(pageUrl));
+        try {
+            let resp = smartRequest(apiUrl, { timeout: 10000 });
+            let json = resp.json();
+            if (json && json.url) return json.url;
+            if (json && json.playUrl) return json.playUrl;
+        } catch(e) { print(`解析接口调用失败: ${e.message}`); }
+    }
+    return pageUrl; // 返回原链接，可能无法播放
+}
+
+// ========== 核心：多引擎搜索（自动跳过失效引擎） ==========
 function performMultiEngineSearch(keyword) {
     let allResults = [];
     let engines = __ext_config.searchEngines;
@@ -315,7 +337,8 @@ function performMultiEngineSearch(keyword) {
                 artist: "artistName",
                 url: "previewUrl",
                 pic: "artworkUrl100"
-            }
+            },
+            resolve: false
         }];
     }
     for (let engine of engines) {
@@ -325,17 +348,12 @@ function performMultiEngineSearch(keyword) {
             let resp = smartRequest(apiUrl, { timeout: 15000 });
             let json = resp.json();
             let data = json;
-            // 处理 path
             if (engine.parse.path) {
                 let parts = engine.parse.path.split('.');
                 for (let p of parts) {
                     if (data && data[p] !== undefined) data = data[p];
                     else { data = null; break; }
                 }
-            }
-            // 如果 data 不是数组，尝试包装成数组（某些 API 直接返回数组）
-            if (data && !Array.isArray(data) && typeof data === 'object') {
-                // 可能整个 response 就是数组？不处理
             }
             if (data && Array.isArray(data)) {
                 for (let item of data) {
@@ -344,21 +362,23 @@ function performMultiEngineSearch(keyword) {
                     let artist = engine.parse.artist ? (item[engine.parse.artist] || '') : '';
                     let pic = engine.parse.pic ? (item[engine.parse.pic] || '') : '';
                     if (title && url) {
-                        let encodedUrl = encodeURIComponent(url);
+                        let finalUrl = (engine.resolve === true) ? resolveWebPageToPlayUrl(url) : url;
+                        let encodedUrl = encodeURIComponent(finalUrl);
                         allResults.push({
                             vod_id: '__MUSIC__' + encodedUrl,
                             vod_name: artist ? `${title} - ${artist}` : title,
                             vod_pic: pic || getDynamicPic(title),
-                            vod_remarks: `🎵 ${engine.name}`
+                            vod_remarks: `🎬 ${engine.name}`
                         });
                     }
                 }
                 print(`${engine.name} 找到 ${allResults.length} 条结果`);
             } else {
-                print(`${engine.name} 返回数据格式异常: ${typeof data}`);
+                print(`${engine.name} 返回数据格式异常`);
             }
         } catch(e) {
-            print(`引擎 ${engine.name} 搜索失败: ${e.message}`);
+            print(`引擎 ${engine.name} 搜索失败: ${e.message}，已跳过`);
+            continue;  // 跳过此引擎，继续下一个
         }
     }
     if (allResults.length === 0) {
@@ -381,10 +401,12 @@ function init(ext) {
     if (typeof ext === 'object') configData = ext;
     else if (typeof ext === 'string') {
         if (ext.startsWith('http')) {
-            let resp = smartRequest(ext);
-            configData = resp.json();
+            try {
+                let resp = smartRequest(ext);
+                configData = resp.json();
+            } catch(e) { print("远程配置获取失败:"+e); }
         } else {
-            try { configData = JSON.parse(ext); } catch(e) {}
+            try { configData = JSON.parse(ext); } catch(e) { print("ext JSON解析失败"); }
         }
     }
     if (configData) {
@@ -398,7 +420,6 @@ function init(ext) {
                 __ext_config.global.double_url_fallback = false;
             }
         }
-        // 加载搜索引擎配置
         if (configData.searchEngines && Array.isArray(configData.searchEngines) && configData.searchEngines.length > 0) {
             __ext_config.searchEngines = configData.searchEngines;
             print(`加载了 ${__ext_config.searchEngines.length} 个搜索引擎`);
@@ -413,12 +434,12 @@ function init(ext) {
                     artist: "artistName",
                     url: "previewUrl",
                     pic: "artworkUrl100"
-                }
+                },
+                resolve: false
             }];
             print("未配置 searchEngines，使用默认 iTunes 搜索引擎");
         }
     } else {
-        // 完全无配置时，设置默认搜索引擎
         __ext_config.searchEngines = [{
             name: "iTunes Music",
             url: "https://itunes.apple.com/search?term={wd}&limit=30&entity=song",
@@ -429,7 +450,8 @@ function init(ext) {
                 artist: "artistName",
                 url: "previewUrl",
                 pic: "artworkUrl100"
-            }
+            },
+            resolve: false
         }];
     }
     
@@ -540,7 +562,6 @@ function category(tid, pg, filter, extend) {
         }
     }
     
-    // 动态搜索源（URL包含{wd}）-> 进入键盘模式
     if (source.url && source.url.includes('{wd}')) {
         searchInputMode = true;
         searchBuffer = '';
@@ -697,9 +718,10 @@ function detail(tid) {
         if (tid === '__SEARCH_BACKSPACE') {
             if (searchBuffer.length > 0) searchBuffer = searchBuffer.slice(0, -1);
             let keyboard = getSearchKeyboard();
+            let display = searchBuffer === '' ? '______' : searchBuffer;
             let statusItem = {
                 vod_id: '__SEARCH_STATUS_' + Date.now(),
-                vod_name: `🔍 输入搜索词: ${searchBuffer === '' ? '______' : searchBuffer}`,
+                vod_name: `🔍 输入搜索词: ${display}`,
                 vod_pic: getDynamicPic('search_status'),
                 vod_remarks: '点击字母/数字，完成后按🔍搜索'
             };
@@ -813,10 +835,12 @@ function play(flag, id, vipFlags) {
     if (__ext_config.global && __ext_config.global.parseUrl) {
         let parseApi = __ext_config.global.parseUrl;
         let parseUrl = parseApi.replace('{url}', encodeURIComponent(id));
-        let resp = smartRequest(parseUrl);
-        let json = resp.json();
-        if (json && json.url) finalUrl = json.url;
-        parse = json && json.parse === 1 ? 1 : 0;
+        try {
+            let resp = smartRequest(parseUrl);
+            let json = resp.json();
+            if (json && json.url) finalUrl = json.url;
+            parse = json && json.parse === 1 ? 1 : 0;
+        } catch(e) { print("解析接口调用失败，使用原链接"); }
     }
     let autoParse = /m3u8|ts|flv/i.test(finalUrl) ? 0 : 1;
     return JSON.stringify({ parse: autoParse, playUrl: '', url: finalUrl });
