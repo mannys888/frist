@@ -8,8 +8,21 @@
   ],
   "searchEngines": [
     {
-      "name": "iTunes 音乐(30秒)",
-      "url": "https://itunes.apple.com/search?term={wd}&limit=20&entity=musicTrack",
+      "name": "🎵 完整歌曲(JioSaavn)",
+      "url": "https://saavn.me/search/songs?query={wd}&limit=20",
+      "headers": { "User-Agent": "Mozilla/5.0" },
+      "parse": {
+        "path": "data.results",
+        "title": "name",
+        "artist": "primaryArtists",
+        "url": "downloadUrl.3.link",
+        "pic": "image.2.link"
+      },
+      "resolve": false
+    },
+    {
+      "name": "🎵 试听(iTunes)",
+      "url": "https://itunes.apple.com/search?term={wd}&limit=10&entity=musicTrack",
       "parse": {
         "path": "results",
         "title": "trackName",
