@@ -1,26 +1,26 @@
 {
     "sources": [
         {
-            "name": "🎬 搜电影",
-            "url": "https://api.api60.com/search.php?keyword={wd}",
+            "name": "📡 搜直播源",
+            "url": "https://api.aa1.cn/api/channel?name={wd}",
             "method": "GET"
         }
     ],
     "searchEngines": [
         {
-            "name": "电影搜索",
-            "url": "https://api.api60.com/search.php?keyword={wd}",
+            "name": "全球直播源搜索",
+            "url": "https://api.aa1.cn/api/channel?name={wd}",
             "headers": { "User-Agent": "Mozilla/5.0" },
             "parse": {
                 "path": "data",
                 "title": "name",
                 "url": "url",
-                "pic": "pic",
-                "artist": ""
+                "pic": "pic"
             }
         }
     ],
     "global": {
-        "debug": true
+        "debug": true,
+        "double_url_fallback": false
     }
 }
