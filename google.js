@@ -374,20 +374,33 @@ function play(flag, id, vip) {
 }
 
 // ========== 搜索（简单遍历） ==========
-function search(wd) {
+
+function search(wd, quick) {
   let results = [];
+  // 1. searchHandler 优先
   for (let src of __ext_config.sources) {
-    if (src.url && !src.handler) {
-      let content = fetchSource(src.url, src);
+    if (src.searchHandler && __ext_config.customHandlers[src.searchHandler]) {
+      let ctx = { wd, quick, source: src, globalConfig: __ext_config.global };
+      let ret = executeHandler(src.searchHandler, ctx);
+      if (ret && Array.isArray(ret)) results.push(...ret);
+      else if (ret && ret.list) results.push(...ret.list);
+    }
+  }
+  // 2. 普通源：支持 {wd} 替换和标题匹配
+  for (let src of __ext_config.sources) {
+    if (src.url && !src.handler && !src.searchHandler) {
+      let url = src.url.replace(/\{wd\}/g, encodeURIComponent(wd));
+      let content = fetchSource(url, src);
       let items = parseList(content, src.parseConfig || {}, "");
-      let matched = items.filter(it => it.title.includes(wd));
-      for (let m of matched) {
-        results.push({
-          vod_id: m.url + "###single",
-          vod_name: `[${src.name}] ${m.title}`,
-          vod_pic: def_pic,
-          vod_remarks: "搜索"
-        });
+      for (let m of items) {
+        if (m.title.includes(wd)) {
+          results.push({
+            vod_id: m.url + "###single",
+            vod_name: `[${src.name}] ${m.title}`,
+            vod_pic: def_pic,
+            vod_remarks: "搜索"
+          });
+        }
       }
     }
   }
