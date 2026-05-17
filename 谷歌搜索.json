@@ -1,39 +1,26 @@
 {
     "sources": [
         {
-            "name": "全网搜",
+            "name": "🎬 搜电影",
             "url": "https://api.api60.com/search.php?keyword={wd}",
-            "method": "GET",
-            "headers": {
-                "User-Agent": "Mozilla/5.0",
-                "Referer": "https://www.api60.com/"
-            },
-            "parseConfig": {
-                "type": "json",
-                "jsonPath": "data",
-                "titleField": "name",
-                "urlField": "url"
-            }
+            "method": "GET"
         }
     ],
-    "global": {
-        "double_url_fallback": true,
-        "parseUrl": "https://your-parse-api.com/parse?url={url}"
-    },
     "searchEngines": [
         {
-            "name": "全网搜引擎",
+            "name": "电影搜索",
             "url": "https://api.api60.com/search.php?keyword={wd}",
-            "headers": {
-                "User-Agent": "Mozilla/5.0"
-            },
+            "headers": { "User-Agent": "Mozilla/5.0" },
             "parse": {
                 "path": "data",
                 "title": "name",
                 "url": "url",
-                "pic": "",
+                "pic": "pic",
                 "artist": ""
             }
         }
-    ]
+    ],
+    "global": {
+        "debug": true
+    }
 }
