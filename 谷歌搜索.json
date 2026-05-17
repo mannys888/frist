@@ -1,23 +1,26 @@
 {
-    "sources": [
-        {
-            "name": "🔍 视频搜索测试",
-            "url": "https://httpbin.org/get?wd={wd}",
-            "method": "GET"
+  "sites": [
+    {
+      "name": "📺 央视精选",
+      "url": "https://tv.cctv.com",
+      "parseConfig": {
+        "type": "regex",
+        "pattern": "<a[^>]*href=\"(https?://tv\\.cctv\\.com/[^\"]+)\"[^>]*>([^<]+)</a>",
+        "flags": "g",
+        "titleGroup": 2,
+        "urlGroup": 1,
+        "postProcess": {
+          "limit": 20
         }
-    ],
-    "searchEngines": [
-        {
-            "name": "测试视频源",
-            "url": "https://api.allorigins.win/raw?url=https://jsonplaceholder.typicode.com/posts?q={wd}",
-            "headers": { "User-Agent": "Mozilla/5.0" },
-            "parse": {
-                "path": "",
-                "title": "title",
-                "url": "id"
-            },
-            "urlTemplate": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8"
-        }
-    ],
-    "global": { "debug": true }
+      }
+    }
+  ],
+  "headers": {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+  },
+  "cover": {
+    "type": "fixed",
+    "url": "https://picsum.photos/200/300"
+  },
+  "debug": true
 }
