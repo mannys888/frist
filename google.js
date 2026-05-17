@@ -1,14 +1,8 @@
 /**
- * universal_spider_v36.js (终极旗舰版)
- * 特性：
- *   - 全配置驱动，零硬编码
- *   - 支持分类内搜索（url 含 {wd} 自动弹出键盘）
- *   - 支持全局搜索（遥控器搜索键）
- *   - 搜索结果直接播放（无需额外 detailHandler）
- *   - 直播源（txt/m3u/#分组#） + 点播合集（series）
- *   - customHandlers 可接管任意环节
+ * universal_spider_v36_fixed.js (修复分类解析)
+ * 修复：普通直播源（无#分组#标记）也能正常显示列表
+ * 其他功能不变：分类内搜索、全局搜索、customHandlers 等
  */
-
 // ========== 全局配置 ==========
 const DATA_DEFAULT_HEADERS = {
   "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -17,7 +11,7 @@ const DATA_DEFAULT_HEADERS = {
   "Connection": "keep-alive"
 };
 
-const VERSION = "universal v3.6 (终极旗舰版)";
+const VERSION = "universal v3.6 (修复分类解析)";
 const RKEY = "universal_spider";
 let def_pic = "https://avatars.githubusercontent.com/u/97389433?s=120&v=4";
 let debugMode = true;
@@ -28,7 +22,6 @@ let cache_data = {};
 let showMode = "groups";
 let groupDict = {};
 
-// 搜索键盘状态
 let searchInputMode = false;
 let searchBuffer = "";
 let currentSearchSource = null;
@@ -44,7 +37,6 @@ function setItem(k, v) { local.set(RKEY, k, v); print(`设置 ${k}=${v}`); }
 function getItem(k, d) { return local.get(RKEY, k) || d; }
 function sleep(ms) { let start = Date.now(); while(Date.now() - start < ms); }
 
-// ========== 动态请求头 ==========
 function getDynamicHeaders(url) {
   let headers = {};
   let match = url.match(/^(https?:\/\/[^/]+)/);
@@ -54,7 +46,6 @@ function getDynamicHeaders(url) {
   return headers;
 }
 
-// ========== 智能请求（重试、超时、默认头） ==========
 function httpRequest(url, options = {}) {
   let method = options.method || "GET";
   let headers = { ...DATA_DEFAULT_HEADERS, ...getDynamicHeaders(url), ...(options.headers || {}) };
@@ -112,7 +103,6 @@ function convertM3uToNormal(m3u) {
   return result.trim();
 }
 
-// ========== 列表解析器（文本/JSON/M3U） ==========
 function parseList(content, parseConfig, baseUrl) {
   if (!content) return [];
   let items = [];
@@ -169,7 +159,6 @@ function parseList(content, parseConfig, baseUrl) {
   return items;
 }
 
-// ========== 分组工具 ==========
 function splitArray(arr, parseFn) {
   if (!arr.length) return [];
   let result = [[arr[0]]];
@@ -185,7 +174,6 @@ function splitArray(arr, parseFn) {
   return result;
 }
 
-// ========== customHandler 执行器 ==========
 function executeHandler(handlerName, ctx) {
   let handler = __ext_config.customHandlers?.[handlerName];
   if (!handler) return null;
@@ -199,7 +187,6 @@ function executeHandler(handlerName, ctx) {
   return null;
 }
 
-// ========== 搜索键盘界面 ==========
 function getSearchKeyboard() {
   let items = [];
   let letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
@@ -215,10 +202,8 @@ function getSearchKeyboard() {
   return items;
 }
 
-// ========== 核心搜索函数（支持多个引擎） ==========
 function performSearch(keyword) {
   let allResults = [];
-  // 1. 如果有配置 searchEngines 数组，使用它们
   if (__ext_config.searchEngines && Array.isArray(__ext_config.searchEngines)) {
     for (let engine of __ext_config.searchEngines) {
       try {
@@ -239,7 +224,7 @@ function performSearch(keyword) {
               let finalUrl = rawUrl;
               if (engine.urlTemplate) finalUrl = engine.urlTemplate.replace(/\{url\}/g, encodeURIComponent(rawUrl));
               allResults.push({
-                vod_id: finalUrl,   // 直接使用媒体URL，保证播放
+                vod_id: finalUrl,
                 vod_name: title,
                 vod_pic: pic,
                 vod_remarks: `🎬 ${engine.name}`
@@ -250,7 +235,6 @@ function performSearch(keyword) {
       } catch(e) { print(`引擎 ${engine.name} 失败: ${e.message}`); }
     }
   }
-  // 2. 遍历 sources 中的 searchHandler
   for (let src of __ext_config.sources) {
     if (src.searchHandler && __ext_config.customHandlers[src.searchHandler]) {
       let ctx = { wd: keyword, source: src, globalConfig: __ext_config.global };
@@ -259,7 +243,6 @@ function performSearch(keyword) {
       else if (ret && ret.list) allResults.push(...ret.list);
     }
   }
-  // 3. 如果仍然没有结果，返回提示
   if (allResults.length === 0) {
     allResults.push({
       vod_id: "no_result",
@@ -271,7 +254,6 @@ function performSearch(keyword) {
   return allResults;
 }
 
-// ========== 外部接口 ==========
 function init(ext) {
   print(VERSION + " 初始化");
   let configData = null;
@@ -309,29 +291,29 @@ function home() {
 }
 function homeVod() { return JSON.stringify({ list: [] }); }
 
+// ========== 修复后的 category 函数 ==========
 function category(tid, pg, filter, extend) {
   let fl = filter ? extend : {};
   if (fl.show) { showMode = fl.show; setItem("showMode", showMode); }
   let source = __ext_config.sources.find(s => s.name === tid);
   if (!source) return JSON.stringify({ list: [] });
   
-  // ========== 检测是否为搜索分类（url包含{wd}） ==========
+  // 1. 搜索分类（url含{wd}）
   if (source.url && source.url.includes("{wd}")) {
     searchInputMode = true;
     searchBuffer = "";
     currentSearchSource = source;
     let keyboard = getSearchKeyboard();
-    let statusItem = {
+    keyboard.unshift({
       vod_id: "__SEARCH_STATUS_" + Date.now(),
-      vod_name: `🔍 输入搜索词: ______`,
+      vod_name: "🔍 输入搜索词: ______",
       vod_pic: def_pic,
       vod_remarks: "点击字母/数字，完成后按🔍搜索"
-    };
-    keyboard.unshift(statusItem);
+    });
     return JSON.stringify({ list: keyboard, page: 1, pagecount: 1, limit: keyboard.length, total: keyboard.length });
   }
   
-  // 其他逻辑：handler 或 普通源
+  // 2. 自定义 handler
   if (source.handler && __ext_config.customHandlers[source.handler]) {
     let ctx = { tid, pg: parseInt(pg) || 1, filter: fl, source, globalConfig: __ext_config.global };
     let result = executeHandler(source.handler, ctx);
@@ -346,22 +328,39 @@ function category(tid, pg, filter, extend) {
     } else if (result && result.list) return JSON.stringify(result);
   }
   
-  // 普通直播源（#分组#格式）
+  // 3. 普通数据源（直播源 txt/m3u）
   if (parseInt(pg) > 1) return JSON.stringify({ list: [] });
-  let html = fetchSource(source.url, source);
-  let arr = html.match(/.*?[,，]#[\s\S].*?#/g) || [];
-  let list = [];
-  for (let it of arr) {
-    let vname = it.split(/[,，]/)[0];
-    let vtab = it.match(/#(.*?)#/)[0];
-    let vod_id = source.url + "$" + vname + "###single";
-    list.push({ vod_name: vname, vod_id, vod_pic: def_pic, vod_remarks: vtab });
+  let content = fetchSource(source.url, source);
+  let baseDir = source.url.substring(0, source.url.lastIndexOf("/")+1);
+  
+  // 优先尝试 #分组# 格式
+  let groupMatches = content.match(/.*?[,，]#[\s\S].*?#/g);
+  if (groupMatches && groupMatches.length) {
+    let list = [];
+    for (let it of groupMatches) {
+      let vname = it.split(/[,，]/)[0];
+      let vtab = it.match(/#(.*?)#/)[0];
+      let vod_id = source.url + "$" + vname + "###single";
+      list.push({ vod_name: vname, vod_id, vod_pic: def_pic, vod_remarks: vtab });
+    }
+    return JSON.stringify({ list, page: 1, pagecount: 1, limit: list.length, total: list.length });
   }
-  return JSON.stringify({ list, page: 1, pagecount: 1, limit: list.length, total: list.length });
+  
+  // 没有分组标记，则使用 parseList 按行解析（支持 频道名,URL）
+  let parseCfg = source.parseConfig || { line_sep: "," };
+  let items = parseList(content, parseCfg, baseDir);
+  let videos = items.map(item => ({
+    vod_id: item.url + "###single",
+    vod_name: item.title,
+    vod_pic: def_pic,
+    vod_remarks: source.name
+  }));
+  return JSON.stringify({ list: videos, page: 1, pagecount: 1, limit: videos.length, total: videos.length });
 }
 
+// detail 和 play 函数保持不变（与之前 v36 相同）
 function detail(tid) {
-  // 处理搜索键盘输入
+  // 搜索键盘处理...
   if (searchInputMode) {
     if (tid.startsWith("__SEARCH_LETTER__")) {
       let letter = tid.replace("__SEARCH_LETTER__", "");
@@ -404,7 +403,7 @@ function detail(tid) {
       let keyboard = getSearchKeyboard();
       keyboard.unshift({
         vod_id: "__SEARCH_STATUS_" + Date.now(),
-        vod_name: `🔍 输入搜索词: ______`,
+        vod_name: "🔍 输入搜索词: ______",
         vod_pic: def_pic,
         vod_remarks: "点击字母/数字，完成后按🔍搜索"
       });
@@ -424,13 +423,11 @@ function detail(tid) {
       searchInputMode = false;
       let keyword = searchBuffer.trim();
       let results = performSearch(keyword);
-      // 直接返回搜索结果列表（每个结果的 vod_id 是播放URL）
       return JSON.stringify({ list: results });
     }
   }
   
-  // 处理普通卡片：支持直接播放URL、###single、###series等
-  // 如果 tid 本身就是 http(s) 开头的媒体链接，直接构造播放vod
+  // 直接媒体链接播放
   if (tid.match(/^https?:\/\//) && (tid.includes(".m3u8") || tid.includes(".mp4") || tid.includes(".m4a") || tid.includes(".ts"))) {
     let vod = {
       vod_id: tid,
@@ -444,7 +441,6 @@ function detail(tid) {
     return JSON.stringify({ list: [vod] });
   }
   
-  // 处理 ###single 后缀（传统直播源卡片）
   if (tid.includes("###single")) {
     let url = tid.split("###")[0];
     if (url.match(/^https?:\/\//)) {
@@ -461,7 +457,6 @@ function detail(tid) {
     }
   }
   
-  // 原有系列/分组逻辑
   let parts = tid.split("###");
   let mode = parts.length > 1 ? parts[1] : "single";
   let left = parts[0];
@@ -469,7 +464,6 @@ function detail(tid) {
   let tab = left.split("$")[1];
   let source = __ext_config.sources.find(s => s.url === sourceUrl);
   
-  // 找不到source时，尝试detailHandler fallback
   if (!source) {
     for (let s of __ext_config.sources) {
       if (s.detailHandler && __ext_config.customHandlers[s.detailHandler]) {
@@ -502,7 +496,6 @@ function detail(tid) {
     return JSON.stringify({ list: [vod] });
   }
   
-  // 原有分组逻辑
   let html = fetchSource(sourceUrl, source);
   let escTab = tab.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   let regex = new RegExp(`.*?${escTab}[,，]#[\\s\\S].*?#`);
@@ -530,7 +523,6 @@ function detail(tid) {
 }
 
 function play(flag, id, vip) {
-  // 如果有 playHandler，优先使用
   for (let src of __ext_config.sources) {
     if (src.playHandler && __ext_config.customHandlers[src.playHandler]) {
       let ctx = { flag, id, vip, source: src };
@@ -538,7 +530,6 @@ function play(flag, id, vip) {
       if (result && result.url) return JSON.stringify(result);
     }
   }
-  // 默认直接播放
   let parse = /m3u8|ts|flv/.test(id) ? 0 : 1;
   return JSON.stringify({ parse, playUrl: "", url: id });
 }
