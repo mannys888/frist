@@ -1,21 +1,22 @@
 {
     "sources": [
         {
-            "name": "🔍 测试搜索入口",
+            "name": "🔍 视频搜索测试",
             "url": "https://httpbin.org/get?wd={wd}",
             "method": "GET"
         }
     ],
     "searchEngines": [
         {
-            "name": "演示引擎（返回固定结果）",
-            "url": "https://api.github.com/repos/torvalds/linux/commits?sha={wd}",
-            "headers": { "User-Agent": "test" },
+            "name": "测试视频源",
+            "url": "https://api.allorigins.win/raw?url=https://jsonplaceholder.typicode.com/posts?q={wd}",
+            "headers": { "User-Agent": "Mozilla/5.0" },
             "parse": {
                 "path": "",
-                "title": "commit.message",
-                "url": "html_url"
-            }
+                "title": "title",
+                "url": "id"
+            },
+            "urlTemplate": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8"
         }
     ],
     "global": { "debug": true }
