@@ -1,58 +1,14 @@
 {
-  "sites": [
+  "sources": [
     {
       "name": "📺 央视栏目",
-      "type_id": "cctv",
       "handler": "cctvListHandler",
-      "api": "https://api.cntv.cn/lanmu/columnSearch?fl={fl}&fc={fc}&cid={cid}&p={p}&n=20&serviceId=tvcctv&t=json",
-      "parseConfig": {
-        "dataPath": "response.docs",
-        "titleField": "column_name",
-        "urlField": "column_logo",
-        "idTemplate": "{prefix}###{column_name}###{lastVIDE.videoSharedCode}###{column_logo}"
-      }
+      "detailHandler": "cctvDetailHandler",
+      "playHandler": "cctvPlayHandler"
     }
   ],
-  "filters": {
-    "cctv": [
-      {
-        "key": "cid", "name": "频道", "value": [
-          {"n":"全部","v":""},
-          {"n":"CCTV-1综合","v":"EPGC1386744804340101"},
-          {"n":"CCTV-2财经","v":"EPGC1386744804340102"},
-          {"n":"CCTV-3综艺","v":"EPGC1386744804340103"},
-          {"n":"CCTV-4中文国际","v":"EPGC1386744804340104"},
-          {"n":"CCTV-5体育","v":"EPGC1386744804340107"},
-          {"n":"CCTV-6电影","v":"EPGC1386744804340108"},
-          {"n":"CCTV-7国防军事","v":"EPGC1386744804340109"},
-          {"n":"CCTV-8电视剧","v":"EPGC1386744804340110"},
-          {"n":"CCTV-9纪录","v":"EPGC1386744804340112"},
-          {"n":"CCTV-10科教","v":"EPGC1386744804340113"},
-          {"n":"CCTV-11戏曲","v":"EPGC1386744804340114"},
-          {"n":"CCTV-12社会与法","v":"EPGC1386744804340115"},
-          {"n":"CCTV-13新闻","v":"EPGC1386744804340116"},
-          {"n":"CCTV-14少儿","v":"EPGC1386744804340117"},
-          {"n":"CCTV-15音乐","v":"EPGC1386744804340118"},
-          {"n":"CCTV-16奥林匹克","v":"EPGC1634630207058998"},
-          {"n":"CCTV-17农业农村","v":"EPGC1563932742616872"},
-          {"n":"CCTV-5+体育赛事","v":"EPGC1468294755566101"}
-        ]
-      },
-      {
-        "key": "fc", "name": "分类", "value": [
-          {"n":"全部","v":""},
-          {"n":"新闻","v":"新闻"},{"n":"体育","v":"体育"},{"n":"综艺","v":"综艺"},
-          {"n":"健康","v":"健康"},{"n":"生活","v":"生活"},{"n":"科教","v":"科教"},
-          {"n":"经济","v":"经济"},{"n":"农业","v":"农业"},{"n":"法治","v":"法治"},
-          {"n":"军事","v":"军事"},{"n":"少儿","v":"少儿"},{"n":"动画","v":"动画"},
-          {"n":"纪实","v":"纪实"},{"n":"戏曲","v":"戏曲"},{"n":"音乐","v":"音乐"},
-          {"n":"影视","v":"影视"}
-        ]
-      }
-    ]
-  },
   "customHandlers": {
-    "cctvListHandler": "function(ctx) { const fetch = (url) => { let resp = req(url, { headers: ctx.globalExtConfig?.headers || {} }); return typeof resp === 'string' ? resp : resp?.content; }; const url = ctx.parseConfig.api.replace('{p}', ctx.pg).replace('{fl}', ctx.filter?.fl || '').replace('{fc}', ctx.filter?.fc || '').replace('{cid}', ctx.filter?.cid || ''); let json = JSON.parse(fetch(url)); let docs = json?.response?.docs || []; let videos = []; let prefix = (ctx.filter?.year || '') + (ctx.filter?.month || ''); for (let vod of docs) { let lastVideo = vod.lastVIDE?.videoSharedCode || '_'; let guid = `${prefix}###${vod.column_name}###${lastVideo}###${vod.column_logo || ''}`; videos.push({ vod_id: guid, vod_name: vod.column_name, vod_pic: vod.column_logo || '', vod_remarks: '' }); } return videos; }",
+    "cctvListHandler": "function(ctx) { const fetchJson = (url) => { let resp = req(url, { headers: { 'User-Agent': 'Mozilla/5.0' } }); return JSON.parse(resp.content); }; let filter = ctx.filter || {}; let url = `https://api.cntv.cn/lanmu/columnSearch?fl=${filter.fl || ''}&fc=${filter.fc || ''}&cid=${filter.cid || ''}&p=${ctx.pg}&n=20&serviceId=tvcctv&t=json`; let json = fetchJson(url); let docs = json?.response?.docs || []; let prefix = (filter.year || '') + (filter.month || ''); return docs.map(vod => ({ vod_id: `${prefix}###${vod.column_name}###${vod.lastVIDE?.videoSharedCode || '_'}###${vod.column_logo || ''}`, vod_name: vod.column_name, vod_pic: vod.column_logo || '', vod_remarks: '' })); }",
     "cctvDetailHandler": "function(ctx) { let parts = ctx.vodId.split('###'); if (parts.length < 4) return { list: [] }; let prefix = parts[0]; let title = parts[1]; let lastVideo = parts[2]; let logo = parts[3]; if (lastVideo === '_') return { list: [] }; let infoUrl = `https://api.cntv.cn/video/videoinfoByGuid?guid=${lastVideo}&serviceId=tvcctv`; let infoJson = JSON.parse(req(infoUrl, { json: true })); if (!infoJson.ctid) return { list: [] }; let topicId = infoJson.ctid; let channel = infoJson.channel || ''; let listUrl = `https://api.cntv.cn/NewVideo/getVideoListByColumn?id=${topicId}&d=${prefix}&p=1&n=100&sort=desc&mode=0&serviceId=tvcctv&t=json`; let listJson = JSON.parse(req(listUrl, { json: true })); let videoList = []; for (let video of (listJson?.data?.list || [])) { let playId = video.pid || video.vid || video.guid; if (playId) videoList.push(`${video.title}$${playId}`); } if (videoList.length === 0) return { list: [] }; let displayDate = prefix || new Date().getFullYear().toString(); let vod = { vod_id: ctx.vodId, vod_name: `${displayDate} ${title}`, vod_pic: logo, type_name: channel, vod_year: displayDate, vod_play_from: 'CCTV', vod_play_url: videoList.join('#') }; return { list: [vod] }; }",
     "cctvPlayHandler": "function(ctx) { let pid = ctx.id; let url = `https://vdn.apps.cntv.cn/api/getHttpVideoInfo.do?pid=${pid}`; let json = JSON.parse(req(url, { json: true })); let hls = json?.hls_url || ''; return { parse: 0, playUrl: '', url: hls }; }"
   },
