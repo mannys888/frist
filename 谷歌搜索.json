@@ -1,20 +1,17 @@
 {
   "sources": [
     {
-      "name": "📡 直播源",
+      "name": "📡 本地直播",
       "url": "https://raw.githubusercontent.com/mannys888/frist/refs/heads/main/迦南诗歌.txt"
-    }
-  ],
-  "searchEngines": [
+    },
     {
-      "name": "iTunes音乐",
+      "name": "🔍 全网搜",
       "url": "https://itunes.apple.com/search?term={wd}&limit=30&entity=song",
-      "headers": { "User-Agent": "Mozilla/5.0" },
-      "parse": {
-        "path": "results",
-        "title": "trackName",
-        "url": "previewUrl",
-        "pic": "artworkUrl100"
+      "parseConfig": {
+        "type": "json",
+        "jsonPath": "results",
+        "titleField": "trackName",
+        "urlField": "previewUrl"
       }
     }
   ],
