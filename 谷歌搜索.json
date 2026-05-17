@@ -1,36 +1,20 @@
 {
   "sources": [
     {
-      "name": "🎵 音乐搜索",
-      "url": "https://itunes.apple.com/search?term={wd}&limit=30&entity=song",
-      "parseConfig": {
-        "type": "json",
-        "jsonPath": "results",
-        "titleField": "trackName",
-        "urlField": "previewUrl"
-      }
+      "name": "📡 测试直播源",
+      "url": "https://raw.githubusercontent.com/mannys888/frist/refs/heads/main/迦南诗歌.txt"
     },
     {
-      "name": "📺 测试直播源",
-      "url": "https://raw.githubusercontent.com/mannys888/frist/refs/heads/main/迦南诗歌.txt",
-      "parseConfig": {
-        "type": "txt",
-        "line_sep": ","
-      }
+      "name": "🎵 搜歌测试",
+      "searchHandler": "itunesSearchHandler"
     }
   ],
-  "searchEngines": [
-    {
-      "name": "iTunes 音乐",
-      "url": "https://itunes.apple.com/search?term={wd}&limit=30&entity=song",
-      "parse": {
-        "type": "json",
-        "path": "results",
-        "title": "trackName",
-        "artist": "artistName",
-        "url": "previewUrl",
-        "pic": "artworkUrl100"
-      }
-    }
-  ]
+  "customHandlers": {
+    "itunesSearchHandler": "function(ctx) { let fetchJson = (url) => { let resp = req(url, { headers: { 'User-Agent': 'Mozilla/5.0' } }); return JSON.parse(resp.content); }; let keyword = encodeURIComponent(ctx.wd); let url = `https://itunes.apple.com/search?term=${keyword}&limit=30&entity=song`; let json = fetchJson(url); let results = json.results || []; return results.map(item => ({ vod_id: item.previewUrl + '###single', vod_name: `${item.trackName} - ${item.artistName}`, vod_pic: item.artworkUrl100 || def_pic, vod_remarks: `🎵 ${item.collectionName}  (试听片段: ${(item.trackTimeMillis / 1000).toFixed(0)}秒)` })); }"
+  },
+  "global": {
+    "debug": true,
+    "defaultPic": "https://picsum.photos/200/300",
+    "headers": { "User-Agent": "Mozilla/5.0" }
+  }
 }
