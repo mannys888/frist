@@ -1,5 +1,11 @@
+
+
 {
   "sources": [
+    {
+      "name": "📡 测试直播源",
+      "url": "https://raw.githubusercontent.com/mannys888/frist/refs/heads/main/迦南诗歌.txt"
+    },
     {
       "name": "📺 央视栏目",
       "handler": "cctvListHandler",
