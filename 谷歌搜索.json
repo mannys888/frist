@@ -1,16 +1,39 @@
 {
-  "sources": [
-    {
-      "name": "📺 直播源",
-      "url": "https://raw.githubusercontent.com/mannys888/frist/refs/heads/main/迦南诗歌.txt",
-      "parseConfig": { "type": "txt", "line_sep": "," }
+    "sources": [
+        {
+            "name": "全网搜",
+            "url": "https://api.api60.com/search.php?keyword={wd}",
+            "method": "GET",
+            "headers": {
+                "User-Agent": "Mozilla/5.0",
+                "Referer": "https://www.api60.com/"
+            },
+            "parseConfig": {
+                "type": "json",
+                "jsonPath": "data",
+                "titleField": "name",
+                "urlField": "url"
+            }
+        }
+    ],
+    "global": {
+        "double_url_fallback": true,
+        "parseUrl": "https://your-parse-api.com/parse?url={url}"
     },
-    {
-      "name": "🎵 我的歌单",
-      "url": "https://你的地址/mylist.txt",
-      "parseConfig": { "type": "txt", "line_sep": "," }
-    }
-  ],
-  "searchEngines": [],
-  "global": { "debug": true, "defaultTimeout": 15000 }
+    "searchEngines": [
+        {
+            "name": "全网搜引擎",
+            "url": "https://api.api60.com/search.php?keyword={wd}",
+            "headers": {
+                "User-Agent": "Mozilla/5.0"
+            },
+            "parse": {
+                "path": "data",
+                "title": "name",
+                "url": "url",
+                "pic": "",
+                "artist": ""
+            }
+        }
+    ]
 }
