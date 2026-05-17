@@ -1,26 +1,22 @@
 {
     "sources": [
         {
-            "name": "📡 搜直播源",
-            "url": "https://api.aa1.cn/api/channel?name={wd}",
+            "name": "🔍 测试搜索入口",
+            "url": "https://httpbin.org/get?wd={wd}",
             "method": "GET"
         }
     ],
     "searchEngines": [
         {
-            "name": "全球直播源搜索",
-            "url": "https://api.aa1.cn/api/channel?name={wd}",
-            "headers": { "User-Agent": "Mozilla/5.0" },
+            "name": "演示引擎（返回固定结果）",
+            "url": "https://api.github.com/repos/torvalds/linux/commits?sha={wd}",
+            "headers": { "User-Agent": "test" },
             "parse": {
-                "path": "data",
-                "title": "name",
-                "url": "url",
-                "pic": "pic"
+                "path": "",
+                "title": "commit.message",
+                "url": "html_url"
             }
         }
     ],
-    "global": {
-        "debug": true,
-        "double_url_fallback": false
-    }
+    "global": { "debug": true }
 }
