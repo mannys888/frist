@@ -1,20 +1,22 @@
 {
   "sources": [
     {
-      "name": "🎵 iTunes",
-      "searchHandler": "itunesSearchHandler"
-    },
-    {
       "name": "📡 直播源",
-      "searchHandler": "localLiveSearchHandler",
-      "liveUrl": "https://raw.githubusercontent.com/mannys888/frist/refs/heads/main/迦南诗歌.txt"
+      "url": "https://raw.githubusercontent.com/mannys888/frist/refs/heads/main/迦南诗歌.txt"
     }
   ],
-  "customHandlers": {
-    "itunesSearchHandler": "function(ctx) { let fetchJson = (url) => { let resp = req(url, { headers: { 'User-Agent': 'Mozilla/5.0' } }); return JSON.parse(resp.content); }; let keyword = encodeURIComponent(ctx.wd); let url = `https://itunes.apple.com/search?term=${keyword}&limit=30&entity=song`; let json = fetchJson(url); let results = json.results || []; return results.map(item => ({ vod_id: item.previewUrl, vod_name: `${item.trackName} - ${item.artistName}`, vod_pic: item.artworkUrl100 || 'https://picsum.photos/200/300', vod_remarks: `🎵 试听 (${(item.trackTimeMillis/1000).toFixed(0)}秒)` })); }",
-    "localLiveSearchHandler": "function(ctx) { let fetchTxt = (url) => { let resp = req(url, { headers: { 'User-Agent': 'Mozilla/5.0' } }); return resp.content; }; let url = ctx.source.liveUrl; let content = fetchTxt(url); let lines = content.split('\\n'); let results = []; for (let line of lines) { line = line.trim(); if (!line || line.startsWith('#')) continue; let parts = line.split(','); if (parts.length >= 2) { let title = parts[0].trim(); let playUrl = parts[1].trim(); if (title.toLowerCase().includes(ctx.wd.toLowerCase())) { results.push({ vod_id: playUrl, vod_name: title, vod_pic: 'https://picsum.photos/200/300', vod_remarks: '直播' }); } } } return results; }"
-  },
-  "global": {
-    "debug": true
-  }
+  "searchEngines": [
+    {
+      "name": "iTunes音乐",
+      "url": "https://itunes.apple.com/search?term={wd}&limit=30&entity=song",
+      "headers": { "User-Agent": "Mozilla/5.0" },
+      "parse": {
+        "path": "results",
+        "title": "trackName",
+        "url": "previewUrl",
+        "pic": "artworkUrl100"
+      }
+    }
+  ],
+  "global": { "debug": true }
 }
