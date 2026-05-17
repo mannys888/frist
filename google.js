@@ -440,6 +440,7 @@ function category(tid, pg, filter, extend) {
 }
 
 // ========== detail 修改：支持 handler ==========
+
 function detail(tid) {
   // 如果 tid 包含 #search# 保持原有逻辑
   if (tid.includes('#search#')) {
@@ -468,22 +469,34 @@ function detail(tid) {
   let sourceUrl = left.split('$')[0];
   let tab = left.split('$')[1];
   let source = __ext_config.sources.find(s => s.url === sourceUrl);
-  if (!source) return JSON.stringify({ list: [] });
   
-  // 如果分类配置了 detailHandler，则调用
+  // ========== 新增 fallback 逻辑 ==========
+  if (!source) {
+    // 尝试在所有带 detailHandler 的源中查找能处理的
+    for (let s of __ext_config.sources) {
+      if (s.detailHandler && __ext_config.customHandlers[s.detailHandler]) {
+        let ctx = {
+          vodId: tid, mode, sourceUrl: null, tab: null, source: s,
+          globalConfig: __ext_config.global, customHandlers: __ext_config.customHandlers
+        };
+        let result = executeHandler(s.detailHandler, ctx);
+        if (result && result.list) return JSON.stringify(result);
+        if (result && Array.isArray(result)) return JSON.stringify({ list: result });
+      }
+    }
+    return JSON.stringify({ list: [] });
+  }
+  // ====================================
+  
+  // 如果分类配置了 detailHandler，优先调用
   if (source.detailHandler && __ext_config.customHandlers[source.detailHandler]) {
     let ctx = {
       vodId: tid, mode, sourceUrl, tab, source,
-      globalConfig: __ext_config.global,
-      customHandlers: __ext_config.customHandlers
+      globalConfig: __ext_config.global, customHandlers: __ext_config.customHandlers
     };
     let result = executeHandler(source.detailHandler, ctx);
-    if (result && result.list) {
-      return JSON.stringify(result);
-    } else if (result && Array.isArray(result)) {
-      return JSON.stringify({ list: result });
-    }
-    // fallback 继续原有逻辑
+    if (result && result.list) return JSON.stringify(result);
+    if (result && Array.isArray(result)) return JSON.stringify({ list: result });
   }
   
   // 原有 series 逻辑
