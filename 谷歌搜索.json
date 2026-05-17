@@ -1,10 +1,8 @@
-
-
 {
   "sources": [
     {
       "name": "📡 测试直播源",
-      "url": "https://raw.githubusercontent.com/mannys888/frist/refs/heads/main/迦南诗歌.txt"
+      "url": "你的直播源地址"
     },
     {
       "name": "📺 央视栏目",
