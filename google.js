@@ -723,22 +723,51 @@ function detail(tid) {
             return JSON.stringify({ list: keyboard });
         }
         if (tid === '__SEARCH_SUBMIT') {
-            if (searchBuffer.trim() === '') {
-                let keyboard = getSearchKeyboard();
-                let statusItem = {
-                    vod_id: '__SEARCH_STATUS_EMPTY_' + Date.now(),
-                    vod_name: `⚠️ 请输入搜索词`,
-                    vod_pic: getDynamicPic('search_error'),
-                    vod_remarks: '先点击字母或数字'
-                };
-                keyboard.unshift(statusItem);
-                return JSON.stringify({ list: keyboard });
-            }
-            searchInputMode = false;
-            let keyword = searchBuffer.trim();
-            let results = performMultiEngineSearch(keyword);
-            return JSON.stringify({ list: results });
-        }
+    if (searchBuffer.trim() === '') {
+        let keyboard = getSearchKeyboard();
+        let statusItem = {
+            vod_id: '__SEARCH_STATUS_EMPTY_' + Date.now(),
+            vod_name: `⚠️ 请输入搜索词`,
+            vod_pic: getDynamicPic('search_error'),
+            vod_remarks: '先点击字母或数字'
+        };
+        keyboard.unshift(statusItem);
+        return JSON.stringify({ list: keyboard });
+    }
+    searchInputMode = false;
+    let keyword = searchBuffer.trim();
+    let results = performMultiEngineSearch(keyword);
+    
+    // 如果没有结果，返回一个提示卡片
+    if (results.length === 0 || (results.length === 1 && results[0].vod_id === 'no_result')) {
+        let noResultItem = {
+            vod_id: 'no_result',
+            vod_name: `❌ 未找到“${keyword}”相关内容`,
+            vod_pic: getDynamicPic('no_result'),
+            vod_remarks: '请尝试其他关键词'
+        };
+        return JSON.stringify({ list: [noResultItem] });
+    }
+    
+    // 将搜索结果打包成一个“合集”视频
+    let playUrl = results.map(r => {
+        // 注意：这里用 r.vod_name 作为标题，r.vod_id 中存储的是 __MUSIC__ + 编码后的播放URL
+        let realUrl = r.vod_id.startsWith('__MUSIC__') ? decodeURIComponent(r.vod_id.substring('__MUSIC__'.length)) : '';
+        if (!realUrl) realUrl = '#'; // 无效链接
+        return `${r.vod_name}$${realUrl}`;
+    }).join('#');
+    
+    let collectionVod = {
+        vod_id: '__SEARCH_RESULT_COLLECTION_' + Date.now(),
+        vod_name: `🔍 搜索“${keyword}”的结果 (共${results.length}条)`,
+        vod_pic: getDynamicPic('search_result'),
+        type_name: "搜索结果",
+        vod_play_from: "多源搜索结果",
+        vod_play_url: playUrl,
+        vod_remarks: `点击查看详情`
+    };
+    return JSON.stringify({ list: [collectionVod] });
+      }
     }
     
     // 普通视频/直播详情解析
