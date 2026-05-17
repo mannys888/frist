@@ -1,9 +1,15 @@
 /**
- * universal_spider_v36_fixed.js (修复分类解析)
- * 修复：普通直播源（无#分组#标记）也能正常显示列表
- * 其他功能不变：分类内搜索、全局搜索、customHandlers 等
+ * universal_spider_v35.js (全能旗舰版)
+ * 特性：
+ *   - 支持直播源（txt/m3u）和点播合集（series）
+ *   - 支持 customHandlers 完全配置驱动（无需改动脚本）
+ *   - 自动适配 TVBox/OK 应用的详情选集规范
+ *   - 增强请求头、缓存、重试
+ *   - 所有解析规则由 ext 配置定义
+ * 使用：复制整个脚本到 TVBox 的爬虫地址或本地文件，ext 配置按示例填写
  */
-// ========== 全局配置 ==========
+
+// ========== 全局常量 ==========
 const DATA_DEFAULT_HEADERS = {
   "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
   "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
@@ -11,17 +17,19 @@ const DATA_DEFAULT_HEADERS = {
   "Connection": "keep-alive"
 };
 
-const VERSION = "universal v3.6 (修复分类解析)";
+const VERSION = "universal v3.5 (旗舰版)";
 const RKEY = "universal_spider";
 let def_pic = "https://avatars.githubusercontent.com/u/97389433?s=120&v=4";
 let debugMode = true;
 let defaultTimeout = 8000;
 
+// 配置存储
 let __ext_config = { sources: [], global: {}, customHandlers: {} };
 let cache_data = {};
-let showMode = "groups";
+let showMode = "groups";    // groups / all
 let groupDict = {};
 
+// 搜索键盘相关
 let searchInputMode = false;
 let searchBuffer = "";
 let currentSearchSource = null;
@@ -37,6 +45,7 @@ function setItem(k, v) { local.set(RKEY, k, v); print(`设置 ${k}=${v}`); }
 function getItem(k, d) { return local.get(RKEY, k) || d; }
 function sleep(ms) { let start = Date.now(); while(Date.now() - start < ms); }
 
+// ========== 智能请求（带重试、默认头、动态Referer） ==========
 function getDynamicHeaders(url) {
   let headers = {};
   let match = url.match(/^(https?:\/\/[^/]+)/);
@@ -64,12 +73,13 @@ function httpRequest(url, options = {}) {
       return resp;
     } catch(e) {
       if (i === retry) throw e;
-      print(`请求失败，重试 ${i+1}/${retry}: ${url} - ${e.message}`);
+      print(`请求失败，重试${i+1}/${retry}: ${url} - ${e.message}`);
       sleep(500);
     }
   }
 }
 
+// 带缓存的数据源请求
 function fetchSource(url, sourceConfig = {}) {
   if (cache_data[url]) return cache_data[url];
   let opts = {
@@ -81,11 +91,13 @@ function fetchSource(url, sourceConfig = {}) {
   };
   let resp = httpRequest(url, opts);
   let content = resp.text();
+  // 自动转换 M3U 为通用格式
   if (!sourceConfig.type && content.includes("#EXTM3U")) content = convertM3uToNormal(content);
   cache_data[url] = content;
   return content;
 }
 
+// M3U 转简单格式
 function convertM3uToNormal(m3u) {
   let lines = m3u.split("\n");
   let result = "", tv = "", group = "";
@@ -103,6 +115,7 @@ function convertM3uToNormal(m3u) {
   return result.trim();
 }
 
+// ========== 列表解析器（文本/JSON/M3U） ==========
 function parseList(content, parseConfig, baseUrl) {
   if (!content) return [];
   let items = [];
@@ -159,6 +172,7 @@ function parseList(content, parseConfig, baseUrl) {
   return items;
 }
 
+// ========== 分组工具 ==========
 function splitArray(arr, parseFn) {
   if (!arr.length) return [];
   let result = [[arr[0]]];
@@ -174,19 +188,7 @@ function splitArray(arr, parseFn) {
   return result;
 }
 
-function executeHandler(handlerName, ctx) {
-  let handler = __ext_config.customHandlers?.[handlerName];
-  if (!handler) return null;
-  try {
-    if (typeof handler === "function") return handler(ctx);
-    if (typeof handler === "string") {
-      let fn = new Function("ctx", "return (" + handler + ")(ctx);");
-      return fn(ctx);
-    }
-  } catch(e) { print(`执行${handlerName}失败: ${e.message}`); }
-  return null;
-}
-
+// ========== 搜索键盘界面 ==========
 function getSearchKeyboard() {
   let items = [];
   let letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
@@ -202,8 +204,11 @@ function getSearchKeyboard() {
   return items;
 }
 
+// ========== 核心搜索函数（支持 searchEngines 配置 + 普通源搜索） ==========
 function performSearch(keyword) {
   let allResults = [];
+  
+  // 1. 如果配置了 searchEngines，使用它们
   if (__ext_config.searchEngines && Array.isArray(__ext_config.searchEngines)) {
     for (let engine of __ext_config.searchEngines) {
       try {
@@ -224,7 +229,7 @@ function performSearch(keyword) {
               let finalUrl = rawUrl;
               if (engine.urlTemplate) finalUrl = engine.urlTemplate.replace(/\{url\}/g, encodeURIComponent(rawUrl));
               allResults.push({
-                vod_id: finalUrl,
+                vod_id: finalUrl,        // 直接使用媒体 URL，保证播放
                 vod_name: title,
                 vod_pic: pic,
                 vod_remarks: `🎬 ${engine.name}`
@@ -235,6 +240,8 @@ function performSearch(keyword) {
       } catch(e) { print(`引擎 ${engine.name} 失败: ${e.message}`); }
     }
   }
+  
+  // 2. 遍历 sources 中的 searchHandler
   for (let src of __ext_config.sources) {
     if (src.searchHandler && __ext_config.customHandlers[src.searchHandler]) {
       let ctx = { wd: keyword, source: src, globalConfig: __ext_config.global };
@@ -243,6 +250,27 @@ function performSearch(keyword) {
       else if (ret && ret.list) allResults.push(...ret.list);
     }
   }
+  
+  // 3. 如果没有配置任何 searchEngines 和 searchHandler，则保留原有的普通源标题匹配逻辑
+  if (allResults.length === 0) {
+    for (let src of __ext_config.sources) {
+      if (src.url && !src.handler) {
+        let content = fetchSource(src.url, src);
+        let items = parseList(content, src.parseConfig || {}, "");
+        let matched = items.filter(it => it.title.includes(keyword));
+        for (let m of matched) {
+          allResults.push({
+            vod_id: m.url,        // 直接 URL，不加后缀
+            vod_name: `[${src.name}] ${m.title}`,
+            vod_pic: def_pic,
+            vod_remarks: "搜索"
+          });
+        }
+      }
+    }
+  }
+  
+  // 没有结果时显示提示
   if (allResults.length === 0) {
     allResults.push({
       vod_id: "no_result",
@@ -254,6 +282,23 @@ function performSearch(keyword) {
   return allResults;
 }
 
+
+
+// ========== customHandler 执行器 ==========
+function executeHandler(handlerName, ctx) {
+  let handler = __ext_config.customHandlers?.[handlerName];
+  if (!handler) return null;
+  try {
+    if (typeof handler === "function") return handler(ctx);
+    if (typeof handler === "string") {
+      let fn = new Function("ctx", "return (" + handler + ")(ctx);");
+      return fn(ctx);
+    }
+  } catch(e) { print(`执行${handlerName}失败: ${e.message}`); }
+  return null;
+}
+
+// ========== 初始化和首页 ==========
 function init(ext) {
   print(VERSION + " 初始化");
   let configData = null;
@@ -275,11 +320,10 @@ function init(ext) {
       if (configData.global.debug !== undefined) debugMode = configData.global.debug;
     }
     if (configData.customHandlers) __ext_config.customHandlers = configData.customHandlers;
-    if (configData.searchEngines) __ext_config.searchEngines = configData.searchEngines;
   }
   showMode = getItem("showMode", "groups");
   groupDict = JSON.parse(getItem("groupDict", "{}"));
-  print(`加载 ${__ext_config.sources.length} 个分类，${__ext_config.searchEngines?.length || 0} 个搜索引擎`);
+  print(`加载 ${__ext_config.sources.length} 个分类`);
 }
 
 function home() {
@@ -291,29 +335,29 @@ function home() {
 }
 function homeVod() { return JSON.stringify({ list: [] }); }
 
-// ========== 修复后的 category 函数 ==========
+// ========== 分类列表 ==========
 function category(tid, pg, filter, extend) {
   let fl = filter ? extend : {};
   if (fl.show) { showMode = fl.show; setItem("showMode", showMode); }
   let source = __ext_config.sources.find(s => s.name === tid);
+  // 检测是否为搜索分类（url 包含 {wd}）
+if (source.url && source.url.includes("{wd}")) {
+  searchInputMode = true;
+  searchBuffer = "";
+  currentSearchSource = source;
+  let keyboard = getSearchKeyboard();
+  keyboard.unshift({
+    vod_id: "__SEARCH_STATUS_" + Date.now(),
+    vod_name: "🔍 输入搜索词: ______",
+    vod_pic: def_pic,
+    vod_remarks: "点击字母/数字，完成后按🔍搜索"
+  });
+  return JSON.stringify({ list: keyboard, page: 1, pagecount: 1, limit: keyboard.length, total: keyboard.length });
+}
+
   if (!source) return JSON.stringify({ list: [] });
   
-  // 1. 搜索分类（url含{wd}）
-  if (source.url && source.url.includes("{wd}")) {
-    searchInputMode = true;
-    searchBuffer = "";
-    currentSearchSource = source;
-    let keyboard = getSearchKeyboard();
-    keyboard.unshift({
-      vod_id: "__SEARCH_STATUS_" + Date.now(),
-      vod_name: "🔍 输入搜索词: ______",
-      vod_pic: def_pic,
-      vod_remarks: "点击字母/数字，完成后按🔍搜索"
-    });
-    return JSON.stringify({ list: keyboard, page: 1, pagecount: 1, limit: keyboard.length, total: keyboard.length });
-  }
-  
-  // 2. 自定义 handler
+  // 优先使用 handler
   if (source.handler && __ext_config.customHandlers[source.handler]) {
     let ctx = { tid, pg: parseInt(pg) || 1, filter: fl, source, globalConfig: __ext_config.global };
     let result = executeHandler(source.handler, ctx);
@@ -328,133 +372,119 @@ function category(tid, pg, filter, extend) {
     } else if (result && result.list) return JSON.stringify(result);
   }
   
-  // 3. 普通数据源（直播源 txt/m3u）
+  // 普通文本源（#分组# 格式）
   if (parseInt(pg) > 1) return JSON.stringify({ list: [] });
-  let content = fetchSource(source.url, source);
-  let baseDir = source.url.substring(0, source.url.lastIndexOf("/")+1);
-  
-  // 优先尝试 #分组# 格式
-  let groupMatches = content.match(/.*?[,，]#[\s\S].*?#/g);
-  if (groupMatches && groupMatches.length) {
-    let list = [];
-    for (let it of groupMatches) {
-      let vname = it.split(/[,，]/)[0];
-      let vtab = it.match(/#(.*?)#/)[0];
-      let vod_id = source.url + "$" + vname + "###single";
-      list.push({ vod_name: vname, vod_id, vod_pic: def_pic, vod_remarks: vtab });
-    }
-    return JSON.stringify({ list, page: 1, pagecount: 1, limit: list.length, total: list.length });
+  let html = fetchSource(source.url, source);
+  let arr = html.match(/.*?[,，]#[\s\S].*?#/g) || [];
+  let list = [];
+  for (let it of arr) {
+    let vname = it.split(/[,，]/)[0];
+    let vtab = it.match(/#(.*?)#/)[0];
+    let vod_id = source.url + "$" + vname + "###single";
+    list.push({ vod_name: vname, vod_id, vod_pic: def_pic, vod_remarks: vtab });
   }
-  
-  // 没有分组标记，则使用 parseList 按行解析（支持 频道名,URL）
-  let parseCfg = source.parseConfig || { line_sep: "," };
-  let items = parseList(content, parseCfg, baseDir);
-  let videos = items.map(item => ({
-    vod_id: item.url + "###single",
-    vod_name: item.title,
-    vod_pic: def_pic,
-    vod_remarks: source.name
-  }));
-  return JSON.stringify({ list: videos, page: 1, pagecount: 1, limit: videos.length, total: videos.length });
+  return JSON.stringify({ list, page: 1, pagecount: 1, limit: list.length, total: list.length });
 }
 
-// detail 和 play 函数保持不变（与之前 v36 相同）
+// ========== 详情页（支持选集） ==========
 function detail(tid) {
-  // 搜索键盘处理...
-  if (searchInputMode) {
-    if (tid.startsWith("__SEARCH_LETTER__")) {
-      let letter = tid.replace("__SEARCH_LETTER__", "");
-      searchBuffer += letter;
-      let keyboard = getSearchKeyboard();
-      keyboard.unshift({
-        vod_id: "__SEARCH_STATUS_" + Date.now(),
-        vod_name: `🔍 输入搜索词: ${searchBuffer}`,
-        vod_pic: def_pic,
-        vod_remarks: "点击字母/数字，完成后按🔍搜索"
-      });
-      return JSON.stringify({ list: keyboard });
-    }
-    if (tid.startsWith("__SEARCH_DIGIT__")) {
-      let digit = tid.replace("__SEARCH_DIGIT__", "");
-      searchBuffer += digit;
-      let keyboard = getSearchKeyboard();
-      keyboard.unshift({
-        vod_id: "__SEARCH_STATUS_" + Date.now(),
-        vod_name: `🔍 输入搜索词: ${searchBuffer}`,
-        vod_pic: def_pic,
-        vod_remarks: "点击字母/数字，完成后按🔍搜索"
-      });
-      return JSON.stringify({ list: keyboard });
-    }
-    if (tid === "__SEARCH_BACKSPACE") {
-      if (searchBuffer.length > 0) searchBuffer = searchBuffer.slice(0, -1);
-      let keyboard = getSearchKeyboard();
-      let display = searchBuffer === "" ? "______" : searchBuffer;
-      keyboard.unshift({
-        vod_id: "__SEARCH_STATUS_" + Date.now(),
-        vod_name: `🔍 输入搜索词: ${display}`,
-        vod_pic: def_pic,
-        vod_remarks: "点击字母/数字，完成后按🔍搜索"
-      });
-      return JSON.stringify({ list: keyboard });
-    }
-    if (tid === "__SEARCH_CLEAR") {
-      searchBuffer = "";
-      let keyboard = getSearchKeyboard();
-      keyboard.unshift({
-        vod_id: "__SEARCH_STATUS_" + Date.now(),
-        vod_name: "🔍 输入搜索词: ______",
-        vod_pic: def_pic,
-        vod_remarks: "点击字母/数字，完成后按🔍搜索"
-      });
-      return JSON.stringify({ list: keyboard });
-    }
-    if (tid === "__SEARCH_SUBMIT") {
-      if (searchBuffer.trim() === "") {
-        let keyboard = getSearchKeyboard();
-        keyboard.unshift({
-          vod_id: "__SEARCH_STATUS_EMPTY_" + Date.now(),
-          vod_name: "⚠️ 请输入搜索词",
-          vod_pic: def_pic,
-          vod_remarks: "先点击字母或数字"
-        });
-        return JSON.stringify({ list: keyboard });
-      }
-      searchInputMode = false;
-      let keyword = searchBuffer.trim();
-      let results = performSearch(keyword);
-      return JSON.stringify({ list: results });
-    }
-  }
-  
-  // 直接媒体链接播放
-  if (tid.match(/^https?:\/\//) && (tid.includes(".m3u8") || tid.includes(".mp4") || tid.includes(".m4a") || tid.includes(".ts"))) {
-    let vod = {
-      vod_id: tid,
-      vod_name: "媒体播放",
+  // 处理搜索键盘输入
+if (searchInputMode) {
+  if (tid.startsWith("__SEARCH_LETTER__")) {
+    let letter = tid.replace("__SEARCH_LETTER__", "");
+    searchBuffer += letter;
+    let keyboard = getSearchKeyboard();
+    keyboard.unshift({
+      vod_id: "__SEARCH_STATUS_" + Date.now(),
+      vod_name: `🔍 输入搜索词: ${searchBuffer}`,
       vod_pic: def_pic,
-      type_name: "直链",
-      vod_play_from: "直链",
-      vod_play_url: tid,
-      vod_remarks: "点击播放"
-    };
-    return JSON.stringify({ list: [vod] });
+      vod_remarks: "点击字母/数字，完成后按🔍搜索"
+    });
+    return JSON.stringify({ list: keyboard });
   }
-  
-  if (tid.includes("###single")) {
-    let url = tid.split("###")[0];
-    if (url.match(/^https?:\/\//)) {
-      let vod = {
-        vod_id: tid,
-        vod_name: "直播播放",
+  if (tid.startsWith("__SEARCH_DIGIT__")) {
+    let digit = tid.replace("__SEARCH_DIGIT__", "");
+    searchBuffer += digit;
+    let keyboard = getSearchKeyboard();
+    keyboard.unshift({
+      vod_id: "__SEARCH_STATUS_" + Date.now(),
+      vod_name: `🔍 输入搜索词: ${searchBuffer}`,
+      vod_pic: def_pic,
+      vod_remarks: "点击字母/数字，完成后按🔍搜索"
+    });
+    return JSON.stringify({ list: keyboard });
+  }
+  if (tid === "__SEARCH_BACKSPACE") {
+    if (searchBuffer.length > 0) searchBuffer = searchBuffer.slice(0, -1);
+    let keyboard = getSearchKeyboard();
+    let display = searchBuffer === "" ? "______" : searchBuffer;
+    keyboard.unshift({
+      vod_id: "__SEARCH_STATUS_" + Date.now(),
+      vod_name: `🔍 输入搜索词: ${display}`,
+      vod_pic: def_pic,
+      vod_remarks: "点击字母/数字，完成后按🔍搜索"
+    });
+    return JSON.stringify({ list: keyboard });
+  }
+  if (tid === "__SEARCH_CLEAR") {
+    searchBuffer = "";
+    let keyboard = getSearchKeyboard();
+    keyboard.unshift({
+      vod_id: "__SEARCH_STATUS_" + Date.now(),
+      vod_name: "🔍 输入搜索词: ______",
+      vod_pic: def_pic,
+      vod_remarks: "点击字母/数字，完成后按🔍搜索"
+    });
+    return JSON.stringify({ list: keyboard });
+  }
+  if (tid === "__SEARCH_SUBMIT") {
+    if (searchBuffer.trim() === "") {
+      let keyboard = getSearchKeyboard();
+      keyboard.unshift({
+        vod_id: "__SEARCH_STATUS_EMPTY_" + Date.now(),
+        vod_name: "⚠️ 请输入搜索词",
         vod_pic: def_pic,
-        type_name: "直播",
-        vod_play_from: "直链",
-        vod_play_url: url,
-        vod_remarks: "点击播放"
+        vod_remarks: "先点击字母或数字"
+      });
+      return JSON.stringify({ list: keyboard });
+    }
+    searchInputMode = false;
+    let keyword = searchBuffer.trim();
+    let results = performSearch(keyword);
+    // 直接返回搜索结果列表（每个结果的 vod_id 是播放URL）
+    return JSON.stringify({ list: results });
+  }
+}
+
+// 新增：直接处理媒体URL的详情（用于搜索结果直接播放）
+if (tid.match(/^https?:\/\//) && (tid.includes(".m3u8") || tid.includes(".mp4") || tid.includes(".m4a") || tid.includes(".ts"))) {
+  let vod = {
+    vod_id: tid,
+    vod_name: "媒体播放",
+    vod_pic: def_pic,
+    type_name: "直链",
+    vod_play_from: "直链",
+    vod_play_url: tid,
+    vod_remarks: "点击播放"
+  };
+  return JSON.stringify({ list: [vod] });
+}
+  
+  // 处理搜索历史
+  if (tid.includes("#search#")) {
+    let left = tid.split("###")[0];
+    let sourceUrl = left.split("$")[0];
+    let wd = left.split("$")[1];
+    let source = __ext_config.sources.find(s => s.url === sourceUrl);
+    if (source && groupDict[sourceUrl]) {
+      let playUrl = groupDict[sourceUrl].map(x => x.replace(",", "$")).join("#");
+      let vod = {
+        vod_id: tid, vod_name: "搜索:" + wd, type_name: "搜索结果", vod_pic: def_pic,
+        vod_play_from: "来自搜索:" + sourceUrl, vod_play_url: playUrl, vod_remarks: VERSION
       };
       return JSON.stringify({ list: [vod] });
     }
+    return JSON.stringify({ list: [] });
   }
   
   let parts = tid.split("###");
@@ -464,6 +494,7 @@ function detail(tid) {
   let tab = left.split("$")[1];
   let source = __ext_config.sources.find(s => s.url === sourceUrl);
   
+  // 如果找不到 source，尝试用 detailHandler fallback
   if (!source) {
     for (let s of __ext_config.sources) {
       if (s.detailHandler && __ext_config.customHandlers[s.detailHandler]) {
@@ -475,12 +506,14 @@ function detail(tid) {
     return JSON.stringify({ list: [] });
   }
   
+  // 优先使用 detailHandler
   if (source.detailHandler && __ext_config.customHandlers[source.detailHandler]) {
     let ctx = { vodId: tid, mode, sourceUrl, tab, source, globalConfig: __ext_config.global };
     let result = executeHandler(source.detailHandler, ctx);
     if (result && result.list) return JSON.stringify(result);
   }
   
+  // 系列合集模式
   if (mode === "series") {
     let content = fetchSource(sourceUrl, source);
     let baseDir = sourceUrl.substring(0, sourceUrl.lastIndexOf("/")+1);
@@ -496,6 +529,7 @@ function detail(tid) {
     return JSON.stringify({ list: [vod] });
   }
   
+  // 普通分组模式
   let html = fetchSource(sourceUrl, source);
   let escTab = tab.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   let regex = new RegExp(`.*?${escTab}[,，]#[\\s\\S].*?#`);
@@ -522,7 +556,9 @@ function detail(tid) {
   return JSON.stringify({ list: [vod] });
 }
 
+// ========== 播放 ==========
 function play(flag, id, vip) {
+  // 尝试 playHandler
   for (let src of __ext_config.sources) {
     if (src.playHandler && __ext_config.customHandlers[src.playHandler]) {
       let ctx = { flag, id, vip, source: src };
@@ -530,9 +566,12 @@ function play(flag, id, vip) {
       if (result && result.url) return JSON.stringify(result);
     }
   }
+  // 默认
   let parse = /m3u8|ts|flv/.test(id) ? 0 : 1;
   return JSON.stringify({ parse, playUrl: "", url: id });
 }
+
+// ========== 搜索（简单遍历） ==========
 
 function search(wd, quick) {
   let results = performSearch(wd);
