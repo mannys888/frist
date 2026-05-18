@@ -1,0 +1,90 @@
+{
+
+    "warningText":"ZYB家庭专用",   
+     "spider": "./jar/spider_py.jar",
+    "spider": "./jar.jar",
+     "spider": "./jar/custom_spider.jar",
+    "lives": [
+      {
+          "name": "直播",
+          "type": 0,
+          "url": "./mv/2.txt",
+          "playerType": 1,
+          "ua": "okhttp/3.15",
+          "epg": "http://epg.112114.xyz/?ch={name}&date={date}",
+          "logo": "https://epg.112114.xyz/logo/{name}.png"
+      }
+    ],
+    
+    "sites":[
+    
+    {
+      "key": "豆瓣胖虎",
+      "name": "🍥1️⃣┃胖虎┃py🍥",
+      "type": 3,
+      "api": "https://raw.githubusercontent.com/mannys888/frist/refs/heads/main/示例.py",
+      "searchable": 1,
+      "quickSearch": 1,
+      "filterable": 0
+    },
+    {
+      "key": "cctv-py",
+      "name": "2️⃣┃cctv®️py",
+      "type": 3,
+      "api": "https://raw.githubusercontent.com/mannys888/frist/refs/heads/main/优.py",
+      "searchable": 1,
+      "quickSearch": 1,
+      "filterable": 0,
+      "ext": "https://raw.githubusercontent.com/mannys888/frist/refs/heads/main/feimaolive(1).json"
+    },
+    {
+    "key": " ⑥live2vod_fixed",
+    "name": "3️⃣⑧⑧⑧⭕️live2void✅py",
+    "type": 3,
+    "api": "https://raw.githubusercontent.com/mannys888/frist/refs/heads/main/live2vod.py",
+    "searchable": 0,
+    "quickSearch": 0,
+    "filterable": 1,
+    "ext": "https://raw.githubusercontent.com/mannys888/frist/refs/heads/main/feimaolive(1).json"
+    },
+     {
+    "key": " ⑥live2vod_fi⑥",
+    "name": " ⑥ 4️⃣⭕️爱奇艺✅py",
+    "type": 3,
+    "api": "https://raw.githubusercontent.com/userfree66666/TVpg/refs/heads/main/爱奇艺.py",
+    "searchable": 0,
+    "quickSearch": 0,
+    "filterable": 1,
+    "ext": "https://raw.githubusercontent.com/mannys888/frist/refs/heads/main/feimaolive(1).json"
+    },
+      {
+    "key": "google_测试",
+    "name": "0️⃣🟣0️⃣0️⃣js.谷歌0️⃣0️⃣",
+    "type": 3,
+    "api": "https://raw.githubusercontent.com/mannys888/frist/refs/heads/main/google.js",
+    "searchable": 0,
+    "quickSearch": 0,
+    "filterable": 1,
+    "ext": "https://raw.githubusercontent.com/mannys888/frist/refs/heads/main/谷歌搜索.json"
+   },
+    {
+    "key": "pass_测试",
+    "name": "🧚🏼‍♀️0️⃣js password💱0️⃣",
+    "type": 3,
+    "api": "https://raw.githubusercontent.com/mannys888/frist/refs/heads/main/password.js",
+    "searchable": 0,
+    "quickSearch": 0,
+    "filterable": 1,
+    "ext": "https://raw.githubusercontent.com/mannys888/frist/refs/heads/main/feimaolive(1).json"
+   },
+    {
+    "key": " ⑥live2vod_(2)",
+    "name": " ⑥1️⃣js⭕️live2vod_(2)✅ext✅自动",
+    "type": 3,
+    "api": "https://raw.githubusercontent.com/userfree66666/TVpg/refs/heads/main/live2vod_(2).js",
+    "searchable": 0,
+    "quickSearch": 0,
+    "filterable": 1,
+    "ext": "https://raw.githubusercontent.com/mannys888/frist/refs/heads/main/feimaolive(1).json"
+    }]
+    }
