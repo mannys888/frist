@@ -1,19 +1,20 @@
 {
   "sources": [
     {
-      "name": "📺 模拟央视（测试二级选集）",
-      "handler": "mockCctvListHandler",
-      "detailHandler": "mockCctvDetailHandler",
-      "playHandler": "mockCctvPlayHandler"
+      "name": "📺 央视栏目",
+      "handler": "cctvListHandler",
+      "detailHandler": "cctvDetailHandler",
+      "playHandler": "cctvPlayHandler"
+    },
+    {
+      "name": "📡 测试直播源",
+      "url": "https://raw.githubusercontent.com/mannys888/frist/refs/heads/main/迦南诗歌.txt"
     }
   ],
   "customHandlers": {
-    "mockCctvListHandler": "function(ctx) { let docs = [ { column_name: '新闻联播', lastVIDE: { videoSharedCode: 'mock_news_001' }, column_logo: 'https://picsum.photos/200/300?random=1' }, { column_name: '焦点访谈', lastVIDE: { videoSharedCode: 'mock_focus_002' }, column_logo: 'https://picsum.photos/200/300?random=2' }, { column_name: '今日说法', lastVIDE: { videoSharedCode: 'mock_legal_003' }, column_logo: 'https://picsum.photos/200/300?random=3' } ]; return docs.map(vod => ({ vod_id: `###${vod.column_name}###${vod.lastVIDE.videoSharedCode}###${vod.column_logo}`, vod_name: vod.column_name, vod_pic: vod.column_logo })); }",
-    "mockCctvDetailHandler": "function(ctx) { let parts = ctx.vodId.split('###'); if (parts.length < 3) return { list: [] }; let title = parts[1]; let code = parts[2]; let logo = parts[3]; let episodes = []; if (title === '新闻联播') { for (let i = 1; i <= 5; i++) { episodes.push({ title: `2025-01-${i.toString().padStart(2,'0')} 新闻联播`, url: 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8' }); } } else if (title === '焦点访谈') { for (let i = 1; i <= 3; i++) { episodes.push({ title: `2025-01-${i.toString().padStart(2,'0')} 焦点访谈`, url: 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8' }); } } else { episodes.push({ title: '今日说法 2025-01-01', url: 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8' }); } let videoList = episodes.map(ep => `${ep.title}$${ep.url}`); let playUrl = videoList.join('#'); let vod = { vod_id: ctx.vodId, vod_name: title, vod_pic: logo, type_name: '模拟央视', vod_play_from: 'CCTV', vod_play_url: playUrl }; return { list: [vod] }; }",
-    "mockCctvPlayHandler": "function(ctx) { let pid = ctx.id; // 如果 pid 是完整 URL 则直接使用，否则用测试流 if (pid.startsWith('http')) { return { parse: 0, playUrl: '', url: pid }; } else { return { parse: 0, playUrl: '', url: 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8' }; } }"
+    "cctvListHandler": "function(ctx) { let fetchJson = (url) => JSON.parse(req(url).content); let url = `https://api.cntv.cn/lanmu/columnSearch?p=${ctx.pg}&n=20&serviceId=tvcctv&t=json`; let json = fetchJson(url); let docs = json?.response?.docs || []; return docs.map(vod => ({ vod_id: `###${vod.column_name}###${vod.lastVIDE?.videoSharedCode || '_'}###${vod.column_logo || ''}`, vod_name: vod.column_name, vod_pic: vod.column_logo || '' })); }",
+    "cctvDetailHandler": "function(ctx) { let parts = ctx.vodId.split('###'); if (parts.length < 3) return { list: [] }; let title = parts[1]; let lastVideo = parts[2]; let logo = parts[3]; if (lastVideo === '_') return { list: [] }; let infoUrl = `https://api.cntv.cn/video/videoinfoByGuid?guid=${lastVideo}&serviceId=tvcctv`; let infoJson = JSON.parse(req(infoUrl).content); if (!infoJson.ctid) return { list: [] }; let topicId = infoJson.ctid; let channel = infoJson.channel || ''; let listUrl = `https://api.cntv.cn/NewVideo/getVideoListByColumn?id=${topicId}&d=&p=1&n=100&sort=desc&mode=0&serviceId=tvcctv&t=json`; let listJson = JSON.parse(req(listUrl).content); let videoList = []; for (let video of (listJson?.data?.list || [])) { let playId = video.pid || video.vid || video.guid; if (playId) videoList.push(`${video.title}$${playId}`); } if (videoList.length === 0) return { list: [] }; let vod = { vod_id: ctx.vodId, vod_name: title, vod_pic: logo, type_name: channel, vod_play_from: 'CCTV', vod_play_url: videoList.join('#') }; return { list: [vod] }; }",
+    "cctvPlayHandler": "function(ctx) { let pid = ctx.id; let url = `https://vdn.apps.cntv.cn/api/getHttpVideoInfo.do?pid=${pid}`; let json = JSON.parse(req(url).content); let hls = json?.hls_url || ''; return { parse: 0, playUrl: '', url: hls }; }"
   },
-  "global": {
-    "debug": true,
-    "defaultPic": "https://picsum.photos/200/300"
-  }
+  "global": { "debug": true, "defaultPic": "https://picsum.photos/200/300", "headers": { "User-Agent": "Mozilla/5.0" } }
 }
