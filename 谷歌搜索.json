@@ -8,8 +8,8 @@
     }
   ],
   "customHandlers": {
-    "mockListHandler": "function(ctx) { return [ { vod_id: 'mock_column_1', vod_name: '新闻联播（单集）', vod_pic: 'https://picsum.photos/200/300?random=1' } ]; }",
-    "mockDetailSingleHandler": "function(ctx) { return { list: [ { vod_id: ctx.vodId, vod_name: '新闻联播', vod_pic: 'https://picsum.photos/200/300', vod_play_url: 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8' } ] }; }",
+    "mockListHandler": "function(ctx) { return [ { vod_id: 'test_single', vod_name: '测试视频（单集）', vod_pic: 'https://picsum.photos/200/300' } ]; }",
+    "mockDetailSingleHandler": "function(ctx) { return { list: [ { vod_id: 'test_single', vod_name: '测试视频', vod_pic: 'https://picsum.photos/200/300', vod_play_from: '测试源', vod_play_url: '测试视频$https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8' } ] }; }",
     "mockPlayHandler": "function(ctx) { return { parse: 0, playUrl: '', url: ctx.id }; }"
   },
   "global": { "debug": true }
