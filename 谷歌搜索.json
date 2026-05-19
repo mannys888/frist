@@ -1,10 +1,10 @@
 {
   "sources": [
     {
-      "name": "📺 央视栏目",
-      "handler": "cctvListHandler",
-      "detailHandler": "cctvDetailHandler",
-      "playHandler": "cctvPlayHandler"
+      "name": "📺 央视栏目（调试版）",
+      "handler": "cctvListHandlerDebug",
+      "detailHandler": "cctvDetailHandlerDebug",
+      "playHandler": "cctvPlayHandlerDebug"
     },
     {
       "name": "📡 测试直播源",
@@ -12,9 +12,12 @@
     }
   ],
   "customHandlers": {
-    "cctvListHandler": "function(ctx) { let fetchJson = (url) => JSON.parse(req(url).content); let url = `https://api.cntv.cn/lanmu/columnSearch?p=${ctx.pg}&n=20&serviceId=tvcctv&t=json`; let json = fetchJson(url); let docs = json?.response?.docs || []; return docs.map(vod => ({ vod_id: `###${vod.column_name}###${vod.lastVIDE?.videoSharedCode || '_'}###${vod.column_logo || ''}`, vod_name: vod.column_name, vod_pic: vod.column_logo || '' })); }",
-    "cctvDetailHandler": "function(ctx) { let parts = ctx.vodId.split('###'); if (parts.length < 3) return { list: [] }; let title = parts[1]; let lastVideo = parts[2]; let logo = parts[3]; if (lastVideo === '_') return { list: [] }; let infoUrl = `https://api.cntv.cn/video/videoinfoByGuid?guid=${lastVideo}&serviceId=tvcctv`; let infoJson = JSON.parse(req(infoUrl).content); if (!infoJson.ctid) return { list: [] }; let topicId = infoJson.ctid; let channel = infoJson.channel || ''; let listUrl = `https://api.cntv.cn/NewVideo/getVideoListByColumn?id=${topicId}&d=&p=1&n=100&sort=desc&mode=0&serviceId=tvcctv&t=json`; let listJson = JSON.parse(req(listUrl).content); let videoList = []; for (let video of (listJson?.data?.list || [])) { let playId = video.pid || video.vid || video.guid; if (playId) videoList.push(`${video.title}$${playId}`); } if (videoList.length === 0) return { list: [] }; let vod = { vod_id: ctx.vodId, vod_name: title, vod_pic: logo, type_name: channel, vod_play_from: 'CCTV', vod_play_url: videoList.join('#') }; return { list: [vod] }; }",
-    "cctvPlayHandler": "function(ctx) { let pid = ctx.id; let url = `https://vdn.apps.cntv.cn/api/getHttpVideoInfo.do?pid=${pid}`; let json = JSON.parse(req(url).content); let hls = json?.hls_url || ''; return { parse: 0, playUrl: '', url: hls }; }"
+    "cctvListHandlerDebug": "async function(ctx) { try { console.log('[调试] 开始请求栏目列表, pg=' + ctx.pg); let url = `https://api.cntv.cn/lanmu/columnSearch?p=${ctx.pg}&n=20&serviceId=tvcctv&t=json`; let resp = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0', 'Referer': 'https://tv.cctv.com/', 'Origin': 'https://tv.cctv.com' } }); if (!resp.ok) throw new Error('HTTP ' + resp.status); let json = await resp.json(); console.log('[调试] 栏目API返回:', json); let docs = json?.response?.docs || []; console.log('[调试] 获取到栏目数量:', docs.length); return docs.map(vod => ({ vod_id: `###${vod.column_name}###${vod.lastVIDE?.videoSharedCode || '_'}###${vod.column_logo || ''}`, vod_name: vod.column_name, vod_pic: vod.column_logo || '' })); } catch(e) { console.error('[调试] 栏目列表请求失败:', e); return []; } }",
+    "cctvDetailHandlerDebug": "async function(ctx) { try { console.log('[调试] 开始获取栏目详情, vodId=' + ctx.vodId); let parts = ctx.vodId.split('###'); if (parts.length < 3) return { list: [] }; let title = parts[1]; let lastVideo = parts[2]; let logo = parts[3]; if (lastVideo === '_') return { list: [] }; let infoUrl = `https://api.cntv.cn/video/videoinfoByGuid?guid=${lastVideo}&serviceId=tvcctv`; let infoResp = await fetch(infoUrl, { headers: { 'Referer': 'https://tv.cctv.com/', 'Origin': 'https://tv.cctv.com' } }); if (!infoResp.ok) throw new Error('HTTP ' + infoResp.status); let infoJson = await infoResp.json(); console.log('[调试] videoinfoByGuid 返回:', infoJson); if (!infoJson.ctid) return { list: [] }; let topicId = infoJson.ctid; let channel = infoJson.channel || ''; let listUrl = `https://api.cntv.cn/NewVideo/getVideoListByColumn?id=${topicId}&d=&p=1&n=100&sort=desc&mode=0&serviceId=tvcctv&t=json`; let listResp = await fetch(listUrl, { headers: { 'Referer': 'https://tv.cctv.com/', 'Origin': 'https://tv.cctv.com' } }); if (!listResp.ok) throw new Error('HTTP ' + listResp.status); let listJson = await listResp.json(); console.log('[调试] getVideoListByColumn 返回:', listJson); let videoList = []; for (let video of (listJson?.data?.list || [])) { let playId = video.pid || video.vid || video.guid; if (playId) videoList.push(`${video.title}$${playId}`); } if (videoList.length === 0) return { list: [] }; let vod = { vod_id: ctx.vodId, vod_name: title, vod_pic: logo, type_name: channel, vod_play_from: 'CCTV', vod_play_url: videoList.join('#') }; return { list: [vod] }; } catch(e) { console.error('[调试] 栏目详情请求失败:', e); return { list: [] }; } }",
+    "cctvPlayHandlerDebug": "async function(ctx) { try { console.log('[调试] 获取播放地址, pid=' + ctx.id); let url = `https://vdn.apps.cntv.cn/api/getHttpVideoInfo.do?pid=${ctx.id}`; let resp = await fetch(url, { headers: { 'Referer': 'https://tv.cctv.com/', 'Origin': 'https://tv.cctv.com' } }); if (!resp.ok) throw new Error('HTTP ' + resp.status); let json = await resp.json(); console.log('[调试] getHttpVideoInfo 返回:', json); let hls = json?.hls_url || ''; return { parse: 0, playUrl: '', url: hls }; } catch(e) { console.error('[调试] 播放地址请求失败:', e); return { parse: 0, playUrl: '', url: '' }; } }"
   },
-  "global": { "debug": true, "defaultPic": "https://picsum.photos/200/300", "headers": { "User-Agent": "Mozilla/5.0" } }
+  "global": {
+    "debug": true,
+    "defaultPic": "https://picsum.photos/200/300"
+  }
 }
