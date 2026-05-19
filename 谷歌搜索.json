@@ -1,24 +1,26 @@
 {
   "sources": [
     {
-      "name": "📺 央视栏目",
-      "handler": "cctvListHandler",
-      "detailHandler": "cctvDetailHandler",
-      "playHandler": "cctvPlayHandler"
+      "name": "直播源",
+      "url": "https://raw.githubusercontent.com/mannys888/frist/refs/heads/main/迦南诗歌.txt"
     },
     {
-      "name": "📡 测试直播源",
-      "url": "https://raw.githubusercontent.com/mannys888/frist/refs/heads/main/迦南诗歌.txt"
+      "name": "央视示例",
+      "handler": "custom_1779208147947-7x2cef",
+      "detailHandler": "customDetail_1779208147947-7x2cef",
+      "playHandler": "customPlay_1779208147947-7x2cef"
     }
   ],
   "customHandlers": {
-    "cctvListHandler": "function(ctx) { let fetchJson = (url) => JSON.parse(req(url).content); let url = `https://api.cntv.cn/lanmu/columnSearch?p=${ctx.pg}&n=20&serviceId=tvcctv&t=json`; let json = fetchJson(url); let docs = json?.response?.docs || []; return docs.map(vod => ({ vod_id: `###${vod.column_name}###${vod.lastVIDE?.videoSharedCode || '_'}###${vod.column_logo || ''}`, vod_name: vod.column_name, vod_pic: vod.column_logo || '' })); }",
-    "cctvDetailHandler": "function(ctx) { let parts = ctx.vodId.split('###'); if (parts.length < 3) return { list: [] }; let title = parts[1]; let lastVideo = parts[2]; let logo = parts[3]; if (lastVideo === '_') return { list: [] }; let infoUrl = `https://api.cntv.cn/video/videoinfoByGuid?guid=${lastVideo}&serviceId=tvcctv`; let infoJson = JSON.parse(req(infoUrl).content); if (!infoJson.ctid) return { list: [] }; let topicId = infoJson.ctid; let channel = infoJson.channel || ''; let listUrl = `https://api.cntv.cn/NewVideo/getVideoListByColumn?id=${topicId}&d=&p=1&n=100&sort=desc&mode=0&serviceId=tvcctv&t=json`; let listJson = JSON.parse(req(listUrl).content); let videoList = []; for (let video of (listJson?.data?.list || [])) { let playId = video.pid || video.vid || video.guid; if (playId) videoList.push(`${video.title}$${playId}`); } if (videoList.length === 0) return { list: [] }; let vod = { vod_id: ctx.vodId, vod_name: title, vod_pic: logo, type_name: channel, vod_play_from: 'CCTV', vod_play_url: videoList.join('#') }; return { list: [vod] }; }",
-    "cctvPlayHandler": "function(ctx) { let pid = ctx.id; let url = `https://vdn.apps.cntv.cn/api/getHttpVideoInfo.do?pid=${pid}`; let json = JSON.parse(req(url).content); let hls = json?.hls_url || ''; return { parse: 0, playUrl: '', url: hls }; }"
+    "custom_1779208147947-7x2cef": "function(ctx) { let fetchJson = (url) => JSON.parse(req(url).content); let url = `https://api.cntv.cn/lanmu/columnSearch?p=${ctx.pg}&n=20&serviceId=tvcctv&t=json`; let json = fetchJson(url); let docs = json?.response?.docs || []; return docs.map(vod => ({ vod_id: `###${vod.column_name}###${vod.lastVIDE?.videoSharedCode || '_'}###${vod.column_logo || ''}`, vod_name: vod.column_name, vod_pic: vod.column_logo || '' })); }",
+    "customDetail_1779208147947-7x2cef": "function(ctx) { let parts = ctx.vodId.split('###'); if (parts.length < 3) return { list: [] }; let title = parts[1]; let lastVideo = parts[2]; let logo = parts[3]; if (lastVideo === '_') return { list: [] }; let infoUrl = `https://api.cntv.cn/video/videoinfoByGuid?guid=${lastVideo}&serviceId=tvcctv`; let infoJson = JSON.parse(req(infoUrl).content); if (!infoJson.ctid) return { list: [] }; let topicId = infoJson.ctid; let channel = infoJson.channel || ''; let listUrl = `https://api.cntv.cn/NewVideo/getVideoListByColumn?id=${topicId}&d=&p=1&n=100&sort=desc&mode=0&serviceId=tvcctv&t=json`; let listJson = JSON.parse(req(listUrl).content); let videoList = []; for (let video of (listJson?.data?.list || [])) { let playId = video.pid || video.vid || video.guid; if (playId) videoList.push(`${video.title}$${playId}`); } if (videoList.length === 0) return { list: [] }; let vod = { vod_id: ctx.vodId, vod_name: title, vod_pic: logo, type_name: channel, vod_play_from: 'CCTV', vod_play_url: videoList.join('#') }; return { list: [vod] }; }",
+    "customPlay_1779208147947-7x2cef": "function(ctx) { let pid = ctx.id; let url = `https://vdn.apps.cntv.cn/api/getHttpVideoInfo.do?pid=${pid}`; let json = JSON.parse(req(url).content); let hls = json?.hls_url || ''; return { parse: 0, playUrl: '', url: hls }; }"
   },
   "global": {
     "debug": true,
     "defaultPic": "https://picsum.photos/200/300",
-    "headers": { "User-Agent": "Mozilla/5.0" }
+    "headers": {
+      "User-Agent": "Mozilla/5.0"
+    }
   }
 }
