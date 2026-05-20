@@ -1,26 +1,19 @@
-{
+
   "sources": [
     {
-      "name": "直播源",
-      "url": "https://raw.githubusercontent.com/mannys888/frist/refs/heads/main/迦南诗歌.txt"
-    },
-    {
-      "name": "央视示例",
-      "handler": "custom_1779208147947-7x2cef",
-      "detailHandler": "customDetail_1779208147947-7x2cef",
-      "playHandler": "customPlay_1779208147947-7x2cef"
+      "name": "央视栏目",
+      "handler": "h_oaiacv",
+      "detailHandler": "d_23xrtc",
+      "playHandler": "p_rww3e5"
     }
   ],
   "customHandlers": {
-    "custom_1779208147947-7x2cef": "function(ctx) { let fetchJson = (url) => JSON.parse(req(url).content); let url = `https://api.cntv.cn/lanmu/columnSearch?p=${ctx.pg}&n=20&serviceId=tvcctv&t=json`; let json = fetchJson(url); let docs = json?.response?.docs || []; return docs.map(vod => ({ vod_id: `###${vod.column_name}###${vod.lastVIDE?.videoSharedCode || '_'}###${vod.column_logo || ''}`, vod_name: vod.column_name, vod_pic: vod.column_logo || '' })); }",
-    "customDetail_1779208147947-7x2cef": "function(ctx) { let parts = ctx.vodId.split('###'); if (parts.length < 3) return { list: [] }; let title = parts[1]; let lastVideo = parts[2]; let logo = parts[3]; if (lastVideo === '_') return { list: [] }; let infoUrl = `https://api.cntv.cn/video/videoinfoByGuid?guid=${lastVideo}&serviceId=tvcctv`; let infoJson = JSON.parse(req(infoUrl).content); if (!infoJson.ctid) return { list: [] }; let topicId = infoJson.ctid; let channel = infoJson.channel || ''; let listUrl = `https://api.cntv.cn/NewVideo/getVideoListByColumn?id=${topicId}&d=&p=1&n=100&sort=desc&mode=0&serviceId=tvcctv&t=json`; let listJson = JSON.parse(req(listUrl).content); let videoList = []; for (let video of (listJson?.data?.list || [])) { let playId = video.pid || video.vid || video.guid; if (playId) videoList.push(`${video.title}$${playId}`); } if (videoList.length === 0) return { list: [] }; let vod = { vod_id: ctx.vodId, vod_name: title, vod_pic: logo, type_name: channel, vod_play_from: 'CCTV', vod_play_url: videoList.join('#') }; return { list: [vod] }; }",
-    "customPlay_1779208147947-7x2cef": "function(ctx) { let pid = ctx.id; let url = `https://vdn.apps.cntv.cn/api/getHttpVideoInfo.do?pid=${pid}`; let json = JSON.parse(req(url).content); let hls = json?.hls_url || ''; return { parse: 0, playUrl: '', url: hls }; }"
+    "d_23xrtc": "function(ctx) {\n    var parts = ctx.vodId.split(\"###\");\n    if (parts.length < 4) {\n      console.log(\"详情: 复合ID格式错误\");\n      return { list: [] };\n    }\n    var columnId = parts[0];\n    var title = parts[1];\n    var lastVideoGuid = parts[2];\n    var logo = parts[3];\n    \n    if (lastVideoGuid === \"_\" || lastVideoGuid === \"\") {\n      console.log(\"详情: 该栏目暂无最新视频\");\n      return { list: [] };\n    }\n    \n    var infoUrl = \"https://api.cntv.cn/video/videoinfoByGuid?guid=\" + lastVideoGuid + \"&serviceId=tvcctv\";\n    var infoResp = req(infoUrl);\n    var infoJson;\n    try {\n      infoJson = JSON.parse(infoResp.content);\n    } catch(e) {\n      console.log(\"详情: 视频信息解析失败\");\n      return { list: [] };\n    }\n    if (!infoJson.ctid) {\n      console.log(\"详情: 未找到 ctid\");\n      return { list: [] };\n    }\n    var topicId = infoJson.ctid;\n    var channel = infoJson.channel || \"\";\n    \n    var listUrl = \"https://api.cntv.cn/NewVideo/getVideoListByColumn?id=\" + topicId + \"&d=&p=1&n=100&sort=desc&mode=0&serviceId=tvcctv&t=json\";\n    var listResp = req(listUrl);\n    var listJson;\n    try {\n      listJson = JSON.parse(listResp.content);\n    } catch(e) {\n      console.log(\"详情: 视频列表解析失败\");\n      return { list: [] };\n    }\n    var videos = (listJson.data && listJson.data.list) ? listJson.data.list : [];\n    var playUrls = [];\n    for (var i = 0; i < videos.length; i++) {\n      var video = videos[i];\n      var playId = video.pid || video.vid || video.guid;\n      if (playId) {\n        playUrls.push(video.title + \"$\" + playId);\n      }\n    }\n    if (playUrls.length === 0) {\n      console.log(\"详情: 没有可播放的视频\");\n      return { list: [] };\n    }\n    var vod = {\n      vod_id: ctx.vodId,\n      vod_name: title,\n      vod_pic: logo,\n      type_name: channel,\n      vod_play_from: \"央视\",\n      vod_play_url: playUrls.join(\"#\")\n    };\n    return { list: [vod] };\n  }",
+    "p_rww3e5": "function(ctx) {\n    var pid = ctx.id;\n    if (!pid) {\n      console.log(\"播放: 未提供视频ID\");\n      return { parse: 0, playUrl: \"\", url: \"\" };\n    }\n    var url = \"https://vdn.apps.cntv.cn/api/getHttpVideoInfo.do?pid=\" + pid;\n    var resp = req(url);\n    var json;\n    try {\n      json = JSON.parse(resp.content);\n    } catch(e) {\n      console.log(\"播放: 解析播放地址失败\");\n      return { parse: 0, playUrl: \"\", url: \"\" };\n    }\n    var hls = json.hls_url || \"\";\n    return { parse: 0, playUrl: \"\", url: hls };\n  }",
+    "h_oaiacv": "function(ctx) {\n    var url = \"https://api.cntv.cn/lanmu/columnSearch?p=1&n=20&serviceId=tvcctv&t=json\";\n    var resp = req(url);\n    var json;\n    try {\n      json = JSON.parse(resp.content);\n    } catch(e) {\n      console.log(\"列表JSON解析失败: \" + e.message);\n      json = {};\n    }\n    var data = json;\ndata = data[\"response\"];\ndata = data[\"docs\"];\n    if (!Array.isArray(data)) data = [];\n    var result = [];\n    for (var i = 0; i < data.length; i++) {\n      var item = data[i];\n      var columnId = item.id || item._id || \"\";\n      var columnName = item[\"column_name\"] || \"无标题\";\n      var lastVideoGuid = \"\";\n      try {\n        if (item.lastVIDE && item.lastVIDE.videoId) lastVideoGuid = item.lastVIDE.videoId;\n      } catch(e) { lastVideoGuid = \"\"; }\n      var logo = item[\"column_logo\"] || \"\";\n      var compositeId = columnId + \"###\" + columnName + \"###\" + (lastVideoGuid || \"_\") + \"###\" + logo;\n      var vod = { vod_id: compositeId, vod_name: columnName, vod_pic: logo };\n      result.push(vod);\n    }\n    return result;\n  }"
   },
   "global": {
     "debug": true,
-    "defaultPic": "https://picsum.photos/200/300",
-    "headers": {
-      "User-Agent": "Mozilla/5.0"
-    }
+    "defaultPic": ""
   }
 }
