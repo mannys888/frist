@@ -1,19 +1,22 @@
 {
   "sources": [
     {
-      "name": "央视栏目",
-      "handler": "h_e2y135",
-      "detailHandler": "d_sqs4bl",
-      "playHandler": "p_0hyo2f"
+      "name": "我的站点",
+      "handler": "h_txo0a6",
+      "detailHandler": "d_gor42y",
+      "playHandler": "p_hlax4o"
     }
   ],
   "customHandlers": {
-    "d_sqs4bl": "function(ctx) {\n    var parts = ctx.vodId.split(\"###\");\n    if (parts.length < 4 || parts[2] === \"_\" || parts[2] === \"\") return { list: [] };\n    var title = parts[1], lastVideoGuid = parts[2], logo = parts[3];\n    var infoUrl = \"https://api.cntv.cn/video/videoinfoByGuid?guid=\" + lastVideoGuid + \"&serviceId=tvcctv\";\n    var infoResp = req(infoUrl);\n    var infoJson;\n    try { infoJson = JSON.parse(infoResp.content); } catch(e) { return { list: [] }; }\n    if (!infoJson.ctid) return { list: [] };\n    var topicId = infoJson.ctid;\n    var channel = infoJson.channel || \"\";\n    var listUrl = \"https://api.cntv.cn/NewVideo/getVideoListByColumn?id=\" + topicId + \"&d=&p=1&n=100&sort=desc&mode=0&serviceId=tvcctv&t=json\";\n    var listResp = req(listUrl);\n    var listJson;\n    try { listJson = JSON.parse(listResp.content); } catch(e) { return { list: [] }; }\n    var videos = (listJson.data && listJson.data.list) ? listJson.data.list : [];\n    var playUrls = [];\n    for (var i = 0; i < videos.length; i++) {\n      var video = videos[i];\n      var playId = video.pid || video.vid || video.guid;\n      if (playId) playUrls.push(video.title + \"$\" + playId);\n    }\n    if (playUrls.length === 0) return { list: [] };\n    return { list: [{ vod_id: ctx.vodId, vod_name: title, vod_pic: logo, type_name: channel, vod_play_from: \"央视\", vod_play_url: playUrls.join(\"#\") }] };\n  }",
-    "p_0hyo2f": "function(ctx) {\n    var pid = ctx.id;\n    if (!pid) return { parse: 0, playUrl: \"\", url: \"\" };\n    var url = \"https://vdn.apps.cntv.cn/api/getHttpVideoInfo.do?pid=\" + pid;\n    var resp = req(url);\n    var json;\n    try { json = JSON.parse(resp.content); } catch(e) { return { parse: 0, playUrl: \"\", url: \"\" }; }\n    var hls = json.hls_url || \"\";\n    return { parse: 0, playUrl: \"\", url: hls };\n  }",
-    "h_e2y135": "function(ctx) {\n    var resp = req(\"https://api.cntv.cn/lanmu/columnSearch?p=1&n=20&serviceId=tvcctv&t=json\");\n    var json;\n    try {\n      json = JSON.parse(resp.content);\n    } catch(e) {\n      console.log(\"列表JSON解析失败: \" + e.message);\n      return [];\n    }\n    var data = json;\ndata = data[\"response\"];\ndata = data[\"docs\"];\n    if (!Array.isArray(data)) return [];\n    var result = [];\n    for (var i = 0; i < data.length; i++) {\n      var item = data[i];\n      var columnId = item.id || item._id || \"\";\n      var columnName = item[\"column_name\"] || \"无标题\";\n      var lastVideoGuid = (function(obj) { try { let v = obj; for (let p of [\"lastVIDE\",\"videoSharedCode\"]) { if (v && typeof v === 'object') v = v[p]; else return '_'; } return v || '_'; } catch(e) { return '_'; } })(item);\n      var logo = item[\"column_logo\"] || \"\";\n      var compositeId = columnId + \"###\" + columnName + \"###\" + (lastVideoGuid === '_' ? '_' : lastVideoGuid) + \"###\" + logo;\n      result.push({ vod_id: compositeId, vod_name: columnName, vod_pic: logo });\n    }\n    return result;\n  }"
+    "d_gor42y": "function(ctx) {\n  // ========== 请根据实际站点修改此函数 ==========\n  // 当前为示例：从 vod_id 拆分获取信息（央视格式）\n  // 您需要修改为请求详情接口，并构造 vod_play_url（格式：剧集名称$播放ID#剧集名称$播放ID...）\n  var parts = ctx.vodId.split('###');\n  if (parts.length < 3) return { list: [] };\n  var title = parts[1];\n  var lastVideo = parts[2];\n  var logo = parts[3];\n  if (lastVideo === '_') return { list: [] };\n  var infoUrl = 'https://api.cntv.cn/video/videoinfoByGuid?guid=' + lastVideo + '&serviceId=tvcctv';\n  var infoJson = JSON.parse(req(infoUrl).content);\n  if (!infoJson.ctid) return { list: [] };\n  var topicId = infoJson.ctid;\n  var channel = infoJson.channel || '';\n  var listUrl = 'https://api.cntv.cn/NewVideo/getVideoListByColumn?id=' + topicId + '&d=&p=1&n=100&sort=desc&mode=0&serviceId=tvcctv&t=json';\n  var listJson = JSON.parse(req(listUrl).content);\n  var videoList = [];\n  var videos = listJson.data && listJson.data.list ? listJson.data.list : [];\n  for (var i = 0; i < videos.length; i++) {\n    var video = videos[i];\n    var playId = video.pid || video.vid || video.guid;\n    if (playId) videoList.push(video.title + '$' + playId);\n  }\n  if (videoList.length === 0) return { list: [] };\n  var vod = {\n    vod_id: ctx.vodId,\n    vod_name: title,\n    vod_pic: logo,\n    type_name: channel,\n    vod_play_from: '示例站点',\n    vod_play_url: videoList.join('#')\n  };\n  return { list: [vod] };\n}",
+    "p_hlax4o": "function(ctx) {\n  // ========== 请根据实际站点修改此函数 ==========\n  // 当前为示例：根据传入的 id 请求播放地址\n  var pid = ctx.id;\n  var url = 'https://vdn.apps.cntv.cn/api/getHttpVideoInfo.do?pid=' + pid;\n  var json = JSON.parse(req(url).content);\n  var hls = json.hls_url || '';\n  return { parse: 0, playUrl: '', url: hls };\n}",
+    "h_txo0a6": "function(ctx) {\n  var url = \"https://api.cntv.cn/lanmu/columnSearch?p=1&n=20&serviceId=tvcctv&t=json\";\n  var resp = req(url);\n  var json = JSON.parse(resp.content);\n  var data = json;\ndata = data[\"response\"];\ndata = data[\"docs\"];\n  if (!Array.isArray(data)) data = [];\n  var result = [];\n  for (var i = 0; i < data.length; i++) {\n    var item = data[i];\n    var vod = {\n      vod_id: item[\"id\"] || \"\",\n      vod_name: item[\"title\"] || \"无标题\",\n      vod_pic: \"\"\n    };\n    result.push(vod);\n  }\n  return result;\n}"
   },
   "global": {
     "debug": true,
-    "defaultPic": ""
+    "defaultPic": "",
+    "headers": {
+      "User-Agent": "Mozilla/5.0"
+    }
   }
 }
