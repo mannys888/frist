@@ -13,45 +13,45 @@
     }
   ],
   "customHandlers": {
-    "cctvListHandler":`function(ctx) {
+    "cctvListHandler":"function(ctx) {
     let fetchJson = (url) => JSON.parse(req(url).content);
     let url = "https://api.cntv.cn/lanmu/columnSearch?p=1&n=20&serviceId=tvcctv&t=json";
     let json = fetchJson(url);
     let data = json;
+    // 尝试适配常见的数据结构：response.docs
     if (data["response"] && data["response"]["docs"]) data = data["response"]["docs"];
     else if (!Array.isArray(data)) {
-      (function findArr(obj) {
-        if (Array.isArray(obj)) { data = obj; return obj; }
-        for (let k in obj) {
-          if (obj[k] && typeof obj[k] === 'object') {
-            let res = findArr(obj[k]);
-            if (res) return res;
-          }
-        }
-        return null;
-      })(data);
+        (function findArr(obj) {
+            if (Array.isArray(obj)) { data = obj; return obj; }
+            for (let k in obj) {
+                if (obj[k] && typeof obj[k] === 'object') {
+                    let res = findArr(obj[k]);
+                    if (res) return res;
+                }
+            }
+            return null;
+        })(data);
     }
     if (!Array.isArray(data)) data = [];
     let getNested = (obj, path) => {
-      let parts = path.split('.');
-      let cur = obj;
-      for (let p of parts) {
-        if (cur && typeof cur === 'object' && p in cur) cur = cur[p];
-        else return '';
-      }
-      return cur;
+        let parts = path.split('.');
+        let cur = obj;
+        for (let p of parts) {
+            if (cur && typeof cur === 'object' && p in cur) cur = cur[p];
+            else return '';
+        }
+        return cur;
     };
     let result = data.map(item => {
-      let title = getNested(item, "column_name") || "无标题";
-      let latestId = getNested(item, "lastVIDE.videoSharedCode") || "_";
-      let pic = getNested(item, "column_logo") || "";
-      let vod_id = `###${title}###${latestId}###${pic}`;
-      return { vod_id, vod_name: title, vod_pic: pic };
+        let title = getNested(item, "column_name") || "无标题";
+        let latestId = getNested(item, "lastVIDE.videoSharedCode") || "_";
+        let pic = getNested(item, "column_logo") || "";
+        let vod_id = `###${title}###${latestId}###${pic}`;
+        return { vod_id, vod_name: title, vod_pic: pic };
     });
-  
     return result;
-} `,
-    "cctvDetailHandler": `function(ctx) {
+}",
+    "cctvDetailHandler":"function(ctx) {
     let parts = ctx.vodId.split('###');
     if (parts.length < 3) return { list: [] };
     let title = parts[1];
@@ -59,59 +59,57 @@
     let logo = parts[3];
     if (latestVideoId === '_') return { list: [] };
     
-    let infoUrl = "https://api.cntv.cn/video/videoinfoByGuid?guid=${latestVideoId}&serviceId=tvcctv";
+    let infoUrl = `https://api.cntv.cn/video/videoinfoByGuid?guid=${latestVideoId}&serviceId=tvcctv`;
     let infoJson = JSON.parse(req(infoUrl).content);
     let ctid = infoJson.ctid;
     if (!ctid) return { list: [] };
     let channel = infoJson.channel || '';
     
-    let listUrl = "https://api.cntv.cn/NewVideo/getVideoListByColumn?id=${ctid}&p=1&n=50&mode=0&serviceId=tvcctv";
+    let listUrl = `https://api.cntv.cn/NewVideo/getVideoListByColumn?id=${ctid}&p=1&n=50&mode=0&serviceId=tvcctv`;
     let listJson = JSON.parse(req(listUrl).content);
     let videos = (listJson.data && listJson.data.list) ? listJson.data.list : (() => {
-      function findArr(obj) {
-        if (Array.isArray(obj)) return obj;
-        for (let k in obj) {
-          if (obj[k] && typeof obj[k] === 'object') {
-            let res = findArr(obj[k]);
-            if (res) return res;
-          }
+        function findArr(obj) {
+            if (Array.isArray(obj)) return obj;
+            for (let k in obj) {
+                if (obj[k] && typeof obj[k] === 'object') {
+                    let res = findArr(obj[k]);
+                    if (res) return res;
+                }
+            }
+            return null;
         }
-        return null;
-      }
-      return findArr(listJson) || [];
+        return findArr(listJson) || [];
     })();
     
     let playList = [];
     for (let v of videos) {
-      let videoId = v["guid"] || v.guid || v.vid || v.pid;
-      if (!videoId) continue;
-      let videoName = v["title"] || v.title || "无标题";
-      playList.push(videoName + "$" + videoId);
+        let videoId = v["guid"] || v.guid || v.vid || v.pid;
+        if (!videoId) continue;
+        let videoName = v["title"] || v.title || "无标题";
+        playList.push(videoName + "$" + videoId);
     }
     if (playList.length === 0) return { list: [] };
     
     let result = {
-      list: [{
-        vod_id: ctx.vodId,
-        vod_name: title,
-        vod_pic: logo,
-        type_name: channel,
-        vod_play_from: 'CCTV',
-        vod_play_url: playList.join('#')
-      }]
+        list: [{
+            vod_id: ctx.vodId,
+            vod_name: title,
+            vod_pic: logo,
+            type_name: channel,
+            vod_play_from: 'CCTV',
+            vod_play_url: playList.join('#')
+        }]
     };
-  
     return result;
-} `,
-    "cctvPlayHandler": `function(ctx) {
+}",
+    "cctvPlayHandler": "function(ctx) {
     let videoId = ctx.id;
-    let url = "https://vdn.apps.cntv.cn/api/getHttpVideoInfo.do?pid=${videoId}";
+    let url = `https://vdn.apps.cntv.cn/api/getHttpVideoInfo.do?pid=${videoId}`;
     let json = JSON.parse(req(url).content);
     let playUrl = json?.hls_url || json.url || json.video || "";
     let result = { parse: 0, playUrl: "", url: playUrl };
-  
     return result;
-} `
+}"
   },
   "global": {
     "debug": true,
