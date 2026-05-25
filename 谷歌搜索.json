@@ -1,25 +1,26 @@
 {
   "sources": [
     {
-      "name": "🎬🔻B站UP主视频",
-      "handler": "biliListHandler",
-      "detailHandler": "biliDetailHandler",
-      "playHandler": "biliPlayHandler"
+      "name": "📺 央视栏目",
+      "handler": "cctvListHandler",
+      "detailHandler": "cctvDetailHandler",
+      "playHandler": "cctvPlayHandler"
+    },
+    {
+      "name": "📡 测试直播源",
+      "url": "https://raw.githubusercontent.com/mannys888/frist/refs/heads/main/迦南诗歌.txt"
     }
   ],
   "customHandlers": {
-    "biliListHandler": "function(ctx) {\n    var fetchJson = function(url) { return JSON.parse(req(url).content); };\n    var url = \"https://api.bilibili.com/x/space/arc/search?mid=928123&ps=30&pn=1&order=pubdate\";\n    var json = fetchJson(url);\n    if (json.code !== 0) return [];\n    var vlist = json.data.list.vlist || [];\n    var result = vlist.map(function(v) {\n      return {\n        vod_id: \"###\" + v.aid + \"###\" + v.title + \"###\" + v.pic,\n        vod_name: v.title,\n        vod_pic: v.pic\n      };\n    });\n    \n    return result;\n  }",
-    "biliDetailHandler": "function(ctx) {\n    var parts = ctx.vodId.split('###');\n    if (parts.length < 3) return { list: [] };\n    var aid = parts[1];\n    var title = parts[2];\n    var pic = parts[3] || \"\";\n    var infoUrl = \"https://api.bilibili.com/x/web-interface/view?aid=\" + aid;\n    var infoJson = JSON.parse(req(infoUrl).content);\n    if (infoJson.code !== 0) return { list: [] };\n    var pages = infoJson.data.pages || [];\n    var playList = pages.map(function(p) {\n      var playId = aid + \"|\" + p.cid;\n      return (p.part || \"第\" + p.page + \"集\") + \"$\" + playId;\n    });\n    var result = {\n      list: [{\n        vod_id: ctx.vodId,\n        vod_name: title,\n        vod_pic: pic,\n        type_name: infoJson.data.tname || \"B站视频\",\n        vod_play_from: \"B站\",\n        vod_play_url: playList.join(\"#\")\n      }]\n    };\n    \n    return result;\n  }",
-    "biliPlayHandler": "function(ctx) {\n    var parts = ctx.id.split('|');\n    var aid = parts[0];\n    var cid = parts[1];\n    if (!aid || !cid) return { parse: 0, playUrl: \"\", url: \"\" };\n    var headers = {\n      \"User-Agent\": \"哔哩哔哩/87700100 CFNetwork/3860.300.31 Darwin/25.2.0\",\n      \"Referer\": \"https://www.bilibili.com/\",\n      \"Cookie\": \"DedeUserID=3706996935101286; DedeUserID__ckMd5=d9b9e5e398ad1acc; SESSDATA=680177ac%2C1795280072%2C7dbd8a52CjAf7K1vWFYptpanLM7P_40NVK46Yll0aIkrX7n8qopFi8N6cWJJXrz_theMwnt9f3YSVl9BM0xFb19HSDRWUGRiWkVZdC1GSkVWN0JRSnNHU1U3dk1idzdHSmZLWnRCZmtpcmRCNWlnWlJta0g4SDNxQmVzV3A2d0paZ2FxVzg5enh4N0R0bzNBIIEC; bili_jct=dbbe40191f7624ae21cf8b8fd3eedbe9; sid=ph9fu632; _uuid=F7F37D08-2F10-66FB-E7D2-28C835795C3D55732infoc; Buvid=YD445CDBE77CAE66410FA240B44E08420AB4; buvid_fp=8a78a1a13fd33f64ef5bb6824e0d5e62; b_nut=1779728024; buvid3=3FC15EAD-4AF5-30C0-1628-38BDF650F36323884infoc; buvid4=0912DE13-B117-878A-D383-84DFFB2E8DCG23884-126052600-1RDRydwUWacLkN6ipzw43w%3D%3D\",\n      \"channel\": \"release\",\n      \"version\": \"3\"\n    };\n    var url = \"https://api.bilibili.com/x/player/playurl?avid=\" + aid + \"&cid=\" + cid + \"&qn=80&fnver=0&fnval=4048&fourk=1\";\n    var resp = req(url, { headers: headers });\n    var json = JSON.parse(resp.content);\n    var playUrl = \"\";\n    if (json.data && json.data.durl && json.data.durl.length > 0) playUrl = json.data.durl[0].url;\n    else if (json.data && json.data.dash && json.data.dash.video && json.data.dash.video[0]) playUrl = json.data.dash.video[0].baseUrl;\n    if (playUrl) {\n      var result = { parse: 0, playUrl: \"\", url: playUrl };\n      \n      return result;\n    }\n    return { parse: 0, playUrl: \"\", url: \"\" };\n  }"
+    "cctvListHandler": "function(ctx) {\n    let fetchJson = (url) => JSON.parse(req(url).content);\n    let url = \"https://api.cntv.cn/lanmu/columnSearch?p=1&n=20&serviceId=tvcctv&t=json\";\n    let json = fetchJson(url);\n    let data = json;\n    if (data[\"response\"] && data[\"response\"][\"docs\"]) data = data[\"response\"][\"docs\"];\n    else if (!Array.isArray(data)) {\n      (function findArr(obj) {\n        if (Array.isArray(obj)) { data = obj; return obj; }\n        for (let k in obj) {\n          if (obj[k] && typeof obj[k] === 'object') {\n            let res = findArr(obj[k]);\n            if (res) return res;\n          }\n        }\n        return null;\n      })(data);\n    }\n    if (!Array.isArray(data)) data = [];\n    let getNested = (obj, path) => {\n      let parts = path.split('.');\n      let cur = obj;\n      for (let p of parts) {\n        if (cur && typeof cur === 'object' && p in cur) cur = cur[p];\n        else return '';\n      }\n      return cur;\n    };\n    let result = data.map(item => {\n      let title = getNested(item, \"column_name\") || \"无标题\";\n      let latestId = getNested(item, \"lastVIDE.videoSharedCode\") || \"_\";\n      let pic = getNested(item, \"column_logo\") || \"\";\n      let vod_id = `###${title}###${latestId}###${pic}`;\n      return { vod_id, vod_name: title, vod_pic: pic };\n    });\n  \n    return result;\n}",
+    "cctvDetailHandler": "function(ctx) {\n    let parts = ctx.vodId.split('###');\n    if (parts.length < 3) return { list: [] };\n    let title = parts[1];\n    let latestVideoId = parts[2];\n    let logo = parts[3];\n    if (latestVideoId === '_') return { list: [] };\n    \n    let infoUrl = \"https://api.cntv.cn/video/videoinfoByGuid?guid=${latestVideoId}&serviceId=tvcctv\";\n    let infoJson = JSON.parse(req(infoUrl).content);\n    let ctid = infoJson.ctid;\n    if (!ctid) return { list: [] };\n    let channel = infoJson.channel || '';\n    \n    let listUrl = \"https://api.cntv.cn/NewVideo/getVideoListByColumn?id=${ctid}&p=1&n=50&mode=0&serviceId=tvcctv\";\n    let listJson = JSON.parse(req(listUrl).content);\n    let videos = (listJson.data && listJson.data.list) ? listJson.data.list : (() => {\n      function findArr(obj) {\n        if (Array.isArray(obj)) return obj;\n        for (let k in obj) {\n          if (obj[k] && typeof obj[k] === 'object') {\n            let res = findArr(obj[k]);\n            if (res) return res;\n          }\n        }\n        return null;\n      }\n      return findArr(listJson) || [];\n    })();\n    \n    let playList = [];\n    for (let v of videos) {\n      let videoId = v[\"guid\"] || v.guid || v.vid || v.pid;\n      if (!videoId) continue;\n      let videoName = v[\"title\"] || v.title || \"无标题\";\n      playList.push(videoName + \"$\" + videoId);\n    }\n    if (playList.length === 0) return { list: [] };\n    \n    let result = {\n      list: [{\n        vod_id: ctx.vodId,\n        vod_name: title,\n        vod_pic: logo,\n        type_name: channel,\n        vod_play_from: 'CCTV',\n        vod_play_url: playList.join('#')\n      }]\n    };\n  \n    return result;\n}",
+    "cctvPlayHandler": "function(ctx) {\n    let videoId = ctx.id;\n    let url = \"https://vdn.apps.cntv.cn/api/getHttpVideoInfo.do?pid=${videoId}\";\n    let json = JSON.parse(req(url).content);\n    let playUrl = json?.hls_url || json.url || json.video || \"\";\n    let result = { parse: 0, playUrl: \"\", url: playUrl };\n  \n    return result;\n}"
   },
   "global": {
     "debug": true,
-    "defaultPic": "https://www.bilibili.com/favicon.ico",
+    "defaultPic": "https://picsum.photos/200/300",
     "headers": {
-      "User-Agent": "哔哩哔哩/87700100 CFNetwork/3860.300.31 Darwin/25.2.0",
-      "Referer": "https://www.bilibili.com/",
-      "channel": "release",
-      "version": "3"
+      "User-Agent": "Mozilla/5.0"
     }
   }
 }
