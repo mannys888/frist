@@ -2580,7 +2580,8 @@ function openPrintForCards(cardsHtml, monthKey, employeeCount) {
             border-top: 1px dashed #ddd;
             padding-top: 4px;
         }
-        /* 打印时强制保留网格布局，覆盖任何默认样式 ,3️⃣排*/
+        /* 打印时强制保留网格布局，覆盖任何默认样式 ,3️⃣排repeat(22️⃣排, 85.6mm) !important;
+                gap: 58️⃣个mm !important;*/
         @media print {
             body {
                 padding: 5mm;
@@ -2588,7 +2589,7 @@ function openPrintForCards(cardsHtml, monthKey, employeeCount) {
             .id-card-container-print {
                 display: grid !important;
                 grid-template-columns: repeat(2, 85.6mm) !important;
-                gap: 10mm !important;
+                gap: 5mm !important;
                 justify-content: center !important;
             }
             .id-card {
