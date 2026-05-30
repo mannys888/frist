@@ -1077,106 +1077,145 @@
     overflow-wrap: break-word;
 }
 
-
-/* 员工多选复选框区域（网格布局） */
-.employee-checkbox-group {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-    gap: 10px;
-    max-height: 260px;
-    overflow-y: auto;
-    border: 1px solid #ddd;
-    padding: 12px;
-    border-radius: 8px;
-    background: #fafafa;
+/* 身份证卡片容器 */
+.id-card-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+    justify-content: center;
+    margin-top: 20px;
 }
+
+/* 卡片本体（尺寸接近身份证） */
+.id-card {
+    width: 85.6mm;          /* 身份证标准宽度 */
+    min-height: 54mm;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 10px 20px rgba(0,0,0,0.2);
+    padding: 8px 12px;
+    position: relative;
+    border: 1px solid #ddd;
+    page-break-inside: avoid;
+    margin-bottom: 10px;
+    font-family: 'Segoe UI', sans-serif;
+}
+.id-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 2px solid #2c3e50;
+    margin-bottom: 8px;
+    padding-bottom: 4px;
+}
+.id-card-logo {
+    font-weight: bold;
+    font-size: 1.1rem;
+    color: #2c3e50;
+}
+.id-card-title {
+    font-size: 0.7rem;
+    color: #7f8c8d;
+}
+.id-card-photo {
+    width: 50px;
+    height: 50px;
+    background: #ecf0f1;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #3498db;
+    font-size: 1.8rem;
+    float: right;
+    margin-left: 10px;
+    margin-bottom: 8px;
+}
+.id-card-info p {
+    margin: 4px 0;
+    font-size: 0.7rem;
+    line-height: 1.2;
+    display: flex;
+    justify-content: space-between;
+}
+.id-card-info strong {
+    color: #2c3e50;
+}
+.id-card-qr {
+    width: 45px;
+    height: 45px;
+    background: repeating-linear-gradient(45deg, #333 0px, #333 2px, #fff 2px, #fff 8px);
+    border: 1px solid #aaa;
+    float: right;
+    margin-left: 8px;
+    margin-top: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.5rem;
+    text-align: center;
+    color: #2c3e50;
+    background-color: #f8f9fa;
+}
+.id-card-attendance {
+    margin-top: 8px;
+    background: #f1f5f9;
+    padding: 5px;
+    border-radius: 6px;
+    font-size: 0.65rem;
+    text-align: center;
+    clear: both;
+}
+.id-card-footer {
+    margin-top: 6px;
+    font-size: 0.55rem;
+    text-align: center;
+    color: #95a5a6;
+    border-top: 1px dashed #ddd;
+    padding-top: 4px;
+}
+
+/* 打印时隐藏无关元素，只留卡片 */
+@media print {
+    .toolbar, .nav-container, header, .btn, .form-group, .section-title, .pdf-export-container {
+        display: none;
+    }
+    .id-card {
+        box-shadow: none;
+        page-break-inside: avoid;
+        margin: 0 auto 10mm auto;
+    }
+    .id-card-container {
+        display: block;
+    }
+}
+
+.employee-checkbox-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 15px;
+    max-height: 250px;
+    overflow-y: auto;
+    padding: 12px;
+    background: #f9f9f9;
+    border-radius: var(--border-radius);
+    border: 1px solid #e0e0e0;
+    margin-bottom: 15px;
+}
+
 .employee-checkbox-item {
     display: flex;
     align-items: center;
     gap: 8px;
-}
-/* 批量打印时卡片网格布局（屏幕预览也用） */
-.print-cards-grid {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 12px;
-    justify-content: flex-start;
-}
-/* 打印时强制卡片网格排列，节省纸张 */
-@media print {
-    body * { visibility: hidden; }
-    .print-window-content, .print-window-content * { visibility: visible; }
-    .print-window-content { position: absolute; top: 0; left: 0; width: 100%; }
-    .id-card {
-        box-shadow: none;
-        page-break-inside: avoid;
-        margin: 0 auto 8mm auto;
-    }
-    .print-cards-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(85mm, 1fr));
-        gap: 10mm;
-        padding: 10mm;
-    }
-}
-
-.id-card-info {
-    overflow: auto;
-}
-
-/* 员工管理模态框样式 */
-.modal {
-    display: none;
-    position: fixed;
-    top: 0; left: 0;
-    width: 100%; height: 100%;
-    background: rgba(0,0,0,0.5);
-    justify-content: center;
-    align-items: center;
-    z-index: 2000;
-}
-.modal-content {
     background: white;
-    border-radius: 12px;
-    width: 90%;
-    max-width: 800px;
-    max-height: 80vh;
-    overflow-y: auto;
-    padding: 20px;
-}
-.modal-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    border-bottom: 1px solid #ddd;
-    margin-bottom: 15px;
-    padding-bottom: 10px;
-}
-.close-modal {
-    font-size: 28px;
-    font-weight: bold;
-    cursor: pointer;
-}
-.employee-table {
-    width: 100%;
-    border-collapse: collapse;
-}
-.employee-table th, .employee-table td {
-    border: 1px solid #ddd;
-    padding: 8px;
-    text-align: left;
-}
-.add-employee-form {
-    margin-top: 20px;
-    display: flex;
-    gap: 10px;
-    flex-wrap: wrap;
-    align-items: flex-end;
-}
-.btn-sm {
     padding: 6px 12px;
-    font-size: 14px;
+    border-radius: 30px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    cursor: pointer;
+    transition: 0.2s;
 }
+.employee-checkbox-item:hover { background: #e8f4fd; }
+
 
     </style>
 </head>
@@ -1230,9 +1269,10 @@
                     <i class="fas fa-tools"></i> ⑥系统管理
                 </a>
             </li>
+            
             <li class="nav-item">
     <a href="#" class="nav-link" data-target="attendance-card">
-        <i class="fas fa-id-card"></i>⑦员工出勤卡
+       ⑦员工出勤卡
     </a>
 </li>
         </ul>
@@ -1896,51 +1936,43 @@
             </div>
         </div>
     </div>
+    
+    
+    
+    <!-- ⑦员工出勤卡（身份证样式） -->
 
-<!-- ⑦员工出勤卡（身份证样式） - 多选批量打印版 -->
-<div class="form-row">
-    <div class="form-group">
-        <label class="form-label">选择员工（可多选）</label>
-        <!-- 动态生成的复选框列表容器 -->
-        <div id="attendance-card-employees" class="employee-checkbox-group">
-            <!-- 复选框将由JS动态填充 -->
+  <div class="main-content content-section" id="attendance-card">
+            <h2 class="section-title"><i class="fas fa-id-card"></i>员工出勤卡（多选批量打印）</h2>
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label">选择员工（可多选）</label>
+                    <div style="margin-bottom: 8px; display: flex; gap: 10px;">
+                        <button type="button" id="card-select-all" class="btn btn-primary" style="padding: 5px 12px; font-size: 13px;">✅ 全选</button>
+                        <button type="button" id="card-deselect-all" class="btn btn-warning" style="padding: 5px 12px; font-size: 13px;">❌ 取消全选</button>
+                    </div>
+                    <div id="employee-card-checkbox-list" class="employee-checkbox-group">
+                        <!-- 动态生成员工复选框列表 -->
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="card-month" class="form-label">选择月份</label>
+                    <input type="month" id="card-month" class="form-control">
+                </div>
+                <div class="form-group" style="align-self: flex-end;">
+                    <button id="generate-id-card-btn" class="btn btn-primary"><i class="fas fa-print"></i> 生成出勤卡并打印</button>
+                </div>
+            </div>
+            <!-- 卡片预览区域 -->
+            <div id="id-card-preview-area" class="id-card-container" style="min-height:200px; background:#f0f2f5; padding:20px; border-radius:12px;">
+                <!-- 动态生成的多个卡片将显示在这里 -->
+            </div>
+            <div class="alert alert-info" style="margin-top:15px; background:#e8f4fd; padding:12px; border-radius:8px;">
+                <i class="fas fa-info-circle"></i> 勾选多名员工，点击按钮后将批量生成身份证样式出勤卡，并自动打开打印窗口。
+            </div>
         </div>
-        <div style="display: flex; gap: 12px; margin-top: 8px;">
-            <button type="button" id="select-all-card-employees" class="btn btn-primary btn-sm">✅ 全选</button>
-            <button type="button" id="deselect-all-card-employees" class="btn btn-warning btn-sm">❌ 取消全选</button>
-        </div>
     </div>
-    <div class="form-group">
-        <label for="card-month" class="form-label">选择月份</label>
-        <input type="month" id="card-month" class="form-control" value="">
-    </div>
-    <div class="form-group" style="align-self: flex-end;">
-        <button id="generate-id-card-btn" class="btn btn-primary">
-            <i class="fas fa-print"></i> 生成出勤卡并打印（批量）
-        </button>
-    </div>
-</div>
-<!-- 卡片预览区域 -->
-<div id="id-card-preview-area" class="id-card-container" style="min-height:200px; background:#f0f2f5; padding:20px; border-radius:12px;">
-    <!-- 生成的卡片将在这里显示 -->
-</div>
-<div class="alert alert-info" style="margin-top:15px; background:#e8f4fd; padding:12px; border-radius:8px;">
-    <i class="fas fa-info-circle"></i> 可同时勾选多位员工，点击按钮后生成多张身份证样式卡片并自动进入打印窗口。卡片采用网格布局，自动排列，节约纸张。
-</div>
-
-   
-     
-   
-
-    <!-- 通知容器 -->
     <div id="notification-container"></div>
-
-    <!-- 页脚 -->
-    <footer class="container">
-        <p id="footer-logo" class="text-logo" style="font-size: 18px;">QX TRADING</p>
-        <p>员工工资管理系统 &copy; <span id="currentYear"></span> | 版本 2.0 | 临时员工工资管理</p>
-        <p style="margin-top: 5px; font-size: 14px;">WEEKLY PAYROLL</p>
-    </footer>
+    <footer class="container"><p id="footer-logo" class="text-logo">QX TRADING</p><p>员工工资管理系统 © <span id="currentYear"></span> | 版本 2.0 | 临时员工工资管理</p></footer>
 
     <script>
     // 默认员工数据
@@ -2126,28 +2158,249 @@
            { name: 'transport', ps: 1 }
        ]
     };
-    
-    // ==================== 员工出勤卡多选批量打印模块 ====================
+    // ========== 员工出勤卡模块 ==========
 
-/**
- * 生成单张出勤卡 HTML
- * @param {string} employeeId 员工ID (idCard)
- * @param {string} monthKey 月份 YYYY-MM
- * @returns {string|null} 卡片HTML，失败返回null
- */
+   // ========== 员工出勤卡模块（完整函数版） ==========
 
-function generateCard(employeeId, monthKey) {
-    const emp = systemData.employees.find(e => e.idCard === employeeId);
-    if (!emp) {
-        console.warn('未找到员工:', employeeId);
-        return null;
+// ========== 员工出勤卡模块（完整函数版） ==========
+function initAttendanceCard() {
+    const cardSelect = document.getElementById('card-employee');
+    const cardMonth = document.getElementById('card-month');
+    const generateBtn = document.getElementById('generate-id-card-btn');
+    if (!cardSelect || !generateBtn) return;
+
+    // 填充员工下拉框（直接使用全局 systemData）
+    function fillEmployeeSelect() {
+        if (!systemData || !systemData.employees || systemData.employees.length === 0) {
+            cardSelect.innerHTML = '<option value="">暂无员工，请先添加</option>';
+            return;
+        }
+        cardSelect.innerHTML = '<option value="">请选择员工</option>';
+        systemData.employees.forEach(emp => {
+            const option = document.createElement('option');
+            option.value = emp.idCard;
+            option.textContent = emp.name;
+            cardSelect.appendChild(option);
+        });
     }
+
+    // 设置默认月份为当前月份
+    const today = new Date();
+    const defaultMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
+    if (cardMonth && !cardMonth.value) cardMonth.value = defaultMonth;
+
+    // 核心：生成卡片HTML
+    function generateCard(employeeId, monthKey) {
+        const emp = systemData.employees.find(e => e.idCard === employeeId);
+        if (!emp) return null;
+        const [year, month] = monthKey.split('-').map(Number);
+        const daysInMonth = new Date(year, month, 0).getDate();
+        let totalSalary = 0;
+        let attendanceDays = 0;
+        let halfDays = 0;
+
+        for (let d = 1; d <= daysInMonth; d++) {
+            const dateStr = `${monthKey}-${String(d).padStart(2, '0')}`;
+            const factor = getAttendanceFactor(employeeId, dateStr);
+            if (factor > 0) {
+                attendanceDays += factor;
+                if (factor === 0.5) halfDays++;
+            }
+            const daySalary = getEmployeeSalary(emp.name, dateStr);
+            totalSalary += daySalary;
+        }
+
+        const dailyWorkHours = systemSettings?.dailyWorkHours || 8;
+        const totalWorkHours = attendanceDays * dailyWorkHours;
+        const currencySym = systemSettings?.currencySymbol || 'R';
+        const logoText = systemSettings?.logoText || 'QX TRADING';
+        const qrContent = `${emp.idCard} | ${monthKey} | ${attendanceDays.toFixed(1)}天`;
+
+        return `
+            <div class="id-card">
+                <div class="id-card-header">
+                    <div class="id-card-logo">${logoText}</div>
+                    <div class="id-card-title">ATTENDANCE ID CARD</div>
+                </div>
+                <div class="id-card-photo"><i class="fas fa-user-circle"></i></div>
+                <div class="id-card-info">
+                    <p><strong>姓名 / Name</strong> <span>${emp.name}</span></p>
+                    <p><strong>ID Number</strong> <span>${emp.idCard}</span></p>
+                    <p><strong>月份 / Month</strong> <span>${monthKey}</span></p>
+                    <div class="id-card-qr" title="员工识别码">📱 ${qrContent.substring(0,12)}...</div>
+                    <div style="clear:both"></div>
+                    <p><strong>出勤天数</strong> <span>${attendanceDays.toFixed(1)} 天</span></p>
+                    <p><strong>半日天数</strong> <span>${halfDays} 次</span></p>
+                    <p><strong>总工时</strong> <span>${totalWorkHours} h</span></p>
+                </div>
+                <div class="id-card-attendance">
+                    💰 应发工资 / Gross Salary: ${currencySym} ${totalSalary.toFixed(2)}
+                </div>
+                <div class="id-card-footer">
+                    签发日期: ${new Date().toLocaleDateString()} | 数据有效
+                </div>
+            </div>
+        `;
+    }
+
+    // 生成卡片并打开打印窗口
+    generateBtn.addEventListener('click', function() {
+        const empId = cardSelect.value;
+        const monthVal = cardMonth.value;
+        if (!empId) {
+            showNotification('请选择员工', 'error');
+            return;
+        }
+        if (!monthVal) {
+            showNotification('请选择月份', 'error');
+            return;
+        }
+        const cardHtml = generateCard(empId, monthVal);
+        if (!cardHtml) {
+            showNotification('生成卡片失败，员工数据可能异常', 'error');
+            return;
+        }
+        // 预览区域显示卡片
+        const previewArea = document.getElementById('id-card-preview-area');
+        if (previewArea) previewArea.innerHTML = cardHtml;
+
+        // 打开新窗口进行打印
+        const printWin = window.open('', '_blank');
+        if (!printWin) {
+            showNotification('浏览器阻止了弹出窗口，请允许后再试', 'error');
+            return;
+        }
+        printWin.document.write(`
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="UTF-8">
+                <title>员工出勤卡 - ${empId}</title>
+                <style>
+                    .id-card {
+                        width: 85.6mm;
+                        min-height: 54mm;
+                        background: white;
+                        border-radius: 12px;
+                        padding: 8px 12px;
+                        border: 1px solid #ddd;
+                        margin: 0 auto;
+                        font-family: 'Segoe UI', sans-serif;
+                    }
+                    .id-card-header { display: flex; justify-content: space-between; border-bottom: 2px solid #2c3e50; margin-bottom: 8px; }
+                    .id-card-logo { font-weight: bold; font-size: 1.1rem; }
+                    .id-card-title { font-size: 0.7rem; color: #7f8c8d; }
+                    .id-card-photo { width: 50px; height: 50px; background: #ecf0f1; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 1.8rem; float: right; margin-left: 10px; }
+                    .id-card-info p { margin: 4px 0; font-size: 0.7rem; display: flex; justify-content: space-between; }
+                    .id-card-qr { width: 45px; height: 45px; background: repeating-linear-gradient(45deg, #333 0px, #333 2px, #fff 2px, #fff 8px); border:1px solid #999; float:right; margin-left:8px; display: flex; align-items: center; justify-content: center; font-size: 0.5rem; }
+                    .id-card-attendance { margin-top: 8px; background:#f1f5f9; padding:5px; border-radius:6px; font-size:0.65rem; text-align:center; clear:both; }
+                    .id-card-footer { margin-top:6px; font-size:0.55rem; text-align:center; color:#6c757d; border-top:1px dashed #ddd; padding-top:4px; }
+                    @media print {
+                        body { background: white; margin:0; padding:0; }
+                        .id-card { box-shadow: none; margin: 0 auto; }
+                    }
+                </style>
+            </head>
+            <body>
+                ${cardHtml}
+                <script>
+                    window.onload = function() {
+                        window.print();
+                        setTimeout(function() { window.close(); }, 500);
+                    };
+                <\/script>
+            </body>
+            </html>
+        `);
+        printWin.document.close();
+        showNotification(`已生成 ${empId} 的出勤卡，打印窗口已打开`, 'success');
+    });
+
+    // 初始填充员工下拉框
+    fillEmployeeSelect();
+}
+
+
+
+
+
+// 全局刷新下拉框（员工数据变化时调用）
+
+function updateAttendanceCardSelect() {
+    const cardSelect = document.getElementById('card-employee');
+    if (!cardSelect) return;
+    if (!systemData || !systemData.employees || systemData.employees.length === 0) {
+        cardSelect.innerHTML = '<option value="">暂无员工，请先添加</option>';
+        return;
+    }
+    cardSelect.innerHTML = '<option value="">请选择员工</option>';
+    systemData.employees.forEach(emp => {
+        const option = document.createElement('option');
+        option.value = emp.idCard;
+        option.textContent = emp.name;
+        cardSelect.appendChild(option);
+    });
+}
+
+
+
+function refreshEmployeeCardCheckboxList() {
+    const container = document.getElementById('employee-card-checkbox-list');
+    if (!container) return;
+    if (!systemData || !systemData.employees || systemData.employees.length === 0) {
+        container.innerHTML = '<div style="padding:10px; color:#666;">暂无员工数据</div>';
+        return;
+    }
+    container.innerHTML = '';
+    systemData.employees.forEach(emp => {
+        const div = document.createElement('div');
+        div.className = 'employee-checkbox-item';
+        // 使用 idCard 作为 value，同时存储 name 用于显示
+        div.innerHTML = `
+            <input type="checkbox" class="card-employee-cb" value="${escapeHtml(emp.idCard)}" data-name="${escapeHtml(emp.name)}" id="card_emp_${emp.idCard}">
+            <label for="card_emp_${emp.idCard}">${escapeHtml(emp.name)} (${escapeHtml(emp.idCard)})</label>
+        `;
+        container.appendChild(div);
+    });
+    // 默认全选（符合用户预期）
+    document.querySelectorAll('#employee-card-checkbox-list input[type="checkbox"]').forEach(cb => cb.checked = true);
+}
+
+function bindCardSelectionButtons() {
+    const selectAllBtn = document.getElementById('card-select-all');
+    const deselectAllBtn = document.getElementById('card-deselect-all');
+    if (selectAllBtn) {
+        selectAllBtn.onclick = () => {
+            document.querySelectorAll('#employee-card-checkbox-list input[type="checkbox"]').forEach(cb => cb.checked = true);
+            showNotification('已全选所有员工', 'info');
+        };
+    }
+    if (deselectAllBtn) {
+        deselectAllBtn.onclick = () => {
+            document.querySelectorAll('#employee-card-checkbox-list input[type="checkbox"]').forEach(cb => cb.checked = false);
+            showNotification('已取消全选', 'info');
+        };
+    }
+}
+
+
+function getSelectedCardEmployees() {
+    const selected = [];
+    document.querySelectorAll('#employee-card-checkbox-list input[type="checkbox"]:checked').forEach(cb => {
+        const empId = cb.value;
+        if (empId) selected.push(empId);
+    });
+    return selected;
+}
+
+
+
+function generateSingleCardHTML(employeeId, monthKey) {
+    const emp = systemData.employees.find(e => e.idCard === employeeId);
+    if (!emp) return '';
     const [year, month] = monthKey.split('-').map(Number);
     const daysInMonth = new Date(year, month, 0).getDate();
-    let totalSalary = 0;
-    let attendanceDays = 0;
-    let halfDays = 0;
-
+    let totalSalary = 0, attendanceDays = 0, halfDays = 0;
     for (let d = 1; d <= daysInMonth; d++) {
         const dateStr = `${monthKey}-${String(d).padStart(2, '0')}`;
         const factor = getAttendanceFactor(employeeId, dateStr);
@@ -2155,35 +2408,34 @@ function generateCard(employeeId, monthKey) {
             attendanceDays += factor;
             if (factor === 0.5) halfDays++;
         }
-        const daySalary = getEmployeeSalary(emp.name, dateStr);
-        totalSalary += daySalary;
+        totalSalary += getEmployeeSalary(emp.name, dateStr);
     }
-
     const dailyWorkHours = systemSettings?.dailyWorkHours || 8;
     const totalWorkHours = attendanceDays * dailyWorkHours;
     const currencySym = systemSettings?.currencySymbol || 'R';
     const logoText = systemSettings?.logoText || 'QX TRADING';
     const qrContent = `${emp.idCard} | ${monthKey} | ${attendanceDays.toFixed(1)}天`;
 
+    // 完整的卡片HTML
     return `
         <div class="id-card">
             <div class="id-card-header">
-                <div class="id-card-logo">${logoText}</div>
+                <div class="id-card-logo">${escapeHtml(logoText)}</div>
                 <div class="id-card-title">ATTENDANCE ID CARD</div>
             </div>
-            <!-- 去掉头像图标，保留二维码区域 -->
+            <div class="id-card-photo"><i class="fas fa-user-circle"></i></div>
             <div class="id-card-info">
-                <div class="id-card-qr" title="员工识别码">📱 ${qrContent.substring(0,12)}...</div>
-                <p><strong>姓名 / Name</strong> <span>${emp.name}</span></p>
-                <p><strong>ID Number</strong> <span>${emp.idCard}</span></p>
+                <p><strong>姓名 / Name</strong> <span>${escapeHtml(emp.name)}</span></p>
+                <p><strong>ID Number</strong> <span>${escapeHtml(emp.idCard)}</span></p>
                 <p><strong>月份 / Month</strong> <span>${monthKey}</span></p>
+                <div class="id-card-qr" title="员工识别码">📱 ${qrContent.substring(0,12)}...</div>
                 <div style="clear:both"></div>
                 <p><strong>出勤天数</strong> <span>${attendanceDays.toFixed(1)} 天</span></p>
                 <p><strong>半日天数</strong> <span>${halfDays} 次</span></p>
                 <p><strong>总工时</strong> <span>${totalWorkHours} h</span></p>
             </div>
             <div class="id-card-attendance">
-                应发工资 / Gross Salary: ${currencySym} ${totalSalary.toFixed(2)}
+                💰 应发工资 / Gross Salary: ${currencySym} ${formatMoney(totalSalary)}
             </div>
             <div class="id-card-footer">
                 签发日期: ${new Date().toLocaleDateString()} | 数据有效
@@ -2192,155 +2444,116 @@ function generateCard(employeeId, monthKey) {
     `;
 }
 
-
-/**
- * 填充员工多选框（复选框列表）
- */
-function fillEmployeeCheckboxes() {
-    const container = document.getElementById('attendance-card-employees');
-    if (!container) return;
-    if (!systemData.employees || systemData.employees.length === 0) {
-        container.innerHTML = '<div style="color:#999;">暂无员工，请先添加</div>';
-        return;
-    }
-    container.innerHTML = '';
-    systemData.employees.forEach(emp => {
-        const div = document.createElement('div');
-        div.className = 'employee-checkbox-item';
-        div.innerHTML = `
-            <input type="checkbox" id="card_emp_${emp.idCard}" value="${emp.idCard}" class="card-employee-cb">
-            <label for="card_emp_${emp.idCard}">${emp.name} (${emp.idCard})</label>
-        `;
-        container.appendChild(div);
-    });
-}
-
-/**
- * 绑定全选/取消全选按钮
- */
-function bindCardSelectAll() {
-    const selectAllBtn = document.getElementById('select-all-card-employees');
-    const deselectAllBtn = document.getElementById('deselect-all-card-employees');
-    if (selectAllBtn) {
-        selectAllBtn.onclick = () => {
-            document.querySelectorAll('#attendance-card-employees .card-employee-cb').forEach(cb => cb.checked = true);
-        };
-    }
-    if (deselectAllBtn) {
-        deselectAllBtn.onclick = () => {
-            document.querySelectorAll('#attendance-card-employees .card-employee-cb').forEach(cb => cb.checked = false);
-        };
-    }
-}
-
-/**
- * 获取选中的员工ID数组
- * @returns {string[]}
- */
-function getSelectedEmployeeIds() {
-    const selected = [];
-    document.querySelectorAll('#attendance-card-employees .card-employee-cb:checked').forEach(cb => {
-        selected.push(cb.value);
-    });
-    return selected;
-}
-
-/**
- * 批量生成卡片并打开打印窗口
- */
-function batchGenerateAndPrint() {
-    const selectedIds = getSelectedEmployeeIds();
-    if (selectedIds.length === 0) {
-        showNotification('请至少选择一名员工', 'error');
-        return;
-    }
-    const monthVal = document.getElementById('card-month').value;
-    if (!monthVal) {
-        showNotification('请选择月份', 'error');
-        return;
-    }
-    // 生成所有卡片HTML
+    function generateMultipleCardsHTML(selectedEmployeeIds, monthKey) {
+    if (!selectedEmployeeIds.length) 
+        return '<div style="padding:20px;text-align:center;color:#999;">未选中任何员工，请至少选择一位员工。</div>';
     let cardsHtml = '';
-    selectedIds.forEach(id => {
-        const card = generateCard(id, monthVal);
-        if (card) cardsHtml += card;
+    selectedEmployeeIds.forEach(empId => {
+        cardsHtml += generateSingleCardHTML(empId, monthKey);
     });
-    if (!cardsHtml) {
-        showNotification('生成卡片失败，请检查员工数据', 'error');
-        return;
-    }
-    // 预览区域显示
-    const previewArea = document.getElementById('id-card-preview-area');
-    previewArea.innerHTML = `<div class="print-cards-grid">${cardsHtml}</div>`;
-
-    // 打开新窗口打印
+    return cardsHtml;
+}
+    
+    
+    
+    function openPrintForCards(cardsHtml, monthKey, employeeCount) {
     const printWin = window.open('', '_blank');
     if (!printWin) {
         showNotification('浏览器阻止了弹出窗口，请允许后再试', 'error');
-        return;
+        return false;
     }
-    // 获取所有样式（确保卡片在打印窗口中正确显示）
-    const styles = document.querySelectorAll('style');
-    let styleContent = '';
-    styles.forEach(style => {
-        styleContent += style.innerHTML;
-    });
-    printWin.document.write(`
-        <!DOCTYPE html>
-        <html>
-        <head><meta charset="UTF-8"><title>员工出勤卡批量打印</title>
-        <style>${styleContent}</style>
-        <style>
-            .print-cards-grid {
-                display: grid;
-                grid-template-columns: repeat(auto-fill, minmax(85mm, 1fr));
-                gap: 10mm;
-                padding: 10mm;
-            }
-            @media print {
-                body { margin: 0; padding: 0; }
-                .print-cards-grid { display: grid; }
-            }
-        </style>
-        </head>
-        <body>
-            <div class="print-cards-grid">${cardsHtml}</div>
-            <script>
-                window.onload = function() {
-                    window.print();
-                    setTimeout(function() { window.close(); }, 800);
-                };
-            <\/script>
-        </body>
-        </html>
-    `);
+    const title = `员工出勤卡_${monthKey}_${employeeCount}人`;
+    const printHtml = `<!DOCTYPE html>
+    <html>
+    <head><meta charset="UTF-8"><title>${title}</title>
+    <style>
+        /* 完整卡片样式（与预览区一致） */
+        .id-card { width: 85.6mm; min-height: 54mm; background: white; border-radius: 12px; padding: 8px 12px; border: 1px solid #ddd; page-break-inside: avoid; margin-bottom: 10px; font-family: 'Segoe UI', sans-serif; }
+        .id-card-header { display: flex; justify-content: space-between; border-bottom: 2px solid #2c3e50; margin-bottom: 8px; padding-bottom: 4px; }
+        .id-card-logo { font-weight: bold; font-size: 1.1rem; color: #2c3e50; }
+        .id-card-title { font-size: 0.7rem; color: #7f8c8d; }
+        .id-card-photo { width: 50px; height: 50px; background: #ecf0f1; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #3498db; font-size: 1.8rem; float: right; margin-left: 10px; margin-bottom: 8px; }
+        .id-card-info p { margin: 4px 0; font-size: 0.7rem; line-height: 1.2; display: flex; justify-content: space-between; }
+        .id-card-qr { width: 45px; height: 45px; background: repeating-linear-gradient(45deg, #333 0px, #333 2px, #fff 2px, #fff 8px); border:1px solid #aaa; float:right; margin-left:8px; margin-top:4px; display: flex; align-items: center; justify-content: center; font-size:0.5rem; text-align:center; background-color:#f8f9fa; }
+        .id-card-attendance { margin-top: 8px; background: #f1f5f9; padding: 5px; border-radius: 6px; font-size: 0.65rem; text-align: center; clear: both; }
+        .id-card-footer { margin-top: 6px; font-size: 0.55rem; text-align: center; color: #95a5a6; border-top: 1px dashed #ddd; padding-top: 4px; }
+        @media print { body { margin:0; } .id-card { box-shadow: none; } }
+    </style>
+    </head>
+    <body>${cardsHtml}
+    <script>
+        window.onload = function() {
+            window.print();
+            // 避免 close 被阻止导致脚本挂起，使用 try catch 并延迟足够时间
+            setTimeout(function() {
+                try { window.close(); } catch(e) { console.warn(e); }
+            }, 1000);
+        };
+    <\/script>
+    </body>
+    </html>`;
+    printWin.document.write(printHtml);
     printWin.document.close();
-    showNotification(`已生成 ${selectedIds.length} 名员工的出勤卡，打印窗口已打开`, 'success');
+    return true;
 }
-
-/**
- * 初始化员工出勤卡模块（页面加载时调用）
- */
-function initAttendanceCard() {
-    fillEmployeeCheckboxes();
-    bindCardSelectAll();
-    // 设置默认月份为当前月份
-    const cardMonth = document.getElementById('card-month');
-    if (cardMonth && !cardMonth.value) {
+    
+    
+    
+    
+    function initAttendanceCardMulti() {
+    // 设置默认月份（当前月份）
+    const cardMonthInput = document.getElementById('card-month');
+    if (cardMonthInput && !cardMonthInput.value) {
         const today = new Date();
-        cardMonth.value = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
+        const defaultMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
+        cardMonthInput.value = defaultMonth;
     }
+    // 填充员工列表
+    refreshEmployeeCardCheckboxList();
+    // 绑定全选/取消全选按钮
+    bindCardSelectionButtons();
+    
+    // 核心：生成并打印按钮
     const generateBtn = document.getElementById('generate-id-card-btn');
     if (generateBtn) {
-        generateBtn.onclick = batchGenerateAndPrint;
+        generateBtn.onclick = function() {
+            const monthVal = document.getElementById('card-month').value;
+            if (!monthVal) {
+                showNotification('请选择月份', 'error');
+                return;
+            }
+            const selectedIds = getSelectedCardEmployees();
+            if (selectedIds.length === 0) {
+                showNotification('请至少选择一名员工', 'error');
+                return;
+            }
+            // 生成所有卡片 HTML（同时更新预览区）
+            const allCardsHtml = generateMultipleCardsHTML(selectedIds, monthVal);
+            const previewArea = document.getElementById('id-card-preview-area');
+            if (previewArea) previewArea.innerHTML = allCardsHtml;
+            // 打开打印窗口
+            openPrintForCards(allCardsHtml, monthVal, selectedIds.length);
+            showNotification(`已生成 ${selectedIds.length} 名员工的出勤卡，打印窗口已打开`, 'success');
+        };
     }
 }
     
-    
-    
-    
-    
-    
+    // 防 XSS 工具函数
+function escapeHtml(str) {
+    if (!str) return '';
+    return str.replace(/[&<>]/g, function(m) {
+        if (m === '&') return '&amp;';
+        if (m === '<') return '&lt;';
+        if (m === '>') return '&gt;';
+        return m;
+    });
+}
+
+// 重写原来的 updateAttendanceCardSelect，以便在员工数据变动后刷新多选列表
+window.updateAttendanceCardSelect = function() {
+    refreshEmployeeCardCheckboxList();
+    bindCardSelectionButtons();
+};
     
     // 十六进制颜色转 RGB 数组
 function hexToRgb(hex) {
@@ -3613,7 +3826,9 @@ if (initialPersonalSalaryEmployee && initialPersonalSalaryMonth) {
 }
        
        refreshAllTaskPresetSelects();
-       initAttendanceCard();
+       //initAttendanceCard()
+       initAttendanceCardMulti();   // 使用多选版本
+       //updateAttendanceCardSelect();//添加了就选择员工不可以
         
     });
     
@@ -9049,8 +9264,7 @@ function refreshAllUIAfterEmployeeChange() {
     updateEmployeeSelectors();
     updatePdfEmployeeSelector();
     updateEmployeeAttendanceList();
-     // 新增下面这一行
-    if (typeof fillEmployeeCheckboxes === 'function') fillEmployeeCheckboxes();
+    updateAttendanceCardSelect();  // 新增：刷新出勤卡下拉框
     // 刷新当前显示的日历视图
     const currentYear = new Date().getFullYear();
     const currentMonth = new Date().getMonth();
