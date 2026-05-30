@@ -2077,6 +2077,7 @@
  * @param {string} monthKey 月份 YYYY-MM
  * @returns {string|null} 卡片HTML，失败返回null
  */
+
 function generateCard(employeeId, monthKey) {
     const emp = systemData.employees.find(e => e.idCard === employeeId);
     if (!emp) {
@@ -2086,10 +2087,9 @@ function generateCard(employeeId, monthKey) {
     const [year, month] = monthKey.split('-').map(Number);
     const daysInMonth = new Date(year, month, 0).getDate();
     let totalSalary = 0;
-    let attendanceDays = 0;   // 出勤天数（支持半天）
+    let attendanceDays = 0;
     let halfDays = 0;
 
-    // 遍历当月每一天
     for (let d = 1; d <= daysInMonth; d++) {
         const dateStr = `${monthKey}-${String(d).padStart(2, '0')}`;
         const factor = getAttendanceFactor(employeeId, dateStr);
@@ -2113,19 +2113,19 @@ function generateCard(employeeId, monthKey) {
                 <div class="id-card-logo">${logoText}</div>
                 <div class="id-card-title">ATTENDANCE ID CARD</div>
             </div>
-            <div class="id-card-photo"><i class="fas fa-user-circle"></i></div>
+            <!-- 去掉头像图标，保留二维码区域 -->
             <div class="id-card-info">
+                <div class="id-card-qr" title="员工识别码">📱 ${qrContent.substring(0,12)}...</div>
                 <p><strong>姓名 / Name</strong> <span>${emp.name}</span></p>
                 <p><strong>ID Number</strong> <span>${emp.idCard}</span></p>
                 <p><strong>月份 / Month</strong> <span>${monthKey}</span></p>
-                <div class="id-card-qr" title="员工识别码">📱 ${qrContent.substring(0,12)}...</div>
                 <div style="clear:both"></div>
                 <p><strong>出勤天数</strong> <span>${attendanceDays.toFixed(1)} 天</span></p>
                 <p><strong>半日天数</strong> <span>${halfDays} 次</span></p>
                 <p><strong>总工时</strong> <span>${totalWorkHours} h</span></p>
             </div>
             <div class="id-card-attendance">
-                💰 应发工资 / Gross Salary: ${currencySym} ${totalSalary.toFixed(2)}
+                应发工资 / Gross Salary: ${currencySym} ${totalSalary.toFixed(2)}
             </div>
             <div class="id-card-footer">
                 签发日期: ${new Date().toLocaleDateString()} | 数据有效
@@ -2133,6 +2133,7 @@ function generateCard(employeeId, monthKey) {
         </div>
     `;
 }
+
 
 /**
  * 填充员工多选框（复选框列表）
