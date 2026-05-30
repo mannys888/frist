@@ -2467,7 +2467,8 @@ function generateSingleCardHTML(employeeId, monthKey) {
     
     
     
-    function openPrintForCards(cardsHtml, monthKey, employeeCount) {
+
+function openPrintForCards(cardsHtml, monthKey, employeeCount) {
     const printWin = window.open('', '_blank');
     if (!printWin) {
         showNotification('浏览器阻止了弹出窗口，请允许后再试', 'error');
@@ -2477,77 +2478,145 @@ function generateSingleCardHTML(employeeId, monthKey) {
     const printHtml = `<!DOCTYPE html>
     <html>
     <head><meta charset="UTF-8"><title>${title}</title>
-  <style>
-    /* 卡片容器：使用 Grid 网格布局，默认 2 列，可根据纸张宽度自动变为 3 列 */
-    .id-card-container-print {
-        display: grid;
-        grid-template-columns: repeat(2, 85.6mm);   /* 2 列，每列固定 85.6mm */
-        gap: 15mm;                                  /* 列间距与行间距 */
-        justify-content: start;                     /* 整体左对齐，不居中 */
-        align-items: start;
-        margin: 0;
-        padding: 10mm;                              /* 四周留白 */
-        box-sizing: border-box;
-    }
-
-    /* 每张卡片 */
-    .id-card {
-        width: 85.6mm;               /* 身份证宽度 */
-        min-height: 54mm;
-        background: white;
-        border-radius: 12px;
-        padding: 8px 12px;
-        border: 1px solid #ddd;
-        page-break-inside: avoid;
-        margin: 0;                   /* 间距由 grid-gap 控制 */
-        font-family: 'Segoe UI', sans-serif;
-        box-shadow: none;
-    }
-
-    /* 卡片内部样式保持不变（省略，您原有即可） */
-    .id-card-header { display: flex; justify-content: space-between; border-bottom: 2px solid #2c3e50; margin-bottom: 8px; padding-bottom: 4px; }
-    .id-card-logo { font-weight: bold; font-size: 1.1rem; color: #2c3e50; }
-    .id-card-title { font-size: 0.7rem; color: #7f8c8d; }
-    .id-card-photo { width: 50px; height: 50px; background: #ecf0f1; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #3498db; font-size: 1.8rem; float: right; margin-left: 10px; margin-bottom: 8px; }
-    .id-card-info p { margin: 4px 0; font-size: 0.7rem; line-height: 1.2; display: flex; justify-content: space-between; }
-    .id-card-qr { width: 45px; height: 45px; background: repeating-linear-gradient(45deg, #333 0px, #333 2px, #fff 2px, #fff 8px); border:1px solid #aaa; float:right; margin-left:8px; margin-top:4px; display: flex; align-items: center; justify-content: center; font-size:0.5rem; text-align:center; background-color:#f8f9fa; }
-    .id-card-attendance { margin-top: 8px; background: #f1f5f9; padding: 5px; border-radius: 6px; font-size: 0.65rem; text-align: center; clear: both; }
-    .id-card-footer { margin-top: 6px; font-size: 0.55rem; text-align: center; color: #95a5a6; border-top: 1px dashed #ddd; padding-top: 4px; }
-
-    /* 如果纸张宽度足够，自动变为 3 列（例如 A4 横向或宽屏） */
-    @media (min-width: 280mm) {
-        .id-card-container-print {
-            grid-template-columns: repeat(3, 85.6mm);
+    <style>
+        /* 全局重置，确保打印边距正确 */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
         }
-    }
-
-    /* 打印时隐藏浏览器默认边距 */
-    @media print {
-        body { margin: 0; padding: 0; }
-        .id-card-container-print {
-            padding: 5mm;           /* 打印时可缩小边距 */
-            gap: 8mm;
+        body {
+            background: white;
+            padding: 10mm;
+            margin: 0;
         }
-    }
-</style>
+        /* 卡片容器：强制使用网格两列布局 */
+        .id-card-container-print {
+            display: grid !important;
+            grid-template-columns: repeat(2, 85.6mm) !important;
+            gap: 12mm 10mm !important;
+            justify-content: center !important;  /* 整体居中，也可改为 start 左对齐 */
+            align-items: start;
+            width: 100%;
+        }
+        /* 每张卡片样式 */
+        .id-card {
+            width: 85.6mm;
+            min-height: 54mm;
+            background: white;
+            border-radius: 12px;
+            padding: 8px 12px;
+            border: 1px solid #aaa;
+            page-break-inside: avoid;
+            font-family: 'Segoe UI', sans-serif;
+            box-shadow: none;
+        }
+        .id-card-header {
+            display: flex;
+            justify-content: space-between;
+            border-bottom: 2px solid #2c3e50;
+            margin-bottom: 8px;
+            padding-bottom: 4px;
+        }
+        .id-card-logo {
+            font-weight: bold;
+            font-size: 1.1rem;
+            color: #2c3e50;
+        }
+        .id-card-title {
+            font-size: 0.7rem;
+            color: #7f8c8d;
+        }
+        .id-card-photo {
+            width: 50px;
+            height: 50px;
+            background: #ecf0f1;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #3498db;
+            font-size: 1.8rem;
+            float: right;
+            margin-left: 10px;
+            margin-bottom: 8px;
+        }
+        .id-card-info p {
+            margin: 4px 0;
+            font-size: 0.7rem;
+            line-height: 1.2;
+            display: flex;
+            justify-content: space-between;
+        }
+        .id-card-qr {
+            width: 45px;
+            height: 45px;
+            background: repeating-linear-gradient(45deg, #333 0px, #333 2px, #fff 2px, #fff 8px);
+            border: 1px solid #aaa;
+            float: right;
+            margin-left: 8px;
+            margin-top: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.5rem;
+            text-align: center;
+            background-color: #f8f9fa;
+        }
+        .id-card-attendance {
+            margin-top: 8px;
+            background: #f1f5f9;
+            padding: 5px;
+            border-radius: 6px;
+            font-size: 0.65rem;
+            text-align: center;
+            clear: both;
+        }
+        .id-card-footer {
+            margin-top: 6px;
+            font-size: 0.55rem;
+            text-align: center;
+            color: #95a5a6;
+            border-top: 1px dashed #ddd;
+            padding-top: 4px;
+        }
+        /* 打印时强制保留网格布局，覆盖任何默认样式 ,3️⃣排*/
+        @media print {
+            body {
+                padding: 5mm;
+            }
+            .id-card-container-print {
+                display: grid !important;
+                grid-template-columns: repeat(2, 85.6mm) !important;
+                gap: 10mm !important;
+                justify-content: center !important;
+            }
+            .id-card {
+                box-shadow: none;
+                page-break-inside: avoid;
+            }
+        }
+    </style>
     </head>
-    <body>${cardsHtml}
-    <script>
-        window.onload = function() {
-            window.print();
-            // 避免 close 被阻止导致脚本挂起，使用 try catch 并延迟足够时间
-            setTimeout(function() {
-                try { window.close(); } catch(e) { console.warn(e); }
-            }, 1000);
-        };
-    <\/script>
+    <body>
+        <div class="id-card-container-print">
+            ${cardsHtml}
+        </div>
+        <script>
+            window.onload = function() {
+                window.print();
+                setTimeout(function() {
+                    try { window.close(); } catch(e) { console.warn(e); }
+                }, 1000);
+            };
+        <\/script>
     </body>
     </html>`;
     printWin.document.write(printHtml);
     printWin.document.close();
     return true;
 }
-    
+
     
     
     
