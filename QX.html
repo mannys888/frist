@@ -1238,7 +1238,7 @@
                 <i class="fas fa-money-check-alt"></i>
                 <div>
                     <h1 class="text-logo" id="mainLogoText">QX TRADING</h1>
-                    <h1 style="font-size: 18px; margin-top: 5px;">出勤卡</h1>
+                    <h1 style="font-size: 18px; margin-top: 5px;">(生成)出勤卡</h1>
                 </div>
             </div>
             <div class="date-display" id="currentDate">
@@ -2409,9 +2409,11 @@ function getSelectedCardEmployees() {
 function generateSingleCardHTML(employeeId, monthKey) {
     const emp = systemData.employees.find(e => e.idCard === employeeId);
     if (!emp) return '';
+    
     const [year, month] = monthKey.split('-').map(Number);
     const daysInMonth = new Date(year, month, 0).getDate();
     let totalSalary = 0, attendanceDays = 0, halfDays = 0;
+    
     for (let d = 1; d <= daysInMonth; d++) {
         const dateStr = `${monthKey}-${String(d).padStart(2, '0')}`;
         const factor = getAttendanceFactor(employeeId, dateStr);
@@ -2421,13 +2423,15 @@ function generateSingleCardHTML(employeeId, monthKey) {
         }
         totalSalary += getEmployeeSalary(emp.name, dateStr);
     }
+    
     const dailyWorkHours = systemSettings?.dailyWorkHours || 8;
     const totalWorkHours = attendanceDays * dailyWorkHours;
     const currencySym = systemSettings?.currencySymbol || 'R';
     const logoText = systemSettings?.logoText || 'QX TRADING';
-    const qrContent = `${emp.idCard} | ${monthKey} | ${attendanceDays.toFixed(1)}天`;
-
-    // 完整的卡片HTML
+    
+    // 二维码内容：员工姓名 + 月份（可自定义，例如包含 ID 或出勤天数）
+    const qrContent = `${emp.name} | ${monthKey}`;
+    
     return `
         <div class="id-card">
             <div class="id-card-header">
@@ -2439,7 +2443,8 @@ function generateSingleCardHTML(employeeId, monthKey) {
                 <p><strong>姓名 / Name</strong> <span>${escapeHtml(emp.name)}</span></p>
                 <p><strong>ID Number</strong> <span>${escapeHtml(emp.idCard)}</span></p>
                 <p><strong>月份 / Month</strong> <span>${monthKey}</span></p>
-                <div class="id-card-qr" title="员工识别码">📱 ${qrContent.substring(0,12)}...</div>
+                <!-- 二维码容器：存放 data-content 属性，供后续生成真实二维码 -->
+                <div class="id-card-qr" data-content="${escapeHtml(qrContent)}"></div>
                 <div style="clear:both"></div>
                 <p><strong>出勤天数</strong> <span>${attendanceDays.toFixed(1)} 天</span></p>
                 <p><strong>半日天数</strong> <span>${halfDays} 次</span></p>
@@ -2454,6 +2459,9 @@ function generateSingleCardHTML(employeeId, monthKey) {
         </div>
     `;
 }
+
+
+
 
     function generateMultipleCardsHTML(selectedEmployeeIds, monthKey) {
     if (!selectedEmployeeIds.length) 
@@ -2471,12 +2479,12 @@ function generateSingleCardHTML(employeeId, monthKey) {
 function openPrintForCards(cardsHtml, monthKey, employeeCount) {
     const densitySlider = document.getElementById('print-density');
     let density = densitySlider ? parseInt(densitySlider.value) : 20;
-    density = Math.min(38, Math.max(10, density));   // 限制范围
+    density = Math.min(38, Math.max(10, density));   // 限制范围 10~38
 
-    // 密度映射：密度越高，卡片越紧凑3️⃣3️⃣2️⃣2️⃣
-    const cardPadding = Math.max(2, 12 - (density - 10) * 0.35).toFixed(0);      // px
-    const fontSize = (0.9 - (density - 10) * 0.015).toFixed(2);                  // rem
-    const infoMargin = (4 - (density - 10) * 0.1).toFixed(0);                    // px
+    // 动态计算卡片内边距、字体等（密度越高越紧凑）
+    const cardPadding = Math.max(2, 12 - (density - 10) * 0.35).toFixed(0);
+    const fontSize = (0.9 - (density - 10) * 0.015).toFixed(2);
+    const infoMargin = (4 - (density - 10) * 0.1).toFixed(0);
     const headerMargin = (6 - (density - 10) * 0.15).toFixed(0);
     const qrSize = Math.max(28, 45 - (density - 10) * 0.5).toFixed(0);
     const photoSize = Math.max(40, 50 - (density - 10) * 0.4).toFixed(0);
@@ -2490,119 +2498,145 @@ function openPrintForCards(cardsHtml, monthKey, employeeCount) {
     const title = `员工出勤卡_${monthKey}_${employeeCount}人`;
     const printHtml = `<!DOCTYPE html>
     <html>
-    <head><meta charset="UTF-8"><title>${title}</title>
-    <style>
-        * { margin:0; padding:0; box-sizing:border-box; }
-        body {
-            background: white;
-            padding: 8mm;
-            margin: 0;
-            font-size: ${fontSize}rem;
-        }
-        .id-card-container-print {
-            display: grid !important;
-            grid-template-columns: repeat(2, 85.6mm) !important;
-            gap: 6mm 5mm !important;
-            justify-content: center !important;
-            align-items: start;
-        }
-        .id-card {
-            width: 85.6mm;
-            background: white;
-            border-radius: 8px;
-            padding: ${cardPadding}px;
-            border: 1px solid #aaa;
-            page-break-inside: avoid;
-            font-family: 'Segoe UI', sans-serif;
-        }
-        .id-card-header {
-            display: flex;
-            justify-content: space-between;
-            border-bottom: 1px solid #2c3e50;
-            margin-bottom: ${headerMargin}px;
-            padding-bottom: 2px;
-        }
-        .id-card-logo {
-            font-weight: bold;
-            font-size: 0.9rem;
-        }
-        .id-card-title {
-            font-size: 0.55rem;
-            color: #555;
-        }
-        .id-card-photo {
-            width: ${photoSize}px;
-            height: ${photoSize}px;
-            background: #ecf0f1;
-            border-radius: 8px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 1.2rem;
-            float: right;
-            margin-left: 6px;
-            margin-bottom: 4px;
-        }
-        .id-card-info p {
-            margin: ${infoMargin}px 0;
-            font-size: 0.6rem;
-            line-height: 1.2;
-            display: flex;
-            justify-content: space-between;
-        }
-        .id-card-qr {
-            width: ${qrSize}px;
-            height: ${qrSize}px;
-            background: repeating-linear-gradient(45deg, #333 0px, #333 2px, #fff 2px, #fff 8px);
-            border: 1px solid #888;
-            float: right;
-            margin-left: 6px;
-            margin-top: 2px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 0.45rem;
-            text-align: center;
-            background-color: #f8f9fa;
-        }
-        .id-card-attendance {
-            margin-top: 6px;
-            background: #f1f5f9;
-            padding: 3px;
-            border-radius: 4px;
-            font-size: 0.55rem;
-            text-align: center;
-            clear: both;
-        }
-        .id-card-footer {
-            margin-top: 4px;
-            font-size: 0.5rem;
-            text-align: center;
-            color: #6c757d;
-            border-top: 1px dashed #ddd;
-            padding-top: 3px;
-        }
-        @media print {
-            body { padding: 3mm; }
-            .id-card-container-print {
-                gap: 4mm 3mm !important;
+    <head>
+        <meta charset="UTF-8">
+        <title>${title}</title>
+        <!-- 引入 QRCode.js 库（通过 CDN） -->
+        <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"><\/script>
+        <style>
+            * { margin:0; padding:0; box-sizing:border-box; }
+            body {
+                background: white;
+                padding: 8mm;
+                margin: 0;
+                font-size: ${fontSize}rem;
             }
-            .id-card { box-shadow: none; }
-        }
-    </style>
+            .id-card-container-print {
+                display: grid !important;
+                grid-template-columns: repeat(2, 85.6mm) !important;
+                gap: 6mm 5mm !important;
+                justify-content: center !important;
+                align-items: start;
+            }
+            .id-card {
+                width: 85.6mm;
+                background: white;
+                border-radius: 8px;
+                padding: ${cardPadding}px;
+                border: 1px solid #aaa;
+                page-break-inside: avoid;
+                font-family: 'Segoe UI', sans-serif;
+            }
+            .id-card-header {
+                display: flex;
+                justify-content: space-between;
+                border-bottom: 1px solid #2c3e50;
+                margin-bottom: ${headerMargin}px;
+                padding-bottom: 2px;
+            }
+            .id-card-logo {
+                font-weight: bold;
+                font-size: 0.9rem;
+            }
+            .id-card-title {
+                font-size: 0.55rem;
+                color: #555;
+            }
+            .id-card-photo {
+                width: ${photoSize}px;
+                height: ${photoSize}px;
+                background: #ecf0f1;
+                border-radius: 8px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 1.2rem;
+                float: right;
+                margin-left: 6px;
+                margin-bottom: 4px;
+            }
+            .id-card-info p {
+                margin: ${infoMargin}px 0;
+                font-size: 0.6rem;
+                line-height: 1.2;
+                display: flex;
+                justify-content: space-between;
+            }
+            /* 二维码容器样式 – 尺寸随密度动态变化 */
+            .id-card-qr {
+                width: ${qrSize}px;
+                height: ${qrSize}px;
+                float: right;
+                margin-left: 6px;
+                margin-top: 2px;
+                background: #fff;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+            }
+            .id-card-qr canvas,
+            .id-card-qr img {
+                max-width: 100%;
+                max-height: 100%;
+                width: auto;
+                height: auto;
+            }
+            .id-card-attendance {
+                margin-top: 6px;
+                background: #f1f5f9;
+                padding: 3px;
+                border-radius: 4px;
+                font-size: 0.55rem;
+                text-align: center;
+                clear: both;
+            }
+            .id-card-footer {
+                margin-top: 4px;
+                font-size: 0.5rem;
+                text-align: center;
+                color: #6c757d;
+                border-top: 1px dashed #ddd;
+                padding-top: 3px;
+            }
+            @media print {
+                body { padding: 3mm; }
+                .id-card-container-print { gap: 4mm 3mm !important; }
+                .id-card { box-shadow: none; }
+            }
+        </style>
     </head>
     <body>
         <div class="id-card-container-print">
             ${cardsHtml}
         </div>
         <script>
-            window.onload = function() {
-                window.print();
-                setTimeout(function() { try { window.close(); } catch(e) { } }, 800);
-            };
+            // 等待 DOM 加载完成后，为每个二维码容器生成真实二维码
+            window.addEventListener('DOMContentLoaded', function() {
+                const qrDivs = document.querySelectorAll('.id-card-qr');
+                qrDivs.forEach(function(div) {
+                    const content = div.getAttribute('data-content');
+                    if (content && content.trim() !== '') {
+                        // 清空容器（避免残留任何文本或占位符）
+                        div.innerHTML = '';
+                        // 生成二维码，尺寸与容器宽高一致
+                        new QRCode(div, {
+                            text: content,
+                            width: div.clientWidth,
+                            height: div.clientHeight,
+                            colorDark: "#000000",
+                            colorLight: "#ffffff",
+                            correctLevel: QRCode.CorrectLevel.M
+                        });
+                    } else {
+                        // 如果没有有效内容，显示一个简单占位符
+                        div.innerHTML = '⚠️';
+                    }
+                });
+            });
         <\/script>
     </body>
     </html>`;
+
     printWin.document.write(printHtml);
     printWin.document.close();
     return true;
