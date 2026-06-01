@@ -2469,133 +2469,125 @@ function generateSingleCardHTML(employeeId, monthKey) {
     
 
 function openPrintForCards(cardsHtml, monthKey, employeeCount) {
+    const densitySlider = document.getElementById('print-density');
+    let density = densitySlider ? parseInt(densitySlider.value) : 20;
+    density = Math.min(38, Math.max(10, density));   // 限制范围
+
+    // 密度映射：密度越高，卡片越紧凑3️⃣3️⃣2️⃣2️⃣
+    const cardPadding = Math.max(2, 12 - (density - 10) * 0.35).toFixed(0);      // px
+    const fontSize = (0.9 - (density - 10) * 0.015).toFixed(2);                  // rem
+    const infoMargin = (4 - (density - 10) * 0.1).toFixed(0);                    // px
+    const headerMargin = (6 - (density - 10) * 0.15).toFixed(0);
+    const qrSize = Math.max(28, 45 - (density - 10) * 0.5).toFixed(0);
+    const photoSize = Math.max(40, 50 - (density - 10) * 0.4).toFixed(0);
+
     const printWin = window.open('', '_blank');
     if (!printWin) {
         showNotification('浏览器阻止了弹出窗口，请允许后再试', 'error');
         return false;
     }
+
     const title = `员工出勤卡_${monthKey}_${employeeCount}人`;
     const printHtml = `<!DOCTYPE html>
     <html>
     <head><meta charset="UTF-8"><title>${title}</title>
     <style>
-        /* 全局重置，确保打印边距正确 */
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+        * { margin:0; padding:0; box-sizing:border-box; }
         body {
             background: white;
-            padding: 10mm;
+            padding: 8mm;
             margin: 0;
+            font-size: ${fontSize}rem;
         }
-        /* 卡片容器：强制使用网格两列布局 */
         .id-card-container-print {
             display: grid !important;
             grid-template-columns: repeat(2, 85.6mm) !important;
-            gap: 12mm 10mm !important;
-            justify-content: center !important;  /* 整体居中，也可改为 start 左对齐 */
+            gap: 6mm 5mm !important;
+            justify-content: center !important;
             align-items: start;
-            width: 100%;
         }
-        /* 每张卡片样式 */
         .id-card {
             width: 85.6mm;
-            min-height: 54mm;
             background: white;
-            border-radius: 12px;
-            padding: 8px 12px;
+            border-radius: 8px;
+            padding: ${cardPadding}px;
             border: 1px solid #aaa;
             page-break-inside: avoid;
             font-family: 'Segoe UI', sans-serif;
-            box-shadow: none;
         }
         .id-card-header {
             display: flex;
             justify-content: space-between;
-            border-bottom: 2px solid #2c3e50;
-            margin-bottom: 8px;
-            padding-bottom: 4px;
+            border-bottom: 1px solid #2c3e50;
+            margin-bottom: ${headerMargin}px;
+            padding-bottom: 2px;
         }
         .id-card-logo {
             font-weight: bold;
-            font-size: 1.1rem;
-            color: #2c3e50;
+            font-size: 0.9rem;
         }
         .id-card-title {
-            font-size: 0.7rem;
-            color: #7f8c8d;
+            font-size: 0.55rem;
+            color: #555;
         }
         .id-card-photo {
-            width: 50px;
-            height: 50px;
+            width: ${photoSize}px;
+            height: ${photoSize}px;
             background: #ecf0f1;
             border-radius: 8px;
             display: flex;
             align-items: center;
             justify-content: center;
-            color: #3498db;
-            font-size: 1.8rem;
+            font-size: 1.2rem;
             float: right;
-            margin-left: 10px;
-            margin-bottom: 8px;
+            margin-left: 6px;
+            margin-bottom: 4px;
         }
         .id-card-info p {
-            margin: 4px 0;
-            font-size: 0.7rem;
+            margin: ${infoMargin}px 0;
+            font-size: 0.6rem;
             line-height: 1.2;
             display: flex;
             justify-content: space-between;
         }
         .id-card-qr {
-            width: 45px;
-            height: 45px;
+            width: ${qrSize}px;
+            height: ${qrSize}px;
             background: repeating-linear-gradient(45deg, #333 0px, #333 2px, #fff 2px, #fff 8px);
-            border: 1px solid #aaa;
+            border: 1px solid #888;
             float: right;
-            margin-left: 8px;
-            margin-top: 4px;
+            margin-left: 6px;
+            margin-top: 2px;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 0.5rem;
+            font-size: 0.45rem;
             text-align: center;
             background-color: #f8f9fa;
         }
         .id-card-attendance {
-            margin-top: 8px;
+            margin-top: 6px;
             background: #f1f5f9;
-            padding: 5px;
-            border-radius: 6px;
-            font-size: 0.65rem;
+            padding: 3px;
+            border-radius: 4px;
+            font-size: 0.55rem;
             text-align: center;
             clear: both;
         }
         .id-card-footer {
-            margin-top: 6px;
-            font-size: 0.55rem;
+            margin-top: 4px;
+            font-size: 0.5rem;
             text-align: center;
-            color: #95a5a6;
+            color: #6c757d;
             border-top: 1px dashed #ddd;
-            padding-top: 4px;
+            padding-top: 3px;
         }
-        /* 打印时强制保留网格布局，覆盖任何默认样式 ,3️⃣排repeat(22️⃣排, 85.6mm) !important;
-                gap: 58️⃣个mm !important;*/
         @media print {
-            body {
-                padding: 5mm;
-            }
+            body { padding: 3mm; }
             .id-card-container-print {
-                display: grid !important;
-                grid-template-columns: repeat(2, 85.6mm) !important;
-                gap: 3mm !important;
-                justify-content: center !important;
+                gap: 4mm 3mm !important;
             }
-            .id-card {
-                box-shadow: none;
-                page-break-inside: avoid;
-            }
+            .id-card { box-shadow: none; }
         }
     </style>
     </head>
@@ -2606,9 +2598,7 @@ function openPrintForCards(cardsHtml, monthKey, employeeCount) {
         <script>
             window.onload = function() {
                 window.print();
-                setTimeout(function() {
-                    try { window.close(); } catch(e) { console.warn(e); }
-                }, 1000);
+                setTimeout(function() { try { window.close(); } catch(e) { } }, 800);
             };
         <\/script>
     </body>
