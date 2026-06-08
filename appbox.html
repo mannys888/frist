@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <title>应用中心 Pro · 隔离开关密码保护（修复大文件存储与显示）</title>
+  <link href="https://fonts.googleapis.com/css?family=Roboto:100,300,400,500,700,900" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/@mdi/font@5.x/css/materialdesignicons.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/vuetify@2.4.x/dist/vuetify.min.css" rel="stylesheet">
+  <style>
+    [v-cloak] { display: none; }
+    .v-main { margin-top: 56px; margin-bottom: 56px; }
+    .app-icon { border-radius: 12px; transition: transform 0.2s; cursor: pointer; }
+    .app-icon:hover { transform: scale(1.05); }
+    iframe { width: 100%; height: 100%; border: none; background: #fff; }
+    .iframe-container { position: relative; width: 100%; height: 100%; background: #fff; }
+    .iframe-error { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; color: #999; }
+    .json-viewer { background: #1e1e2f; color: #f8f8f2; padding: 16px; font-family: monospace; font-size: 14px; overflow: auto; height: 100%; white-space: pre-wrap; }
+    .quick-add-card { background: linear-gradient(135deg, #f5f7fa 0%, #eef2f6 100%); border-radius: 20px; }
+    .theme--dark .quick-add-card { background: linear-gradient(135deg, #2c2c3a 0%, #1f1f2a 100%); }
+    .code-editor {
+      background: #f8f9fa;
+      border-radius: 12px;
+      padding: 16px;
+      font-family: monospace;
+      font-size: 13px;
+      line-height: 1.5;
+      overflow: auto;
+      white-space: pre-wrap;
+      min-height: 280px;
+      max-height: 400px;
+      outline: none;
+      border: 1px solid #ced4da;
+    }
+    .theme--dark .code-editor {
+      background: #1e1e2a;
+      border-color: #3a3a4a;
+      color: #e0e0e0;
+    }
+    .highlight-match {
+      background-color: #ffeb3b;
+      color: #000;
+      border-radius: 3px;
+      padding: 0 2px;
+    }
+    .theme--dark .highlight-match {
+      background-color: #fdd835;
+      color: #1a1a2e;
+    }
+    .current-search-match {
+      background-color: #ff9800 !important;
+      color: white !important;
+      box-shadow: 0 0 0 2px #ff5722;
+    }
+    .search-stats {
+      font-size: 0.85rem;
+      font-weight: 500;
+      background: rgba(0,0,0,0.05);
+      padding: 6px 12px;
+      border-radius: 20px;
+    }
+    .nav-buttons { display: flex; gap: 8px; }
+    .loading-spinner-small { margin-left: 8px; }
+  </style>
+</head>
+<body>
+<div id="app" v-cloak>
+  <v-app>
+    <v-app-bar app color="primary" dark>
+      <v-toolbar-title>📱 应用中心 Pro</v-toolbar-title>
+      <v-spacer></v-spacer>
+      <v-btn icon @click="showSearchDialog = true"><v-icon>mdi-magnify</v-icon></v-btn>
+      <v-btn icon @click="drawer = !drawer"><v-icon>mdi-menu</v-icon></v-btn>
+    </v-app-bar>
+
+    <v-navigation-drawer v-model="drawer" app right temporary width="300">
+      <v-list dense>
+        <v-subheader>⚙️ 设置</v-subheader>
+        <v-list-item>
+          <v-list-item-content>
+            <v-select v-model="settings.theme" :items="[{text:'自动',value:'auto'},{text:'深色',value:'dark'},{text:'浅色',value:'light'}]" label="外观" @change="applyTheme"></v-select>
+          </v-list-item-content>
+        </v-list-item>
+        <v-list-item>
+          <v-list-item-content>
+            <v-switch 
+              v-model="isolateSwitchState"
+              @change="onIsolateSwitchChange"
+              label="独立存储隔离 (HTML)" 
+              dense
+            ></v-switch>
+            <div class="caption grey--text">⚠️ 开关需密码(admin)确认，避免误开启造成数据混乱。关闭后新打开的HTML应用将完全不注入隔离脚本。</div>
+          </v-list-item-content>
+        </v-list-item>
+        <v-divider></v-divider>
+        <v-subheader>💾 存储用量 (localStorage)</v-subheader>
+        <v-list-item>
+          <v-list-item-content>
+            <div>已用: {{ storageUsage.used }} KB / 约 {{ storageUsage.available }} KB</div>
+            <v-progress-linear :value="storageUsage.percent" height="8" color="primary"></v-progress-linear>
+            <div class="caption mt-1">📁 大文件 (HTML/JSON) 已使用 IndexedDB 存储，无容量限制</div>
+          </v-list-item-content>
+        </v-list-item>
+        <v-list-item><v-list-item-content><v-btn block text @click="clearAllData">清除所有数据</v-btn></v-list-item-content></v-list-item>
+        <v-list-item><v-list-item-content><v-btn block text @click="resetSettings">重置设置</v-btn></v-list-item-content></v-list-item>
+      </v-list>
+    </v-navigation-drawer>
+
+    <!-- 全局搜索 -->
+    <v-dialog v-model="showSearchDialog" fullscreen>
+      <v-card>
+        <v-toolbar dark color="primary">
+          <v-btn icon @click="showSearchDialog = false"><v-icon>mdi-close</v-icon></v-btn>
+          <v-text-field v-model="searchKeyword" label="搜索应用" hide-details solo></v-text-field>
+        </v-toolbar>
+        <v-list>
+          <v-list-item v-for="app in filteredApps" :key="app.id" @click="viewApp(app)">
+            <v-list-item-avatar><v-img :src="app.icon || defaultIcon"></v-img></v-list-item-avatar>
+            <v-list-item-content>
+              <v-list-item-title>{{ app.name }}</v-list-item-title>
+              <v-list-item-subtitle>{{ app.id }} · {{ app.tags ? app.tags.join(', ') : '' }}</v-list-item-subtitle>
+            </v-list-item-content>
+          </v-list-item>
+        </v-list>
+      </v-card>
+    </v-dialog>
+
+    <v-main>
+      <v-container fluid>
+        <!-- 主页 -->
+        <v-row v-if="currentView === 'home'" no-gutters>
+          <v-col cols="12" v-if="favApps.length === 0 && recentAppsList.length === 0" class="text-center grey--text py-8">
+            <v-icon size="64" color="grey lighten-2">mdi-heart-broken</v-icon>
+            <div class="mt-2">暂无应用，请从「应用」页添加</div>
+            <v-btn class="mt-4" color="primary" @click="currentView = 'apps'">前往添加</v-btn>
+          </v-col>
+          <template v-else>
+            <v-col cols="12" v-if="favApps.length > 0"><div class="d-flex align-center mb-2"><v-icon color="red">mdi-star</v-icon><span class="subtitle-1 ml-2">我的收藏</span></div><v-row><v-col cols="3" md="2" v-for="app in favApps" :key="app.id" class="d-flex justify-center"><div class="text-center ma-2 app-icon" @click="openInIframe(app)"><v-img :src="app.icon || defaultIcon" width="60" height="60" contain class="elevation-2 rounded-lg"></v-img><div class="caption font-weight-bold mt-1 text-truncate" style="max-width:70px">{{ app.name }}</div></div></v-col></v-row></v-col>
+            <v-col cols="12" v-if="recentAppsList.length > 0"><div class="d-flex align-center mb-2"><v-icon color="primary">mdi-clock-outline</v-icon><span class="subtitle-1 ml-2">最近使用</span><v-spacer></v-spacer><v-btn x-small text @click="clearRecent">清除</v-btn></div><v-row><v-col cols="3" md="2" v-for="app in recentAppsList" :key="app.id" class="d-flex justify-center"><div class="text-center ma-2 app-icon" @click="openInIframe(app)"><v-img :src="app.icon || defaultIcon" width="60" height="60" contain class="elevation-2 rounded-lg"></v-img><div class="caption font-weight-bold mt-1 text-truncate" style="max-width:70px">{{ app.name }}</div></div></v-col></v-row></v-col>
+          </template>
+        </v-row>
+
+        <!-- 应用管理页 -->
+        <v-row v-if="currentView === 'apps'">
+          <v-col cols="12">
+            <v-card class="quick-add-card mb-4 elevation-2" shaped>
+              <v-card-title class="pb-0"><v-icon left color="primary">mdi-rocket-launch</v-icon><span class="text-h6">🚀 快速添加网站</span></v-card-title>
+              <v-card-text>
+                <v-row align="center">
+                  <v-col cols="12" md="5"><v-text-field v-model="quickAddUrl" label="网站地址 *" placeholder="https://example.com" outlined dense clearable @keyup.enter="quickAddWebsite"></v-text-field></v-col>
+                  <v-col cols="12" md="4"><v-text-field v-model="quickAddName" label="应用名称 (可选)" placeholder="留空使用域名" outlined dense clearable></v-text-field></v-col>
+                  <v-col cols="12" md="3"><v-btn color="primary" block large :loading="quickAdding" @click="quickAddWebsite"><v-icon left>mdi-plus</v-icon> 添加</v-btn></v-col>
+                </v-row>
+              </v-card-text>
+            </v-card>
+            <v-card flat class="mb-2" v-if="allTags.length"><v-card-text class="py-1"><v-chip-group v-model="selectedTag" column multiple><v-chip v-for="tag in allTags" :key="tag" small label outlined :value="tag">{{ tag }}</v-chip></v-chip-group><v-btn x-small text @click="selectedTag = []" v-if="selectedTag.length">清除筛选</v-btn></v-card-text></v-card>
+            <div class="d-flex align-center mb-2"><v-btn small outlined @click="toggleSelectionMode" :color="selectionMode ? 'primary' : ''"><v-icon left>mdi-checkbox-multiple-blank</v-icon> {{ selectionMode ? '退出管理' : '批量管理' }}</v-btn><v-spacer></v-spacer><template v-if="selectionMode"><v-btn small color="success" @click="batchAddToFav" :disabled="!selectedAppIds.length"><v-icon left>mdi-star</v-icon> 收藏</v-btn><v-btn small color="error" @click="batchDelete" :disabled="!selectedAppIds.length"><v-icon left>mdi-delete</v-icon> 删除</v-btn><v-btn small @click="selectedAppIds = []">清空</v-btn></template></div>
+            <v-expansion-panels multiple>
+              <v-expansion-panel><v-expansion-panel-header>⭐ 收藏应用 ({{ filteredFavApps.length }})</v-expansion-panel-header><v-expansion-panel-content><v-list dense><v-list-item v-for="app in filteredFavApps" :key="app.id"><v-list-item-avatar v-if="selectionMode"><v-checkbox v-model="selectedAppIds" :value="app.id" @click.stop></v-checkbox></v-list-item-avatar><v-list-item-avatar v-else><v-img :src="app.icon || defaultIcon"></v-img></v-list-item-avatar><v-list-item-content><v-list-item-title>{{ app.name }}</v-list-item-title><v-list-item-subtitle>{{ app.id }} · {{ app.tags?.join(', ') }}</v-list-item-subtitle></v-list-item-content><v-list-item-action v-if="!selectionMode"><v-btn icon @click.stop="toggleFav(app.id)"><v-icon color="red">mdi-star</v-icon></v-btn><v-btn icon @click.stop="openInIframe(app)"><v-icon color="primary">mdi-open-in-new</v-icon></v-btn><v-btn icon @click.stop="shareApp(app)"><v-icon color="teal">mdi-share-variant</v-icon></v-btn><v-btn icon @click.stop="requestEditWithPassword(app)"><v-icon color="orange">mdi-pencil</v-icon></v-btn><v-btn icon @click.stop="deleteApp(app)"><v-icon color="error">mdi-delete</v-icon></v-btn></v-list-item-action></v-list-item></v-list></v-expansion-panel-content></v-expansion-panel>
+              <v-expansion-panel><v-expansion-panel-header>📦 全部应用 ({{ filteredAllApps.length }})</v-expansion-panel-header><v-expansion-panel-content><v-list dense><v-list-item v-for="app in filteredAllApps" :key="app.id"><v-list-item-avatar v-if="selectionMode"><v-checkbox v-model="selectedAppIds" :value="app.id" @click.stop></v-checkbox></v-list-item-avatar><v-list-item-avatar v-else><v-img :src="app.icon || defaultIcon"></v-img></v-list-item-avatar><v-list-item-content><v-list-item-title>{{ app.name }}</v-list-item-title><v-list-item-subtitle>{{ app.id }} · {{ app.tags?.join(', ') }}</v-list-item-subtitle></v-list-item-content><v-list-item-action v-if="!selectionMode"><v-btn icon @click.stop="toggleFav(app.id)"><v-icon :color="isFav(app.id) ? 'red' : 'grey'">mdi-star{{ isFav(app.id) ? '' : '-outline' }}</v-icon></v-btn><v-btn icon @click.stop="openInIframe(app)"><v-icon color="primary">mdi-open-in-new</v-icon></v-btn><v-btn icon @click.stop="shareApp(app)"><v-icon color="teal">mdi-share-variant</v-icon></v-btn><v-btn icon @click.stop="requestEditWithPassword(app)"><v-icon color="orange">mdi-pencil</v-icon></v-btn><v-btn icon @click.stop="deleteApp(app)"><v-icon color="error">mdi-delete</v-icon></v-btn></v-list-item-action></v-list-item></v-list></v-expansion-panel-content></v-expansion-panel>
+            </v-expansion-panels>
+          </v-col>
+        </v-row>
+
+        <!-- 订阅源页 -->
+        <v-row v-if="currentView === 'subs'"><v-col cols="12"><v-card><v-card-title>📡 订阅源 & 高级导入</v-card-title><v-divider></v-divider><v-card-text><div class="action-buttons"><v-btn small color="primary" outlined @click="showAddSubDialog = true"><v-icon left>mdi-plus</v-icon> 添加订阅</v-btn><v-btn small color="secondary" outlined @click="showManualAppDialog = true"><v-icon left>mdi-hand-pointing-right</v-icon> 手动添加</v-btn><v-btn small color="info" outlined @click="showAddHtmlAppDialog = true"><v-icon left>mdi-file-document</v-icon> 本地HTML</v-btn><v-btn small color="info" outlined @click="showRemoteHtmlDialog = true"><v-icon left>mdi-cloud-download</v-icon> 远程HTML</v-btn><v-btn small color="success" outlined @click="showRemoteJsonDialog = true"><v-icon left>mdi-code-json</v-icon> 远程JSON</v-btn></div><v-divider class="my-3"></v-divider><v-list dense><v-list-item v-for="(sub, idx) in subscriptions" :key="sub.id"><v-list-item-content><v-list-item-title>{{ sub.name || '未命名订阅' }}</v-list-item-title><v-list-item-subtitle>{{ sub.url }}</v-list-item-subtitle><v-list-item-subtitle>应用数: {{ sub.apps?.length || 0 }}</v-list-item-subtitle></v-list-item-content><v-list-item-action><v-btn icon @click="refreshSub(sub)" :loading="sub.loading"><v-icon>mdi-refresh</v-icon></v-btn><v-btn icon @click="deleteSub(idx)"><v-icon color="error">mdi-delete</v-icon></v-btn></v-list-item-action></v-list-item><v-list-item v-if="!subscriptions.length"><v-list-item-content class="text-center grey--text py-4">暂无订阅，点击上方按钮添加</v-list-item-content></v-list-item></v-list></v-card-text></v-card></v-col></v-row>
+
+        <!-- 我的页 -->
+        <v-row v-if="currentView === 'profile'"><v-col cols="12"><v-card><v-card-title>📊 我的数据</v-card-title><v-card-text><div>⭐ 收藏: {{ favApps.length }} 个</div><div>📦 应用总数: {{ allApps.length }} 个</div><div>📡 订阅源: {{ subscriptions.length }} 个</div><div>🏷️ 标签数: {{ allTags.length }}</div><div>🕒 最近使用: {{ recentApps.length }} 条</div><div>✨ 独立存储隔离: {{ settings.isolateStorage ? '开启 (需密码)' : '关闭' }}</div><div>💾 大文件存储: IndexedDB (支持大HTML)</div></v-card-text><v-card-actions><v-btn small text @click="refreshData"><v-icon left>mdi-refresh</v-icon> 刷新</v-btn><v-btn small text @click="exportData">导出备份</v-btn><v-btn small text @click="importData">导入备份</v-btn></v-card-actions></v-card></v-col></v-row>
+
+        <!-- 应用详情 -->
+        <v-row v-if="currentView === 'appDetail' && selectedApp"><v-col cols="12"><v-card><v-card-title>{{ selectedApp.name }}<v-spacer></v-spacer><v-btn icon @click="toggleFav(selectedApp.id)"><v-icon :color="isFav(selectedApp.id) ? 'red' : 'grey'">mdi-star{{ isFav(selectedApp.id) ? '' : '-outline' }}</v-icon></v-btn><v-btn icon @click="shareApp(selectedApp)"><v-icon color="teal">mdi-share-variant</v-icon></v-btn><v-btn icon @click="openInIframe(selectedApp)"><v-icon color="primary">mdi-open-in-new</v-icon></v-btn><v-btn icon @click="requestEditWithPassword(selectedApp)"><v-icon color="orange">mdi-pencil</v-icon></v-btn><v-btn icon @click="deleteApp(selectedApp)"><v-icon color="error">mdi-delete</v-icon></v-btn><v-btn icon @click="currentView = 'apps'"><v-icon>mdi-close</v-icon></v-btn></v-card-title><v-divider></v-divider><v-card-text><p><strong>ID:</strong> {{ selectedApp.id }}</p><p><strong>标签:</strong> {{ selectedApp.tags?.join(', ') || '无' }}</p><p><strong>作者:</strong> {{ selectedApp.author || '未知' }}</p><p v-if="selectedApp.repo"><strong>来源/URL:</strong> <a :href="selectedApp.repo" target="_blank">{{ selectedApp.repo }}</a></p><p v-if="selectedApp.desc"><strong>描述:</strong> {{ selectedApp.desc }}</p></v-card-text></v-card></v-col></v-row>
+      </v-container>
+    </v-main>
+
+    <v-bottom-navigation v-model="currentView" grow app>
+      <v-btn value="home"><v-icon>mdi-home</v-icon><span>主页</span></v-btn>
+      <v-btn value="apps"><v-icon>mdi-apps</v-icon><span>应用</span></v-btn>
+      <v-btn value="subs"><v-icon>mdi-database</v-icon><span>订阅</span></v-btn>
+      <v-btn value="profile"><v-icon>mdi-account</v-icon><span>我的</span></v-btn>
+    </v-bottom-navigation>
+
+    <!-- 对话框 -->
+    <v-dialog v-model="showAddSubDialog" max-width="500"><v-card><v-card-title>添加订阅</v-card-title><v-card-text><v-text-field v-model="newSubUrl" label="订阅地址" outlined></v-text-field><v-checkbox v-model="isHtmlSub" label="强制HTML解析"></v-checkbox><div v-if="parseError" class="error--text">{{ parseError }}</div></v-card-text><v-card-actions><v-spacer></v-spacer><v-btn text @click="showAddSubDialog=false">取消</v-btn><v-btn color="primary" @click="addSubscription" :loading="addingSub">添加</v-btn></v-card-actions></v-card></v-dialog>
+    <v-dialog v-model="showManualAppDialog" max-width="500"><v-card><v-card-title>手动添加</v-card-title><v-card-text><v-text-field v-model="manualApp.name" label="名称"></v-text-field><v-text-field v-model="manualApp.url" label="地址"></v-text-field><v-text-field v-model="manualApp.icon" label="图标URL"></v-text-field><v-text-field v-model="manualApp.tags" label="标签(逗号)"></v-text-field></v-card-text><v-card-actions><v-btn text @click="showManualAppDialog=false">取消</v-btn><v-btn color="primary" @click="addManualApp">添加</v-btn></v-card-actions></v-card></v-dialog>
+    <v-dialog v-model="showAddHtmlAppDialog" max-width="500"><v-card><v-card-title>📄 本地HTML (大文件自动存IndexedDB)</v-card-title><v-card-text><v-file-input v-model="htmlAppFile" accept=".html" label="选择HTML文件"></v-file-input><v-text-field v-model="htmlAppName" label="应用名称"></v-text-field><v-text-field v-model="htmlAppIcon" label="图标URL"></v-text-field><div class="caption">✅ 支持大文件，自动使用IndexedDB存储，无大小限制</div></v-card-text><v-card-actions><v-btn text @click="cancelAddHtmlApp">取消</v-btn><v-btn color="primary" @click="addHtmlApp" :loading="htmlAdding">导入</v-btn></v-card-actions></v-card></v-dialog>
+    <v-dialog v-model="showRemoteHtmlDialog" max-width="500"><v-card><v-card-title>🌐 远程HTML (大文件自动存IndexedDB)</v-card-title><v-card-text><v-text-field v-model="remoteHtmlUrl" label="网址"></v-text-field><v-text-field v-model="remoteHtmlName" label="名称"></v-text-field><v-text-field v-model="remoteHtmlIcon" label="图标"></v-text-field><div v-if="remoteHtmlError" class="error--text">{{ remoteHtmlError }}</div><v-progress-linear v-if="remoteHtmlLoading" indeterminate></v-progress-linear></v-card-text><v-card-actions><v-btn text @click="cancelRemoteHtml">取消</v-btn><v-btn color="primary" @click="addRemoteHtml" :loading="remoteHtmlLoading">导入</v-btn></v-card-actions></v-card></v-dialog>
+    <v-dialog v-model="showRemoteJsonDialog" max-width="500"><v-card><v-card-title>📡 远程JSON应用</v-card-title><v-card-text><v-text-field v-model="remoteJsonUrl" label="JSON网址"></v-text-field><v-text-field v-model="remoteJsonName" label="名称"></v-text-field><v-text-field v-model="remoteJsonIcon" label="图标"></v-text-field><div v-if="remoteJsonError" class="error--text">{{ remoteJsonError }}</div><v-progress-linear v-if="remoteJsonLoading" indeterminate></v-progress-linear></v-card-text><v-card-actions><v-btn text @click="cancelRemoteJson">取消</v-btn><v-btn color="success" @click="addRemoteJsonApp" :loading="remoteJsonLoading">添加</v-btn></v-card-actions></v-card></v-dialog>
+    <v-dialog v-model="showPasswordDialog" max-width="400" persistent><v-card><v-card-title>🔐 编辑验证</v-card-title><v-card-text><v-text-field v-model="passwordInput" label="密码" type="password" outlined @keyup.enter="verifyPassword" hint="默认: admin"></v-text-field><div v-if="passwordError" class="error--text">{{ passwordError }}</div></v-card-text><v-card-actions><v-spacer></v-spacer><v-btn text @click="cancelPassword">取消</v-btn><v-btn color="primary" @click="verifyPassword">确认</v-btn></v-card-actions></v-card></v-dialog>
+    <v-dialog v-model="isolatePasswordDialogVisible" max-width="400" persistent><v-card><v-card-title>🔐 更改隔离存储设置</v-card-title><v-card-text><div class="mb-3">⚠️ 更改此项需要管理员密码，防止意外混合应用数据。</div><v-text-field v-model="isolatePasswordInput" label="密码" type="password" outlined @keyup.enter="confirmIsolateSwitch" hint="admin"></v-text-field><div v-if="isolatePasswordError" class="error--text">{{ isolatePasswordError }}</div></v-card-text><v-card-actions><v-spacer></v-spacer><v-btn text @click="cancelIsolateSwitch">取消</v-btn><v-btn color="primary" @click="confirmIsolateSwitch">确认切换</v-btn></v-card-actions></v-card></v-dialog>
+    <v-dialog v-model="showEditAppDialog" max-width="900" scrollable><v-card><v-card-title>✏️ 编辑应用 · 代码区可直接编辑</v-card-title><v-divider></v-divider><v-card-text class="pt-4" style="max-height: 70vh; overflow-y: auto;"><v-text-field v-model="editAppName" label="应用名称" outlined dense></v-text-field><v-text-field v-model="editAppIcon" label="图标地址" outlined dense></v-text-field><v-text-field v-model="editAppTags" label="标签 (逗号分隔)" outlined dense></v-text-field><div v-if="editAppType === 'url'"><v-text-field v-model="editAppUrl" label="页面地址" outlined dense></v-text-field></div><div v-if="editAppType === 'html' || editAppType === 'json'"><v-subheader class="pl-0">{{ editAppType === 'html' ? '📄 HTML 源代码' : '🔧 JSON 内容' }}</v-subheader><v-row align="center" class="mb-3"><v-col cols="7" sm="5"><v-text-field v-model="editSearchKeyword" label="🔍 搜索代码" outlined dense clearable @input="applyHighlightAndResetNav"></v-text-field></v-col><v-col cols="5" sm="4"><div class="nav-buttons"><v-btn small icon color="primary" @click="navigateMatch('prev')" :disabled="highlightMatchCount===0"><v-icon>mdi-chevron-up</v-icon></v-btn><v-btn small icon color="primary" @click="navigateMatch('next')" :disabled="highlightMatchCount===0"><v-icon>mdi-chevron-down</v-icon></v-btn><span class="search-stats ml-2">匹配 {{ currentMatchIndex+1 }} / {{ highlightMatchCount }}</span></div></v-col><v-col cols="12" sm="3" class="text-right"><v-btn small text @click="clearSearchAndKeepEdit">清除高亮</v-btn></v-col></v-row><div class="code-editor" contenteditable="true" ref="codeEditor" @input="syncFromEditor" @paste="handlePaste" v-html="highlightedHtmlForEdit"></div><div class="caption grey--text mt-2">✨ 直接编辑代码，搜索词自动高亮。</div></div></v-card-text><v-card-actions><v-spacer></v-spacer><v-btn text @click="showEditAppDialog=false">取消</v-btn><v-btn color="primary" @click="saveEditedApp">保存</v-btn></v-card-actions></v-card></v-dialog>
+
+    <!-- iframe全屏 -->
+    <v-dialog v-model="showIframeDialog" fullscreen hide-overlay><v-card><v-toolbar dark color="primary"><v-btn icon @click="closeIframeDialog"><v-icon>mdi-close</v-icon></v-btn><v-toolbar-title>{{ iframeTitle }}</v-toolbar-title><v-spacer></v-spacer><v-btn icon @click="copyCurrentUrl"><v-icon>mdi-content-copy</v-icon></v-btn><v-btn icon @click="openInNewTab"><v-icon>mdi-open-in-new</v-icon></v-btn></v-toolbar><div class="iframe-container" style="height: calc(100vh - 56px);"><iframe v-if="!isJsonViewer" :src="iframeUrl" @load="iframeLoaded" @error="iframeError" sandbox="allow-same-origin allow-scripts allow-popups allow-forms allow-downloads allow-modals allow-popups-to-escape-sandbox"></iframe><div v-else class="json-viewer"><pre style="margin:0;">{{ jsonPrettyContent }}</pre></div><div v-if="iframeLoadError && !isJsonViewer" class="iframe-error"><v-btn small color="primary" @click="openInNewTab">在新标签页打开</v-btn></div></div></v-card></v-dialog>
+
+    <v-snackbar v-model="snackbar.show" :color="snackbar.color" timeout="3000" top>{{ snackbar.text }}</v-snackbar>
+  </v-app>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/vue@2.x/dist/vue.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/vuetify@2.4.x/dist/vuetify.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/axios@0.x/dist/axios.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/uuid@8.x/dist/umd/uuidv4.min.js"></script>
+<script>
+  const defaultIcon = 'https://raw.githubusercontent.com/Orz-3/mini/master/Alpha/appstore.png';
+  const NAV_WORDS = ['首页','主页','登录','注册','关于','帮助','反馈','联系','设置','个人中心','我的','Home','Login','Sign','About','Help','Contact','Settings','Profile'];
+
+  // IndexedDB 大文件存储
+  class LargeContentStore {
+    constructor(dbName='AppCenterContent', storeName='appContents') {
+      this.dbName = dbName;
+      this.storeName = storeName;
+      this.db = null;
+    }
+    async init() {
+      return new Promise((resolve, reject) => {
+        const req = indexedDB.open(this.dbName, 1);
+        req.onupgradeneeded = (e) => {
+          const db = e.target.result;
+          if (!db.objectStoreNames.contains(this.storeName)) {
+            db.createObjectStore(this.storeName);
+          }
+        };
+        req.onsuccess = (e) => { this.db = e.target.result; resolve(); };
+        req.onerror = (e) => reject(e);
+      });
+    }
+    async set(key, content) {
+      if (!this.db) await this.init();
+      return new Promise((resolve, reject) => {
+        const tx = this.db.transaction([this.storeName], 'readwrite');
+        const store = tx.objectStore(this.storeName);
+        const req = store.put(content, key);
+        req.onsuccess = () => resolve();
+        req.onerror = (e) => reject(e);
+      });
+    }
+    async get(key) {
+      if (!this.db) await this.init();
+      return new Promise((resolve, reject) => {
+        const tx = this.db.transaction([this.storeName], 'readonly');
+        const store = tx.objectStore(this.storeName);
+        const req = store.get(key);
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = (e) => reject(e);
+      });
+    }
+    async delete(key) {
+      if (!this.db) await this.init();
+      return new Promise((resolve, reject) => {
+        const tx = this.db.transaction([this.storeName], 'readwrite');
+        const store = tx.objectStore(this.storeName);
+        const req = store.delete(key);
+        req.onsuccess = () => resolve();
+        req.onerror = (e) => reject(e);
+      });
+    }
+    async clear() {
+      if (!this.db) await this.init();
+      return new Promise((resolve, reject) => {
+        const tx = this.db.transaction([this.storeName], 'readwrite');
+        const store = tx.objectStore(this.storeName);
+        const req = store.clear();
+        req.onsuccess = () => resolve();
+        req.onerror = (e) => reject(e);
+      });
+    }
+  }
+  const contentStore = new LargeContentStore();
+
+  new Vue({
+    el: '#app',
+    vuetify: new Vuetify(),
+    data() {
+      return {
+        drawer: false, showSearchDialog: false, showAddSubDialog: false, showManualAppDialog: false,
+        showIframeDialog: false, iframeUrl: '', iframeTitle: '', iframeLoadError: false, isJsonViewer: false, jsonPrettyContent: '',
+        addingSub: false, parseError: '', searchKeyword: '', currentView: 'home', selectedApp: null,
+        subscriptions: [], allApps: [], favAppIds: [],
+        settings: { theme: 'auto', notify: true, isolateStorage: true },
+        snackbar: { show: false, text: '', color: 'success' },
+        newSubUrl: '', isHtmlSub: false,
+        manualApp: { name: '', url: '', icon: '', tags: '' },
+        showAddHtmlAppDialog: false, htmlAppFile: null, htmlAppName: '', htmlAppIcon: '', htmlAdding: false,
+        showRemoteHtmlDialog: false, remoteHtmlUrl: '', remoteHtmlName: '', remoteHtmlIcon: '', remoteHtmlLoading: false, remoteHtmlError: '',
+        showRemoteJsonDialog: false, remoteJsonUrl: '', remoteJsonName: '', remoteJsonIcon: '', remoteJsonLoading: false, remoteJsonError: '',
+        currentBlobUrl: null,
+        quickAddUrl: '', quickAddName: '', quickAdding: false,
+        showEditAppDialog: false, editingApp: null, editAppName: '', editAppIcon: '', editAppUrl: '', editAppHtmlContent: '', editAppJsonContent: '', editAppType: 'url', editAppTags: '',
+        recentApps: [], selectionMode: false, selectedAppIds: [], selectedTag: [],
+        defaultIcon,
+        showPasswordDialog: false, passwordInput: '', passwordError: '', pendingEditApp: null,
+        editSearchKeyword: '', editCodeContentRaw: '', highlightMatchCount: 0, currentMatchIndex: -1,
+        isolateSwitchState: true, isolatePasswordDialogVisible: false, isolatePasswordInput: '', isolatePasswordError: '', pendingIsolateValue: null
+      };
+    },
+    computed: {
+      favApps() { return this.allApps.filter(app => this.favAppIds.includes(app.id)); },
+      recentAppsList() { return this.recentApps.sort((a,b)=>b.timestamp-a.timestamp).map(e=>this.allApps.find(a=>a.id===e.id)).filter(a=>a); },
+      allTags() { const set = new Set(); this.allApps.forEach(a => { if(a.tags) a.tags.forEach(t=>set.add(t)); }); return Array.from(set).sort(); },
+      filteredApps() { let apps = this.allApps; if(this.searchKeyword) { const kw=this.searchKeyword.toLowerCase(); apps=apps.filter(a=>a.id.toLowerCase().includes(kw)||a.name.toLowerCase().includes(kw)||(a.tags&&a.tags.some(t=>t.toLowerCase().includes(kw)))); } return apps; },
+      filteredAllApps() { let apps=this.allApps; if(this.selectedTag.length) apps=apps.filter(a=>a.tags&&this.selectedTag.some(t=>a.tags.includes(t))); return apps; },
+      filteredFavApps() { return this.favApps.filter(a=>!this.selectedTag.length||(a.tags&&this.selectedTag.some(t=>a.tags.includes(t)))); },
+      storageUsage() { let used=JSON.stringify(localStorage).length; let available=5*1024*1024; return { used:(used/1024).toFixed(1), available:(available/1024).toFixed(0), percent:(used/available)*100 }; },
+      highlightedHtmlForEdit() { /* 高亮逻辑略，保持原样 */ let raw=this.editCodeContentRaw||''; let escaped=this.escapeHtml(raw); let keyword=this.editSearchKeyword?.trim(); if(!keyword) { this.highlightMatchCount=0; this.currentMatchIndex=-1; return escaped; } let regex; try{ regex=new RegExp(`(${this.escapeRegex(keyword)})`,'gi'); }catch(e){ return escaped; } let matches=escaped.match(regex); this.highlightMatchCount=matches?matches.length:0; if(this.currentMatchIndex>=this.highlightMatchCount) this.currentMatchIndex=this.highlightMatchCount>0?0:-1; let idx=0; return escaped.replace(regex, match=>`<mark class="highlight-match" data-match-idx="${idx++}">${match}</mark>`); }
+    },
+    watch: {
+      settings: { deep:true, handler(){ this.saveSettings(); } },
+      favAppIds: { deep:true, handler(){ this.saveFavs(); } },
+      subscriptions: { deep:true, handler(){ this.saveSubs(); this.rebuildApps(); } },
+      recentApps: { deep:true, handler(){ this.saveRecent(); } }
+    },
+    async mounted() { await contentStore.init(); await this.loadData(); this.isolateSwitchState = this.settings.isolateStorage; this.applyTheme(); },
+    methods: {
+      _notify(text,color='success'){ if(this.settings.notify) this.snackbar={ show:true, text, color }; else console.log(text); },
+      async loadData() { try { const subs=localStorage.getItem('boxjs_subs'); if(subs) this.subscriptions=JSON.parse(subs); const favs=localStorage.getItem('boxjs_favs'); if(favs) this.favAppIds=JSON.parse(favs); const sett=localStorage.getItem('boxjs_settings'); if(sett) Object.assign(this.settings, JSON.parse(sett)); const recent=localStorage.getItem('boxjs_recent'); if(recent) this.recentApps=JSON.parse(recent); } catch(e){} await this.migrateOldLargeContent(); this.rebuildApps(); this.isolateSwitchState = this.settings.isolateStorage; },
+      async migrateOldLargeContent() { for(let sub of this.subscriptions) { for(let app of (sub.apps||[])) { if((app.htmlContent && typeof app.htmlContent === 'string' && app.htmlContent.length>50000) || (app.jsonContent && typeof app.jsonContent === 'string' && app.jsonContent.length>50000)) { let key = `content_${app.id}`; if(app.htmlContent) await contentStore.set(key, app.htmlContent); if(app.jsonContent) await contentStore.set(key, app.jsonContent); delete app.htmlContent; delete app.jsonContent; app.contentKey = key; app.contentType = app.htmlContent ? 'html' : 'json'; } } } this.saveSubs(); },
+      saveSubs() { localStorage.setItem('boxjs_subs', JSON.stringify(this.subscriptions)); },
+      saveFavs() { localStorage.setItem('boxjs_favs', JSON.stringify(this.favAppIds)); },
+      saveSettings() { localStorage.setItem('boxjs_settings', JSON.stringify(this.settings)); },
+      saveRecent() { localStorage.setItem('boxjs_recent', JSON.stringify(this.recentApps.slice(0,30))); },
+      rebuildApps() { const map=new Map(); this.subscriptions.forEach(s=>{ if(s.apps) s.apps.forEach(a=>{ if(!map.has(a.id)) map.set(a.id,a); }); }); this.allApps=Array.from(map.values()); this.favAppIds=this.favAppIds.filter(id=>map.has(id)); },
+      addRecent(appId){ const idx=this.recentApps.findIndex(r=>r.id===appId); if(idx!==-1) this.recentApps.splice(idx,1); this.recentApps.push({ id:appId, timestamp:Date.now() }); if(this.recentApps.length>30) this.recentApps.shift(); },
+      async openInIframe(app) {
+        this.addRecent(app.id);
+        if(app.jsonContent){ this.iframeTitle=app.name; this.isJsonViewer=true; this.jsonPrettyContent=app.jsonContent; this.showIframeDialog=true; return; }
+        if(app.contentKey) {
+          let content = await contentStore.get(app.contentKey);
+          if(!content) { this._notify('内容加载失败，可能已损坏','error'); return; }
+          if(this.settings.isolateStorage && app.contentType==='html') content = this.injectStorageIsolation(content, app.id);
+          if(this.currentBlobUrl) URL.revokeObjectURL(this.currentBlobUrl);
+          const blob = new Blob([content], {type:'text/html'});
+          this.iframeUrl = URL.createObjectURL(blob);
+          this.currentBlobUrl = this.iframeUrl;
+          this.isJsonViewer=false;
+          this.iframeTitle=app.name;
+          this.showIframeDialog=true;
+          return;
+        }
+        if(app.htmlContent){
+          let content = app.htmlContent;
+          if(this.settings.isolateStorage) content = this.injectStorageIsolation(content, app.id);
+          if(this.currentBlobUrl) URL.revokeObjectURL(this.currentBlobUrl);
+          const blob = new Blob([content], {type:'text/html'});
+          this.iframeUrl = URL.createObjectURL(blob);
+          this.currentBlobUrl = this.iframeUrl;
+          this.isJsonViewer=false;
+          this.iframeTitle=app.name;
+          this.showIframeDialog=true;
+          return;
+        }
+        if(app.pageUrl){ let url=app.pageUrl.trim(); if(!url.startsWith('http')) url='https://'+url; this.iframeUrl=url; this.isJsonViewer=false; this.iframeTitle=app.name; this.showIframeDialog=true; return; }
+        this._notify('无可打开内容','warning');
+      },
+      injectStorageIsolation(content, appId) {
+        const script = `(function(){const p='__app_${appId}__'; const origL=localStorage, origS=sessionStorage; function pk(k){return p+k;} const isoL={getItem:k=>origL.getItem(pk(k)),setItem:(k,v)=>origL.setItem(pk(k),v),removeItem:k=>origL.removeItem(pk(k)),clear:()=>{Object.keys(origL).filter(k=>k.startsWith(p)).forEach(k=>origL.removeItem(k));},get length(){return Object.keys(origL).filter(k=>k.startsWith(p)).length;},key:i=>{const keys=Object.keys(origL).filter(k=>k.startsWith(p)); return keys[i]? keys[i].substring(p.length):null;}}; const isoS={getItem:k=>origS.getItem(pk(k)),setItem:(k,v)=>origS.setItem(pk(k),v),removeItem:k=>origS.removeItem(pk(k)),clear:()=>{Object.keys(origS).filter(k=>k.startsWith(p)).forEach(k=>origS.removeItem(k));}}; Object.defineProperty(window,'localStorage',{value:isoL}); Object.defineProperty(window,'sessionStorage',{value:isoS}); if(window.indexedDB){const origIDB=indexedDB; window.indexedDB={open:(n,v)=>origIDB.open(p+n,v),deleteDatabase:n=>origIDB.deleteDatabase(p+n)};}})();`;
+        return content.replace(/<\/head>/i, `<script>${script}<\/script></head>`);
+      },
+      onIsolateSwitchChange(newVal){ if(newVal===this.settings.isolateStorage) return; this.pendingIsolateValue=newVal; this.isolatePasswordInput=''; this.isolatePasswordError=''; this.isolatePasswordDialogVisible=true; },
+      confirmIsolateSwitch(){ if(this.isolatePasswordInput==='admin'){ this.settings.isolateStorage=this.pendingIsolateValue; this.isolateSwitchState=this.pendingIsolateValue; this.isolatePasswordDialogVisible=false; this._notify(`独立存储隔离已${this.settings.isolateStorage?'开启':'关闭'}`,'info'); this.saveSettings(); } else { this.isolatePasswordError='密码错误'; this._notify('密码错误，操作已取消','error'); this.isolateSwitchState=this.settings.isolateStorage; } },
+      cancelIsolateSwitch(){ this.isolatePasswordDialogVisible=false; this.isolateSwitchState=this.settings.isolateStorage; this._notify('已取消更改隔离存储','warning'); },
+      async addHtmlApp(){ if(!this.htmlAppFile) return; this.htmlAdding=true; const content=await this.readFileAsText(this.htmlAppFile); if(!content) { this._notify('读取失败','error'); this.htmlAdding=false; return; } const key = `content_${Date.now()}_${Math.random().toString(36).substr(2,6)}`; await contentStore.set(key, content); const app={ id:'localhtml_'+Date.now()+'_'+Math.random().toString(36).substr(2,6), name:this.htmlAppName.trim()||this.htmlAppFile.name.replace(/\.html?$/i,''), icon:this.htmlAppIcon||defaultIcon, author:'本地HTML', repo:'local', pageUrl:'__local_html__', contentType:'html', contentKey:key, tags:['本地'] }; this.addAppToManualSub(app); this.rebuildApps(); this._notify(`已添加“${app.name}” (大文件已存IndexedDB)`); this.cancelAddHtmlApp(); this.htmlAdding=false; },
+      async addRemoteHtml(){ if(!this.remoteHtmlUrl.trim()) return; this.remoteHtmlLoading=true; this.remoteHtmlError=''; try{ const resp=await axios.get(this.remoteHtmlUrl,{responseType:'text',timeout:30000}); let title=this.remoteHtmlName.trim()||(resp.data.match(/<title>([^<]+)<\/title>/i)||[])[1]||this.remoteHtmlUrl; const key = `content_${Date.now()}_${Math.random().toString(36).substr(2,6)}`; await contentStore.set(key, resp.data); const app={ id:'remotehtml_'+Date.now()+'_'+Math.random().toString(36).substr(2,6), name:title, icon:this.remoteHtmlIcon||defaultIcon, author:'远程HTML', repo:this.remoteHtmlUrl, pageUrl:'__local_html__', contentType:'html', contentKey:key, tags:['远程'] }; this.addAppToManualSub(app); this.rebuildApps(); this._notify(`已添加“${app.name}”`); this.cancelRemoteHtml(); } catch(e){ this.remoteHtmlError='获取失败: '+e.message; this._notify(this.remoteHtmlError,'error'); } finally{ this.remoteHtmlLoading=false; } },
+      async addRemoteJsonApp(){ if(!this.remoteJsonUrl.trim()) return; this.remoteJsonLoading=true; this.remoteJsonError=''; try{ const resp=await axios.get(this.remoteJsonUrl,{responseType:'json',timeout:30000}); let jsonStr=JSON.stringify(resp.data,null,2); let name=this.remoteJsonName.trim()||this.remoteJsonUrl.split('/').pop().replace(/\.json$/i,'')||'JSON数据'; const app={ id:'remotejson_'+Date.now()+'_'+Math.random().toString(36).substr(2,6), name, icon:this.remoteJsonIcon||defaultIcon, author:'远程JSON', repo:this.remoteJsonUrl, pageUrl:'__local_json__', jsonContent:jsonStr, tags:['JSON'] }; this.addAppToManualSub(app); this.rebuildApps(); this._notify(`已添加“${app.name}”`); this.cancelRemoteJson(); } catch(e){ this.remoteJsonError='获取失败: '+e.message; this._notify(this.remoteJsonError,'error'); } finally{ this.remoteJsonLoading=false; } },
+      addAppToManualSub(app){ let manual=this.subscriptions.find(s=>s.name==='📝 手动添加'); if(manual) manual.apps.push(app); else this.subscriptions.push({ id:uuidv4(), name:'📝 手动添加', url:'manual', apps:[app] }); },
+      async saveEditedApp(){ this.syncFromEditor(); if(!this.editingApp) return; let targetSub=null, idx=-1; for(let s of this.subscriptions){ idx=s.apps.findIndex(a=>a.id===this.editingApp.id); if(idx!==-1){ targetSub=s; break; } } if(!targetSub) return this._notify('未找到应用','error'); const updated={ ...this.editingApp, name:this.editAppName, icon:this.editAppIcon, tags:this.editAppTags.split(',').map(t=>t.trim()).filter(t=>t) }; if(this.editAppType==='url'){ updated.pageUrl=this.editAppUrl; delete updated.htmlContent; delete updated.jsonContent; delete updated.contentKey; }else if(this.editAppType==='html'){ if(updated.contentKey) await contentStore.set(updated.contentKey, this.editCodeContentRaw); else { const newKey = `content_${Date.now()}_${Math.random().toString(36).substr(2,6)}`; await contentStore.set(newKey, this.editCodeContentRaw); updated.contentKey = newKey; } updated.contentType='html'; updated.pageUrl='__local_html__'; }else{ updated.jsonContent=this.editCodeContentRaw; } targetSub.apps[idx]=updated; this.rebuildApps(); this.saveSubs(); if(this.selectedApp?.id===updated.id) this.selectedApp=updated; this.showEditAppDialog=false; this._notify('应用已更新'); },
+      async deleteApp(app){ if(confirm(`删除“${app.name}”？`)){ if(app.contentKey) await contentStore.delete(app.contentKey); for(let s of this.subscriptions){ const i=s.apps.findIndex(a=>a.id===app.id); if(i!==-1){ s.apps.splice(i,1); break; } } this.subscriptions=this.subscriptions.filter(s=>s.apps.length>0); this.rebuildApps(); this._notify('已删除'); if(this.selectedApp?.id===app.id){ this.selectedApp=null; if(this.currentView==='appDetail') this.currentView='apps'; } } },
+      async clearAllData(){ if(confirm('清除所有数据？')){ localStorage.clear(); await contentStore.clear(); this.subscriptions=[]; this.favAppIds=[]; this.recentApps=[]; this.allApps=[]; this.settings={ theme:'auto', notify:true, isolateStorage:true }; this.isolateSwitchState=true; this._notify('已清除'); } },
+      readFileAsText(file){ return new Promise(r=>{ const reader=new FileReader(); reader.onload=e=>r(e.target.result); reader.onerror=()=>r(null); reader.readAsText(file,'UTF-8'); }); },
+      cancelAddHtmlApp(){ this.showAddHtmlAppDialog=false; this.htmlAppFile=null; this.htmlAppName=''; this.htmlAppIcon=''; this.htmlAdding=false; },
+      cancelRemoteHtml(){ this.showRemoteHtmlDialog=false; this.remoteHtmlUrl=''; this.remoteHtmlName=''; this.remoteHtmlIcon=''; this.remoteHtmlLoading=false; },
+      cancelRemoteJson(){ this.showRemoteJsonDialog=false; this.remoteJsonUrl=''; this.remoteJsonName=''; this.remoteJsonIcon=''; this.remoteJsonLoading=false; },
+      quickAddWebsite(){ /* 保持原样，略写核心 */ let url=this.quickAddUrl.trim(); if(!url) return this._notify('请输入网址','error'); this.quickAdding=true; try{ if(!url.startsWith('http')) url='https://'+url; new URL(url); let name=this.quickAddName.trim()||new URL(url).hostname.replace('www.','').split('.')[0]; name=name.charAt(0).toUpperCase()+name.slice(1)||'网页应用'; const iconUrl=`https://www.google.com/s2/favicons?domain=${new URL(url).hostname}&sz=64`; const newApp={ id:'web_'+Date.now()+'_'+Math.random().toString(36).substr(2,6), name, icon:iconUrl, author:'快速添加', repo:url, pageUrl:url, tags:['网页'] }; this.addAppToManualSub(newApp); this.rebuildApps(); this._notify(`已添加“${name}”`); this.quickAddUrl=''; this.quickAddName=''; } catch(e){ this._notify('无效网址','error'); } finally{ this.quickAdding=false; } },
+      addManualApp(){ if(!this.manualApp.name.trim()||!this.manualApp.url.trim()) return this._notify('请填写名称和地址','error'); const app={ id:this.manualApp.name.toLowerCase().replace(/[^a-z0-9]/g,'_')+'_'+Date.now(), name:this.manualApp.name, icon:this.manualApp.icon||defaultIcon, author:'手动添加', repo:this.manualApp.url, pageUrl:this.manualApp.url, tags:this.manualApp.tags.split(',').map(t=>t.trim()).filter(t=>t) }; this.addAppToManualSub(app); this.rebuildApps(); this._notify(`已添加“${app.name}”`); this.showManualAppDialog=false; this.manualApp={ name:'', url:'', icon:'', tags:'' }; },
+      async addSubscription(){ if(!this.newSubUrl.trim()) return; this.addingSub=true; this.parseError=''; try{ const url=this.newSubUrl.trim(); const isHtml=this.isHtmlSub||url.toLowerCase().endsWith('.html')||url.includes('?'); let apps=[], subName=''; if(isHtml){ const resp=await axios.get(url,{responseType:'text'}); const parsed=this.parseHtmlToApps(resp.data,url); apps=parsed.apps; subName=parsed.name; }else{ const resp=await axios.get(url); if(resp.data.apps&&Array.isArray(resp.data.apps)){ apps=resp.data.apps; subName=resp.data.name||'JSON订阅'; }else throw new Error('无效JSON'); } this.subscriptions.push({ id:uuidv4(), name:subName, url, apps, isHtml, loading:false }); this._notify(`订阅成功，${apps.length}个应用`); this.showAddSubDialog=false; this.newSubUrl=''; this.isHtmlSub=false; }catch(e){ this.parseError=e.message; this._notify('添加失败:'+e.message,'error'); }finally{ this.addingSub=false; } },
+      parseHtmlToApps(html,baseUrl){ let apps=[]; let subName='HTML订阅'; const titleMatch=html.match(/<title>([^<]+)<\/title>/i); if(titleMatch) subName=titleMatch[1].trim(); const scriptRegex=/<script[^>]*>([\s\S]*?)<\/script>/gi; let m; while((m=scriptRegex.exec(html))!==null){ const assign=/window\.BOXJS_APPS\s*=\s*(\[[\s\S]*?\]);?/.exec(m[1]); if(assign){ try{ apps=JSON.parse(assign[1]); break; }catch(e){} } } if(!apps.length){ const preRegex=/<(pre|code)[^>]*>([\s\S]*?)<\/\1>/gi; while((m=preRegex.exec(html))!==null){ const t=m[2].trim(); if(t.startsWith('[')&&t.endsWith(']')){ try{ apps=JSON.parse(t); break; }catch(e){} } } } if(!apps.length){ const linkRegex=/<a\s+(?:[^>]*?\s+)?href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi; const seen=new Set(); while((m=linkRegex.exec(html))!==null){ let href=m[1], rawText=m[2].trim(), text=rawText.replace(/<[^>]+>/g,'').trim(); if(!href||!text) continue; if(href.startsWith('#')||href.startsWith('javascript:')) continue; if(NAV_WORDS.includes(text)) continue; if(seen.has(href)) continue; seen.add(href); let fullUrl=href; if(!fullUrl.startsWith('http')&&baseUrl){ try{ fullUrl=new URL(href,baseUrl).href; }catch(e){} } if(fullUrl) apps.push({ id:text.toLowerCase().replace(/[^a-z0-9]/g,'_')+'_'+Math.random().toString(36).substr(2,4), name:text, url:fullUrl, icon:defaultIcon }); } } apps=apps.map(a=>({ id:a.id, name:a.name, icon:a.icon||defaultIcon, author:a.author||'未知', repo:a.repo||a.url, desc:a.desc, pageUrl:a.url||a.pageUrl, tags:a.tags||[] })); return { apps, name:subName }; },
+      refreshSub(sub){ if(sub.loading) return; sub.loading=true; setTimeout(()=>{ this._notify('刷新模拟完成，实际需重新请求'); sub.loading=false; },500); },
+      deleteSub(idx){ if(confirm('确定删除该订阅？')){ this.subscriptions.splice(idx,1); this._notify('已删除'); } },
+      requestEditWithPassword(app){ this.pendingEditApp=app; this.passwordInput=''; this.passwordError=''; this.showPasswordDialog=true; },
+      verifyPassword(){ if(this.passwordInput==='admin'){ this.showPasswordDialog=false; this.openEditAppDialog(this.pendingEditApp); this.pendingEditApp=null; }else{ this.passwordError='密码错误'; this._notify('密码错误','error'); } },
+      async openEditAppDialog(app){ this.editingApp=app; this.editAppName=app.name; this.editAppIcon=app.icon||defaultIcon; this.editAppTags=app.tags?app.tags.join(', '):''; if(app.contentKey && app.contentType==='html'){ let content = await contentStore.get(app.contentKey); this.editCodeContentRaw = content; this.editAppType='html'; }else if(app.htmlContent){ this.editCodeContentRaw=app.htmlContent; this.editAppType='html'; }else if(app.jsonContent){ this.editCodeContentRaw=app.jsonContent; this.editAppType='json'; }else{ this.editAppType='url'; this.editAppUrl=app.pageUrl||''; } this.editSearchKeyword=''; this.highlightMatchCount=0; this.currentMatchIndex=-1; this.showEditAppDialog=true; this.$nextTick(()=>{ if(this.$refs.codeEditor) this.$refs.codeEditor.innerHTML=this.highlightedHtmlForEdit; }); },
+      syncFromEditor(){ let editor=this.$refs.codeEditor; if(editor){ let rawText=editor.innerText; this.editCodeContentRaw=rawText; this.applyHighlightAndResetNav(); } },
+      applyHighlightAndResetNav(){ this.currentMatchIndex=-1; this.$nextTick(()=>{ if(this.$refs.codeEditor){ this.$refs.codeEditor.innerHTML=this.highlightedHtmlForEdit; if(this.highlightMatchCount>0){ this.currentMatchIndex=0; this.scrollToCurrentMatch(); } } }); },
+      navigateMatch(direction){ if(this.highlightMatchCount===0) return; if(direction==='next') this.currentMatchIndex=(this.currentMatchIndex+1)%this.highlightMatchCount; else this.currentMatchIndex=(this.currentMatchIndex-1+this.highlightMatchCount)%this.highlightMatchCount; this.scrollToCurrentMatch(); },
+      scrollToCurrentMatch(){ this.$nextTick(()=>{ const editor=this.$refs.codeEditor; if(!editor) return; const marks=editor.querySelectorAll('mark.highlight-match'); if(marks.length&&this.currentMatchIndex>=0&&this.currentMatchIndex<marks.length){ marks.forEach(m=>m.classList.remove('current-search-match')); marks[this.currentMatchIndex].classList.add('current-search-match'); marks[this.currentMatchIndex].scrollIntoView({ behavior:'smooth', block:'center' }); } }); },
+      clearSearchAndKeepEdit(){ this.editSearchKeyword=''; this.$nextTick(()=>{ if(this.$refs.codeEditor) this.$refs.codeEditor.innerHTML=this.escapeHtml(this.editCodeContentRaw); }); },
+      handlePaste(e){ e.preventDefault(); let text=(e.clipboardData||window.clipboardData).getData('text/plain'); document.execCommand('insertText',false,text); this.syncFromEditor(); this.applyHighlightAndResetNav(); },
+      toggleFav(id){ const i=this.favAppIds.indexOf(id); i===-1?this.favAppIds.push(id):this.favAppIds.splice(i,1); },
+      isFav(id){ return this.favAppIds.includes(id); },
+      viewApp(app){ this.selectedApp=JSON.parse(JSON.stringify(app)); this.addRecent(app.id); this.currentView='appDetail'; },
+      closeIframeDialog(){ this.showIframeDialog=false; if(this.currentBlobUrl){ URL.revokeObjectURL(this.currentBlobUrl); this.currentBlobUrl=null; } },
+      iframeLoaded(){ this.iframeLoadError=false; }, iframeError(){ this.iframeLoadError=true; },
+      copyCurrentUrl(){ if(this.isJsonViewer) this.copyToClipboard(this.jsonPrettyContent); else if(this.iframeUrl) this.copyToClipboard(this.iframeUrl); },
+      openInNewTab(){ if(this.iframeUrl) window.open(this.iframeUrl,'_blank'); },
+      copyToClipboard(text){ navigator.clipboard?.writeText(text).then(()=>this._notify('已复制')).catch(()=>{ const ta=document.createElement('textarea'); ta.value=text; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta); this._notify('已复制'); }); },
+      toggleSelectionMode(){ this.selectionMode=!this.selectionMode; if(!this.selectionMode) this.selectedAppIds=[]; },
+      batchAddToFav(){ this.selectedAppIds.forEach(id=>{ if(!this.favAppIds.includes(id)) this.favAppIds.push(id); }); this._notify(`收藏 ${this.selectedAppIds.length} 个`); this.selectedAppIds=[]; },
+      batchDelete(){ if(!confirm(`删除 ${this.selectedAppIds.length} 个应用？`)) return; this.subscriptions.forEach(s=>{ s.apps=s.apps.filter(a=>!this.selectedAppIds.includes(a.id)); }); this.subscriptions=this.subscriptions.filter(s=>s.apps.length>0||s.name==='📝 手动添加'); this.rebuildApps(); this.selectedAppIds=[]; this.selectionMode=false; this._notify('删除成功'); },
+      resetSettings(){ this.settings={ theme:'auto', notify:true, isolateStorage:true }; this.isolateSwitchState = true; this._notify('设置已重置'); this.saveSettings(); this.applyTheme(); },
+      refreshData(){ this.loadData(); this._notify('刷新'); },
+      exportData(){ const data={ subscriptions:this.subscriptions, favAppIds:this.favAppIds, settings:this.settings, recentApps:this.recentApps }; const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='appcenter_backup.json'; a.click(); this._notify('备份导出'); },
+      importData(){ const input=document.createElement('input'); input.type='file'; input.accept='.json'; input.onchange=async e=>{ const file=e.target.files[0]; if(!file) return; const reader=new FileReader(); reader.onload=async ev=>{ try{ const data=JSON.parse(ev.target.result); if(data.subscriptions) this.subscriptions=data.subscriptions; if(data.favAppIds) this.favAppIds=data.favAppIds; if(data.settings) Object.assign(this.settings,data.settings); if(data.recentApps) this.recentApps=data.recentApps; await this.migrateOldLargeContent(); this.rebuildApps(); this.isolateSwitchState=this.settings.isolateStorage; this._notify('导入成功'); }catch(ex){ this._notify('无效备份','error'); } }; reader.readAsText(file); }; input.click(); },
+      clearRecent(){ this.recentApps=[]; this._notify('已清除最近使用'); },
+      applyTheme(){ this.$vuetify.theme.dark = this.settings.theme==='dark' || (this.settings.theme==='auto' && window.matchMedia('(prefers-color-scheme: dark)').matches); },
+      escapeHtml(str){ return str.replace(/[&<>]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[m])); },
+      escapeRegex(str){ return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+    }
+  });
+</script>
+</body>
+</html>
