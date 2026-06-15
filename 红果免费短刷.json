@@ -1,0 +1,22 @@
+{
+  "sources": [
+    {
+      "name": "🎬 红果免费短剧",
+      "handler": "hongguoListHandler",
+      "detailHandler": "hongguoDetailHandler",
+      "playHandler": "hongguoPlayHandler"
+    }
+  ],
+  "customHandlers": {
+    "hongguoListHandler": "function(ctx) {\n    let apiUrl = `https://api.cenguigui.cn/api/duanju/api.php?type=search&name=&page=${ctx.pg || 1}`;\n    let json = JSON.parse(req(apiUrl).content);\n    let list = json.data || [];\n    return list.map(item => ({\n        vod_id: `###${item.book_id}###${item.book_name}`,\n        vod_name: item.book_name,\n        vod_pic: item.book_pic || ''\n    }));\n}",
+    "hongguoDetailHandler": "function(ctx) {\n    let parts = ctx.vodId.split('###');\n    let bookId = parts[1];\n    let title = parts[2];\n    if (!bookId) return { list: [] };\n    let apiUrl = `https://api.cenguigui.cn/api/duanju/api.php?type=detail&book_id=${bookId}`;\n    let json = JSON.parse(req(apiUrl).content);\n    let videoList = [];\n    let videoArr = json.data || [];\n    for (let video of videoArr) {\n        videoList.push(`${video.sort || '第' + (videoArr.indexOf(video) + 1) + '集'}$${video.video_id}`);\n    }\n    let vod = {\n        vod_id: ctx.vodId,\n        vod_name: title,\n        vod_play_from: '红果短剧',\n        vod_play_url: videoList.join('#')\n    };\n    return { list: [vod] };\n}",
+    "hongguoPlayHandler": "function(ctx) {\n    let videoId = ctx.id;\n    let apiUrl = `https://api.cenguigui.cn/api/duanju/api.php?type=video&video_id=${videoId}`;\n    let json = JSON.parse(req(apiUrl).content);\n    let playUrl = json.url || json.data || '';\n    return { parse: 0, playUrl: '', url: playUrl };\n}"
+  },
+  "global": {
+    "debug": true,
+    "defaultPic": "https://picsum.photos/200/300",
+    "headers": {
+      "User-Agent": "Mozilla/5.0"
+    }
+  }
+}
