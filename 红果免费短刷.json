@@ -1,19 +1,19 @@
 {
   "sources": [
     {
-      "name": "🎬 红果短剧（代理版）",
+      "name": "🎬 红果短剧",
       "handler": "hongguoListHandler",
       "detailHandler": "hongguoDetailHandler",
       "playHandler": "hongguoPlayHandler"
     }
   ],
   "customHandlers": {
-    "hongguoListHandler": "function(ctx) {\n    let proxy = 'http://localhost:3000/?url=';\n    let apiUrl = `https://api.cenguigui.cn/api/duanju/api.php?type=search&name=&page=${ctx.pg || 1}`;\n    let resp = req(proxy + encodeURIComponent(apiUrl));\n    let content = resp.text ? resp.text() : (typeof resp === 'string' ? resp : '');\n    let json = JSON.parse(content);\n    let list = json.data || [];\n    return list.map(item => ({\n        vod_id: `###${item.book_id}###${item.book_name}`,\n        vod_name: item.book_name,\n        vod_pic: item.book_pic || ''\n    }));\n}",
-    "hongguoDetailHandler": "function(ctx) {\n    let proxy = 'http://localhost:3000/?url=';\n    let parts = ctx.vodId.split('###');\n    let bookId = parts[1];\n    let title = parts[2];\n    if (!bookId) return { list: [] };\n    let apiUrl = `https://api.cenguigui.cn/api/duanju/api.php?type=detail&book_id=${bookId}`;\n    let resp = req(proxy + encodeURIComponent(apiUrl));\n    let content = resp.text ? resp.text() : (typeof resp === 'string' ? resp : '');\n    let json = JSON.parse(content);\n    let videoArr = json.data || [];\n    let videoList = [];\n    for (let i = 0; i < videoArr.length; i++) {\n        let video = videoArr[i];\n        let sortName = video.sort || ('第' + (i+1) + '集');\n        videoList.push(`${sortName}$${video.video_id}`);\n    }\n    let vod = {\n        vod_id: ctx.vodId,\n        vod_name: title,\n        vod_play_from: '红果短剧',\n        vod_play_url: videoList.join('#')\n    };\n    return { list: [vod] };\n}",
-    "hongguoPlayHandler": "function(ctx) {\n    let proxy = 'http://localhost:3000/?url=';\n    let videoId = ctx.id;\n    let apiUrl = `https://api.cenguigui.cn/api/duanju/api.php?type=video&video_id=${videoId}`;\n    let resp = req(proxy + encodeURIComponent(apiUrl));\n    let content = resp.text ? resp.text() : (typeof resp === 'string' ? resp : '');\n    let json = JSON.parse(content);\n    let playUrl = json.url || json.data || '';\n    return { parse: 0, playUrl: '', url: playUrl };\n}"
+    "hongguoListHandler": "function(ctx) { let apiUrl = `https://api.cenguigui.cn/api/duanju/api.php?type=search&name=&page=${ctx.pg || 1}`; let resp = req(apiUrl); let content = resp.text ? resp.text() : (typeof resp === 'string' ? resp : ''); let json = JSON.parse(content); let list = json.data || []; return list.map(item => ({ vod_id: `###${item.book_id}###${item.book_name}`, vod_name: item.book_name, vod_pic: item.book_pic || '' })); }",
+    "hongguoDetailHandler": "function(ctx) { let parts = ctx.vodId.split('###'); let bookId = parts[1]; let title = parts[2]; if (!bookId) return { list: [] }; let apiUrl = `https://api.cenguigui.cn/api/duanju/api.php?type=detail&book_id=${bookId}`; let resp = req(apiUrl); let content = resp.text ? resp.text() : (typeof resp === 'string' ? resp : ''); let json = JSON.parse(content); let videoArr = json.data || []; let videoList = []; for (let i = 0; i < videoArr.length; i++) { let video = videoArr[i]; let sortName = video.sort || ('第' + (i+1) + '集'); videoList.push(`${sortName}$${video.video_id}`); } let vod = { vod_id: ctx.vodId, vod_name: title, vod_play_from: '红果短剧', vod_play_url: videoList.join('#') }; return { list: [vod] }; }",
+    "hongguoPlayHandler": "function(ctx) { let videoId = ctx.id; let apiUrl = `https://api.cenguigui.cn/api/duanju/api.php?type=video&video_id=${videoId}`; let resp = req(apiUrl); let content = resp.text ? resp.text() : (typeof resp === 'string' ? resp : ''); let json = JSON.parse(content); let playUrl = json.url || json.data || ''; return { parse: 0, playUrl: '', url: playUrl }; }"
   },
   "global": {
-    "debug": true,
+    "debug": false,
     "defaultPic": "https://picsum.photos/200/300"
   }
 }
