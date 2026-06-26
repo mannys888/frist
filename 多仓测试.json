@@ -78,6 +78,16 @@
     "ext": "https://raw.githubusercontent.com/mannys888/frist/refs/heads/main/腾讯.json"
    },
     {
+    "key": "google_CCZtV",
+    "name": "🟣0️⃣CCTV0️⃣py3腾讯",
+    "type": 3,
+    "api": "https://raw.githubusercontent.com/mannys888/frist/refs/heads/main/google.js",
+    "searchable": 1,
+    "quickSearch": 0,
+    "filterable": 1,
+    "ext": "https://raw.githubusercontent.com/mannys888/frist/refs/heads/main/CCTV.py"
+   },
+    {
     "key": "pass_测试",
     "name": "🧚🏼‍♀️0️⃣js password💱0️⃣",
     "type": 3,
